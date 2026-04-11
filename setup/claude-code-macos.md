@@ -295,7 +295,7 @@ jq '
 
 ---
 
-## Step 4（選用）：Codex plugin
+## Step 4（選用）：Codex Plugin
 
 需要 Codex 的環境才執行：
 
@@ -314,7 +314,24 @@ jq '
 
 ---
 
-## Step 5：驗證
+## Step 5：Skills 安裝
+
+`install-skills` 是唯一需要手動 bootstrap 的 skill，之後由它負責安裝其他 skills。
+
+```bash
+# 1. 取得這份 repo 的路徑（請替換為實際路徑）
+DEVOPS_REPO="$HOME/Project/genecywang/devops-standards"
+
+# 2. symlink install-skills 到全域 skills 目錄（修改 repo 即時生效）
+mkdir -p ~/.claude/skills
+ln -sf "$DEVOPS_REPO/skills/install-skills" ~/.claude/skills/install-skills
+```
+
+完成後，重新啟動 Claude Code session，執行 `/install-skills` 安裝其餘 skills。
+
+---
+
+## Step 6：驗證
 
 ```bash
 # alias 已加入

@@ -1,0 +1,67 @@
+{
+  "source": "https://github.com/anthropics/skills",
+  "skills": [
+    {
+      "name": "skill-creator",
+      "description": "建立、修改、測試與優化 Claude Code skills",
+      "path": "skills/skill-creator",
+      "priority": "required"
+    },
+    {
+      "name": "install-skills",
+      "description": "互動式安裝 skills，新環境 setup 使用",
+      "path": "skills/install-skills",
+      "priority": "required",
+      "note": "此 skill 本身，通常手動安裝"
+    },
+    {
+      "name": "claude-api",
+      "description": "使用 Claude API / Anthropic SDK 開發應用",
+      "path": "skills/claude-api",
+      "priority": "recommended"
+    },
+    {
+      "name": "pdf",
+      "description": "PDF 文件讀取與處理",
+      "path": "skills/pdf",
+      "priority": "recommended"
+    },
+    {
+      "name": "xlsx",
+      "description": "Excel 試算表讀取與操作",
+      "path": "skills/xlsx",
+      "priority": "recommended"
+    },
+    {
+      "name": "mcp-builder",
+      "description": "建立 MCP server",
+      "path": "skills/mcp-builder",
+      "priority": "optional"
+    },
+    {
+      "name": "webapp-testing",
+      "description": "Web 應用測試（搭配 Playwright）",
+      "path": "skills/webapp-testing",
+      "priority": "optional"
+    },
+    {
+      "name": "superpowers",
+      "description": "完整開發工作流程套件（TDD、subagent 驅動、計畫撰寫等 14 個 skill）",
+      "source": "https://github.com/obra/superpowers",
+      "install_method": "plugin",
+      "install_command": "/plugin install superpowers@claude-plugins-official",
+      "priority": "optional"
+    },
+    {
+      "name": "ui-ux-pro-max",
+      "description": "UI/UX 綜合 skill，含設計系統、品牌、Banner、投影片、樣式等（7 個 skill）",
+      "source": "https://github.com/nextlevelbuilder/ui-ux-pro-max-skill",
+      "install_method": "plugin",
+      "install_commands": [
+        "/plugin marketplace add nextlevelbuilder/ui-ux-pro-max-skill",
+        "/plugin install ui-ux-pro-max@ui-ux-pro-max-skill"
+      ],
+      "priority": "optional"
+    }
+  ]
+}

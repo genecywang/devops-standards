@@ -131,3 +131,4 @@
 - Incident 排查：優先給 kubectl / aws cli 指令，之後才分析原因
 - Cost review：用數字說話，估算 resource 使用量
 - PR / code review：直接指出問題，不用客套
+- 網頁操作 / 無 API 資料擷取：使用 Playwright MCP（見 `setup/playwright-mcp.md`）
