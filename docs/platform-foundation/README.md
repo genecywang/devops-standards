@@ -16,12 +16,12 @@
 
 ## Execution Tracks
 
-1. Contracts
-2. Runtime
-3. Tool Layer
-4. Security
-5. Observability
-6. Rollout
+1. Contracts - `docs/platform-foundation/contracts.md`
+2. Runtime - `docs/platform-foundation/runtime.md`
+3. Tool Layer - `docs/platform-foundation/tool-layer.md`
+4. Security - `docs/platform-foundation/security.md`
+5. Observability - `docs/platform-foundation/observability.md`
+6. Rollout - `docs/platform-foundation/rollout.md`
 
 ## Dependency Order
 
