@@ -103,7 +103,7 @@ Outcome mapping:
 
 - `completed` with successful validation, policy checks, execution, and redaction -> `result_state=success`
 - validation failure or policy failure before execution -> `result_state=denied`
-- explicit cancellation after work has started -> `result_state=partial`
+- explicit cancellation at any point before the run completes -> `result_state=partial`
 - deterministic stop due to budget limit without further tool work -> `result_state=fallback`
 - unrecoverable runtime or final redaction failure -> `result_state=failed`
 
