@@ -21,12 +21,12 @@
 
 | Track | 對應文件 | 主要依賴 | 完成定義 |
 |---|---|---|---|
-| Contracts | `docs/platform-foundation/contracts.md` | roadmap, security boundary | required schema 與 deny rule 固化 |
-| Runtime | `docs/platform-foundation/runtime.md` | contracts | request / budget / fallback 固化 |
-| Tool Layer | `docs/platform-foundation/tool-layer.md` | contracts, runtime | wrapper contract 與 minimum catalog 固化 |
-| Security | `docs/platform-foundation/security.md` | runtime, tool layer | runtime / IAM / RBAC / network boundary 固化 |
-| Observability | `docs/platform-foundation/observability.md` | contracts, runtime, security | metrics / audit / failure taxonomy 固化 |
-| Rollout | `docs/platform-foundation/rollout.md` | all previous tracks | shadow mode 與 exit criteria 固化 |
+| Contracts | `docs/platform-foundation/contracts.md` | foundation 起始軌道，後續依賴順序以 `docs/platform-foundation/README.md` 為準 | required schema 與 deny rule 固化 |
+| Runtime | `docs/platform-foundation/runtime.md` | `Contracts` | request / budget / fallback 固化 |
+| Tool Layer | `docs/platform-foundation/tool-layer.md` | `Contracts -> Runtime` | wrapper contract 與 minimum catalog 固化 |
+| Security | `docs/platform-foundation/security.md` | `Runtime -> Tool Layer` | runtime / IAM / RBAC / network boundary 固化 |
+| Observability | `docs/platform-foundation/observability.md` | `Contracts -> Runtime -> Security` | metrics / audit / failure taxonomy 固化 |
+| Rollout | `docs/platform-foundation/rollout.md` | `Contracts -> Runtime -> Tool Layer -> Security -> Observability` | shadow mode 與 exit criteria 固化 |
 
 ## Phase 0：共用契約
 
@@ -97,13 +97,13 @@
 
 ## 驗收標準
 
-- 共用 contracts 已定義 required fields、deny behavior、owner
-- runtime 已定義 request schema、budget、state machine、fallback
-- minimum tool catalog 已定義 validation、scope、timeout、truncation、redaction、audit 順序
-- production read-only boundary 已映射到 IRSA、RBAC、NetworkPolicy
-- observability 已定義 metrics、failure taxonomy、audit retention rule
-- rollout 已定義 local fixture、staging dry-run、shadow mode、production exit criteria
+- `docs/platform-foundation/contracts.md` 已明確列出 config、ingress、response、audit、metrics 的 required fields、owner、validation / deny behavior，且命名與其他 foundation 文件一致
+- `docs/platform-foundation/runtime.md` 已明確列出 `investigation` / `execution` request schema、execution budget、runtime state machine、failure outcome mapping、fallback / cancellation 規則
+- `docs/platform-foundation/tool-layer.md` 已明確列出 schema validation -> scope validation -> timeout budget allocation -> upstream call -> truncation -> redaction -> audit emission 的強制順序，並列出 minimum foundation v1 tool catalog
+- `docs/platform-foundation/security.md` 已明確列出 production read-only baseline 與 non-production write overlay，並對齊 Kubernetes runtime baseline、IRSA、RBAC、NetworkPolicy、secret redaction boundary
+- `docs/platform-foundation/observability.md` 已明確列出 canonical metrics、failure taxonomy、audit pipeline、retention posture，且 audit 欄位名與 shared contract 一致
+- `docs/platform-foundation/rollout.md` 已明確列出 local fixtures、staging dry-run、shadow mode、production rollout checklist、production exit criteria，且 rollback path 為必備 gating item
 
 ## 後續實作交接
 
-本 repo 完成文件凍結後，`OpenClaw` 程式碼 repo 與 infra repo 需依文件順序實作，不得跳過 `contracts` 與 `security` 直接進入 product feature implementation。
+本 repo 完成文件凍結後，`OpenClaw` 程式碼 repo 與 infra repo 需先閱讀 `docs/platform-foundation/README.md` 的 execution tracks 與 dependency order，再依 `contracts -> runtime -> tool-layer -> security -> observability -> rollout` 的順序實作，不得跳過 `contracts` 與 `security` 直接進入 product feature implementation。
