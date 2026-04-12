@@ -2,9 +2,9 @@
 
 ## Objective
 
-Define a mandatory wrapper contract so every AWS, Kubernetes, and Prometheus tool enforces validation, scope checks, timeout, truncation, audit logging, and redaction in the same order.
+Define a mandatory wrapper contract so every AWS, Kubernetes, and Prometheus tool enforces validation, scope checks, timeout, truncation, redaction, and audit logging in the same order.
 
-## Validation Rules
+## Enforcement Order
 
 Tool execution order must be:
 
@@ -72,7 +72,7 @@ Tool execution order must be:
 - preserve tool metadata summary
 - never return unbounded raw payload
 
-### Deliverables
+### Minimum Foundation v1 Tool Catalog
 
 - `describe_cloudwatch_alarm`
 - `query_cloudwatch_metric`
