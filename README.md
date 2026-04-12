@@ -9,6 +9,10 @@ Personal DevOps standards, Claude Code configuration, and security guardrails fo
 | `CLAUDE.md` | Claude Code behavior rules — loaded automatically on every conversation |
 | `setup/claude-code-macos.md` | New machine setup guide for Claude Code on macOS |
 
+## Planning
+
+- [Platform Foundation](docs/platform-foundation/README.md)
+
 ## New Machine Setup
 
 Clone this repo and hand `setup/claude-code-macos.md` to Claude Code:
