@@ -42,6 +42,10 @@ Owner: Platform Foundation.
 - `seccompProfile: RuntimeDefault`
 - drop all Linux capabilities
 - explicit CPU / memory requests and limits
+- deny privileged container mode
+- deny host networking
+- deny `hostPath` mounts
+- deny shell access from the runtime boundary
 
 ### AWS Baseline
 
@@ -49,6 +53,8 @@ Owner: Platform Foundation.
 - no shared role with other workloads
 - allow only `Get*` and `Describe*` families required by approved tools
 - deny `Put*`, `Modify*`, `Delete*`, `Update*`, `Start*`, `Stop*`
+
+This is the default baseline for all investigation flows and for any request that does not explicitly satisfy the non-production write boundary.
 
 ### Kubernetes RBAC Baseline
 
@@ -75,15 +81,20 @@ Default deny all other egress.
 - use `ExternalSecrets`
 - never place static credentials in pod spec
 - redact API keys, bearer tokens, passwords, authorization headers, session tokens before reply
+- apply the same redaction boundary before audit emission or any telemetry that persists payload-derived content
 
 ### Non-Production Write Boundary
 
 - allowed only when `mode=non_prod_write`
 - allowed environments: `staging`, `test`
 - requires separate service account and separate IAM / RBAC policy set
-- requires explicit approval marker in request contract
+- requires `approval_state=approved` in the execution request contract
 - every write action must emit audit event with actor, target, approval ref, and result
 - write tool catalog must be separate from investigation tool catalog
+
+This boundary is a controlled overlay on top of the default read-only baseline. It applies only to approved execution flows in `staging` or `test`, and it must not widen production permissions.
+
+Allowed write actions are limited to the separate non-production write tool catalog, for example bounded restart or rollout actions already approved by policy. Any write action outside that catalog remains denied.
 
 ## Validation Rules
 
@@ -91,8 +102,8 @@ Default deny all other egress.
 - AWS access must remain read-only unless the request is explicitly authorized for non-production write
 - Kubernetes RBAC must remain read-only for investigation flows
 - network egress must fail closed for destinations outside the approved allowlist
-- secrets must be sourced through `ExternalSecrets` and redacted before any reply is emitted
-- write actions must be denied unless `mode=non_prod_write`, the environment is `staging` or `test`, and the request includes the required approval marker
+- secrets must be sourced through `ExternalSecrets` and redacted before any reply, audit emission, or persisted telemetry is emitted
+- write actions must be denied unless `mode=non_prod_write`, the environment is `staging` or `test`, and the execution request carries `approval_state=approved`
 - write-capable tools must not be exposed through the investigation tool catalog
 
 ## Deliverables
