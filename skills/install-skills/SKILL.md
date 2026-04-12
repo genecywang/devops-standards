@@ -66,13 +66,14 @@ catalog entry 有兩種格式，安裝邏輯不同：
 
 #### 格式 A：單一 skill（有 `path` 欄位，無 `skills` 陣列）
 
-來源預設為 `https://github.com/anthropics/skills`：
+`source` 欄位為完整 GitHub URL（`https://github.com/owner/repo`），每個 entry 均需明確填寫，取出 `owner/repo` 部分作為 raw URL 的路徑：
 
 ```bash
 SKILL_NAME="<skill-name>"
 SKILL_PATH="<path-from-catalog>"
+REPO="<entry.source 的 owner/repo，如 microsoft/playwright-cli>"
 mkdir -p ~/.claude/skills/${SKILL_NAME}
-curl -s "https://raw.githubusercontent.com/anthropics/skills/main/${SKILL_PATH}/SKILL.md" \
+curl -s "https://raw.githubusercontent.com/${REPO}/main/${SKILL_PATH}/SKILL.md" \
   -o ~/.claude/skills/${SKILL_NAME}/SKILL.md
 ```
 
@@ -147,7 +148,7 @@ print(list(data.get('plugins', {}).keys()))
 
 catalog 位於 `~/.claude/skills/install-skills/catalog.json`。
 
-若使用者想新增或移除 catalog 中的 skill，直接編輯該 JSON 即可。若使用者要新增一個不在 anthropics/skills 的自訂 skill，記錄其本機路徑或來源 URL。
+若使用者想新增或移除 catalog 中的 skill，直接編輯該 JSON 即可。每個格式 A entry 均需明確填寫 `source`（完整 GitHub URL），不依賴頂層 `source` 作為回退。頂層 `source` 欄位保留為文件說明用途，安裝邏輯不使用。
 
 ---
 

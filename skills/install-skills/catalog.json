@@ -1,15 +1,16 @@
 {
-  "source": "https://github.com/anthropics/skills",
   "skills": [
     {
       "name": "skill-creator",
       "description": "建立、修改、測試與優化 Claude Code skills",
+      "source": "https://github.com/anthropics/skills",
       "path": "skills/skill-creator",
       "priority": "required"
     },
     {
       "name": "install-skills",
       "description": "互動式安裝 skills，新環境 setup 使用",
+      "source": "https://github.com/anthropics/skills",
       "path": "skills/install-skills",
       "priority": "required",
       "note": "此 skill 本身，通常手動安裝"
@@ -17,30 +18,35 @@
     {
       "name": "claude-api",
       "description": "使用 Claude API / Anthropic SDK 開發應用",
+      "source": "https://github.com/anthropics/skills",
       "path": "skills/claude-api",
       "priority": "recommended"
     },
     {
       "name": "pdf",
       "description": "PDF 文件讀取與處理",
+      "source": "https://github.com/anthropics/skills",
       "path": "skills/pdf",
       "priority": "recommended"
     },
     {
       "name": "xlsx",
       "description": "Excel 試算表讀取與操作",
+      "source": "https://github.com/anthropics/skills",
       "path": "skills/xlsx",
       "priority": "recommended"
     },
     {
       "name": "mcp-builder",
       "description": "建立 MCP server",
+      "source": "https://github.com/anthropics/skills",
       "path": "skills/mcp-builder",
       "priority": "optional"
     },
     {
       "name": "webapp-testing",
       "description": "Web 應用測試（搭配 Playwright）",
+      "source": "https://github.com/anthropics/skills",
       "path": "skills/webapp-testing",
       "priority": "optional"
     },
@@ -50,6 +56,13 @@
       "source": "https://github.com/obra/superpowers",
       "install_method": "plugin",
       "install_command": "/plugin install superpowers@claude-plugins-official",
+      "priority": "optional"
+    },
+    {
+      "name": "playwright-cli",
+      "description": "透過 playwright-cli 指令操作瀏覽器（open、goto、click、type 等）",
+      "source": "https://github.com/microsoft/playwright-cli",
+      "path": "skills/playwright-cli",
       "priority": "optional"
     },
     {
