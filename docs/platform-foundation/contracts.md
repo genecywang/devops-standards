@@ -83,7 +83,7 @@ Validation / deny behavior:
 | Field | Type | Required | Description |
 |---|---|---|---|
 | `request_id` | string | yes | copied from ingress |
-| `status` | string | yes | `success`, `partial`, `denied`, `failed`, `fallback` |
+| `result_state` | string | yes | `success`, `partial`, `denied`, `failed`, `fallback` |
 | `summary` | string | yes | short human-readable summary |
 | `evidence_items` | list[object] | no | structured evidence snippets |
 | `actions_attempted` | list[string] | yes | tool or decision summary |
@@ -95,7 +95,7 @@ Owner: Platform Foundation.
 Validation / deny behavior:
 
 - any missing required response field must prevent emission of a canonical response envelope
-- `status` values outside the enumerated set must be rejected
+- `result_state` values outside the enumerated set must be rejected
 - `request_id` must match the ingress request id for the same run
 
 ### Audit Schema
@@ -121,7 +121,7 @@ Validation / deny behavior:
 
 ### Metrics Schema
 
-- `openclaw_runs_total{source_product,status}`
+- `openclaw_runs_total{source_product,result_state}`
 - `openclaw_failures_total{source_product,error_reason}`
 - `tool_calls_total{tool_name,result}`
 - `tool_call_duration_seconds{tool_name}`
@@ -143,7 +143,7 @@ Validation / deny behavior:
 - config model must include `environment`, account / region allowlists, optional cluster / namespace allowlists, `mode`, and execution budget fields
 - config validation must fail closed on missing required fields, unauthorized account, unauthorized region, and write intent in `read_only` mode
 - ingress validation must fail closed when any required field is missing or has an invalid enumerated value
-- response validation must fail closed when any required field is missing or `status` is outside the canonical set
+- response validation must fail closed when any required field is missing or `result_state` is outside the canonical set
 - audit validation must fail closed when any required field is missing or when redaction has not been applied before emission
 - metrics schema must include run, failure, tool call, token, redaction, and policy denial series with canonical names and labels
 - shared contracts must not rely on runtime-specific fallbacks to compensate for missing required contract fields
