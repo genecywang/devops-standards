@@ -1,0 +1,1 @@
+"""OpenClaw foundation skeleton package."""

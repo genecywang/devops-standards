@@ -1,0 +1,16 @@
+{
+  "request_type": "investigation",
+  "request_id": "req-001",
+  "source_product": "alert_auto_investigator",
+  "scope": {
+    "environment": "staging",
+    "cluster": "staging-main"
+  },
+  "input_ref": "fixture:demo",
+  "budget": {
+    "max_steps": 2,
+    "max_tool_calls": 1,
+    "max_duration_seconds": 30,
+    "max_output_tokens": 256
+  }
+}
