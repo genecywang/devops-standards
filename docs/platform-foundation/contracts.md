@@ -24,7 +24,6 @@ Define the shared contracts that every `Platform Foundation` consumer must imple
 - `backlog/platform-foundation-backlog.md`
 - `backlog/normalized-alert-event-v1.md`
 - `backlog/openclaw-security-boundary.md`
-- Consumer-specific runtime and tool execution docs that will implement these contracts later
 
 ## Decisions
 
@@ -42,6 +41,14 @@ Define the shared contracts that every `Platform Foundation` consumer must imple
 | `max_tool_calls` | integer | yes | total tool call ceiling |
 | `max_duration_seconds` | integer | yes | run timeout ceiling |
 | `max_output_tokens` | integer | yes | reply size ceiling |
+
+Owner: Platform Foundation.
+
+Validation / deny behavior:
+
+- missing required fields must deny contract acceptance before runtime or tool execution starts
+- `mode=read_only` must deny any write intent
+- allowlist fields must be treated as hard gates, not hints
 
 ### Scope Deny Rules
 
@@ -63,17 +70,33 @@ Define the shared contracts that every `Platform Foundation` consumer must imple
 | `payload_type` | string | yes | `alert_event`, `chat_command`, `thread_follow_up` |
 | `payload_ref` | string | yes | source object key or normalized id |
 
+Owner: Platform Foundation.
+
+Validation / deny behavior:
+
+- any missing required ingress field must deny request processing before execution starts
+- invalid `source_product`, `actor_type`, or `payload_type` values must fail closed
+- `request_id` must be stable for the full lifecycle of the request
+
 ### Shared Response Envelope
 
 | Field | Type | Required | Description |
 |---|---|---|---|
 | `request_id` | string | yes | copied from ingress |
-| `result_state` | string | yes | `success`, `partial`, `denied`, `failed`, `fallback` |
+| `status` | string | yes | `success`, `partial`, `denied`, `failed`, `fallback` |
 | `summary` | string | yes | short human-readable summary |
 | `evidence_items` | list[object] | no | structured evidence snippets |
 | `actions_attempted` | list[string] | yes | tool or decision summary |
 | `redaction_applied` | boolean | yes | final output redaction status |
 | `audit_ref` | string | yes | audit event key |
+
+Owner: Platform Foundation.
+
+Validation / deny behavior:
+
+- any missing required response field must prevent emission of a canonical response envelope
+- `status` values outside the enumerated set must be rejected
+- `request_id` must match the ingress request id for the same run
 
 ### Audit Schema
 
@@ -88,11 +111,17 @@ Define the shared contracts that every `Platform Foundation` consumer must imple
 | `error_reason` | string | no | normalized failure reason |
 | `policy_denied` | boolean | yes | whether policy gate denied a step |
 
-Owner: Platform Foundation. Retention: follow the destination sink policy; the contract only requires that the audit record is durable enough for post-run review and incident forensics.
+Owner: Platform Foundation.
+
+Validation / deny behavior:
+
+- any missing required audit field must make the audit record invalid
+- audit records must be emitted only after required fields are populated and redaction has been applied where needed
+- `policy_denied` must be set explicitly for every record
 
 ### Metrics Schema
 
-- `openclaw_runs_total{source_product,result_state}`
+- `openclaw_runs_total{source_product,status}`
 - `openclaw_failures_total{source_product,error_reason}`
 - `tool_calls_total{tool_name,result}`
 - `tool_call_duration_seconds{tool_name}`
@@ -100,16 +129,24 @@ Owner: Platform Foundation. Retention: follow the destination sink policy; the c
 - `redaction_hits_total{pattern_type}`
 - `policy_denied_total{source_product,reason}`
 
-Owner: Platform Foundation. Retention: metrics retention follows the observability backend defaults and should support trend analysis across rollout phases.
+Owner: Platform Foundation.
+
+Validation / deny behavior:
+
+- metric names and label keys are canonical and must not be renamed by consumers
+- missing required labels must drop the metric event rather than synthesize partial labels
+- metrics definitions stay within contract scope; exporter/backend policy is out of scope
 
 ## Validation Rules
 
 - `contracts.md` must contain all fixed headings required by the platform foundation plan
-- config model must include allowlists and execution budget fields
-- scope deny rules must fail closed on missing `environment`, unauthorized account, unauthorized region, and write intent in `read_only` mode
-- ingress and response envelopes must both carry `request_id`
-- audit schema must include `tool_names`, `tool_param_summary`, `duration_ms`, and `policy_denied`
-- metrics schema must include run, failure, tool call, token, redaction, and policy denial counters / histograms
+- config model must include `environment`, account / region allowlists, optional cluster / namespace allowlists, `mode`, and execution budget fields
+- config validation must fail closed on missing required fields, unauthorized account, unauthorized region, and write intent in `read_only` mode
+- ingress validation must fail closed when any required field is missing or has an invalid enumerated value
+- response validation must fail closed when any required field is missing or `status` is outside the canonical set
+- audit validation must fail closed when any required field is missing or when redaction has not been applied before emission
+- metrics schema must include run, failure, tool call, token, redaction, and policy denial series with canonical names and labels
+- shared contracts must not rely on runtime-specific fallbacks to compensate for missing required contract fields
 
 ## Deliverables
 
