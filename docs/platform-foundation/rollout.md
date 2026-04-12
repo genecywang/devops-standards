@@ -4,6 +4,8 @@
 
 Define rollout controls that let platform owners validate contracts, shadow requests, and production readiness before any live exposure.
 
+Owner: Platform Foundation.
+
 ## In Scope
 
 - local fixtures
@@ -24,15 +26,15 @@ Define rollout controls that let platform owners validate contracts, shadow requ
 - `docs/platform-foundation/contracts.md`
 - `docs/platform-foundation/runtime.md`
 - `docs/platform-foundation/security.md`
+- `docs/platform-foundation/observability.md`
 
 ## Decisions
 
-### Deliverables
+### Rollout Stages
 
 #### Local Fixtures
 
-- sample ingress payloads for `alert_auto_investigator`
-- sample ingress payloads for `self_service_ops_copilot`
+- sample ingress payloads for representative investigation and execution requests
 - sample tool outputs for success, timeout, deny, and redaction cases
 
 #### Staging Dry-Run
@@ -44,21 +46,23 @@ Define rollout controls that let platform owners validate contracts, shadow requ
 #### Shadow Mode
 
 - run production-shaped requests without posting to the main thread
-- measure parser success rate
-- measure investigation success rate
+- measure contract validation success rate
+- measure run success rate
 - measure P95 latency
 - measure token / cost
 - run human sampling review
 
 #### Production Exit Criteria
 
-- parser success rate meets target
-- investigation success rate meets target
-- P95 latency within budget
-- policy deny behavior matches expectation
-- redaction false negative count is zero in sample review
+- contract validation success rate meets the target approved by the platform owner before exposure
+- run success rate meets the target approved by the platform owner before exposure
+- P95 latency remains within the rollout budget approved for the environment
+- policy deny behavior matches the expected fail-closed policy outcomes from staging and shadow review
+- redaction false negative count is zero in the approved sample review set
 
 ### Production Rollout Checklist
+
+Checklist items are required control actions that must be completed before production exposure. They are not the measurable outcome gates themselves.
 
 - contracts frozen for v1
 - runtime fallback path tested
@@ -89,8 +93,10 @@ Define rollout controls that let platform owners validate contracts, shadow requ
 
 ## Exit Criteria
 
+- all production rollout checklist items are complete:
+  `contracts frozen for v1`, `runtime fallback path tested`, `minimum tool catalog audited`, `IRSA / RBAC / NetworkPolicy reviewed`, `dashboards created`, `shadow mode reviewed by platform owner`, `rollback path documented`
 - local fixtures, staging dry-run, shadow mode, and production exit criteria are explicitly documented
-- the production checklist includes an explicit rollback path
+- production exit criteria use approved target and budget values owned by the platform owner for the current environment
 - rollout controls are aligned with the shared platform foundation contract and security boundaries
 
 ## Open Questions

@@ -4,6 +4,8 @@
 
 Make every run measurable for success, latency, policy denial, cost, redaction, and fallback behavior before any production rollout.
 
+Owner: Platform Foundation.
+
 ## In Scope
 
 - run outcome metrics
@@ -55,7 +57,7 @@ Each failure reason must map to a deterministic runtime or delivery outcome. If 
 1. runtime emits structured audit event
 2. audit event is redacted before persistence
 3. large raw outputs are replaced by summary or hash
-4. audit sink stores request metadata, tool summary, duration, result, error reason
+4. audit sink stores request metadata, tool summary, duration, status, error reason
 
 ### Retention Posture
 
