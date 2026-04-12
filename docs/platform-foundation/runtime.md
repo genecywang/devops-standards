@@ -97,15 +97,40 @@ Request validation must fail closed when required fields are missing or when the
 
 The runtime state machine is deterministic and monotonic. A request must not skip states, and `request_id` must remain stable for the full lifecycle of the run.
 
+Internal runtime states describe processing progress only. Canonical response outcomes are carried by `result_state` in the shared response envelope, and implementers must not infer outcome from the last internal state name.
+
+Outcome mapping:
+
+- `completed` with successful validation, policy checks, execution, and redaction -> `result_state=success`
+- validation failure or policy failure before execution -> `result_state=denied`
+- explicit cancellation after work has started -> `result_state=partial`
+- deterministic stop due to budget limit without further tool work -> `result_state=fallback`
+- unrecoverable runtime or final redaction failure -> `result_state=failed`
+
 ### Failure Rules
 
 - validation failure -> `denied`
 - policy failure -> `denied`
 - budget exceeded -> `fallback`
+- cancellation -> `partial`
 - tool timeout after retry ceiling -> `partial`
 - final redaction failure -> `failed`
 
 Failure handling must preserve auditability. When a failure occurs, the runtime should stop advancing state as soon as the terminal condition is known and emit the canonical response envelope with the matching `request_id` and `result_state`.
+
+### Cancellation Rules
+
+Cancellation is triggered only by an explicit cancel signal for the same `request_id`, a parent workflow cancellation, or a runtime drain / shutdown signal before the run completes.
+
+When cancellation is received:
+
+- stop starting new tool calls immediately
+- allow the current in-flight tool call to return or time out within its existing timeout ceiling if that is already in progress
+- do not advance into any later state once the cancellation is observed
+- preserve already collected evidence for redaction and response assembly if possible
+- emit the canonical response envelope with `result_state=partial`
+
+If cancellation arrives before any actionable execution begins, the runtime still emits `result_state=partial` with a short cancellation summary rather than inventing a separate response outcome.
 
 ### Tool Registration Contract
 
@@ -127,7 +152,7 @@ Tool registration is declarative only. The runtime must not infer missing tool c
 - stop new tool execution
 - summarize only from collected evidence
 - mark response `result_state=fallback`
-- emit `openclaw_failures_total{error_reason="budget_exceeded"}` when caused by budget limit
+- emit `openclaw_failures_total{source_product,error_reason}` with `error_reason="budget_exceeded"` when caused by budget limit
 
 Fallback mode is the terminal safety path for budget exhaustion and similar deterministic stop conditions. It preserves the collected evidence already available to the runtime, but it does not start new tool work.
 
