@@ -1,6 +1,10 @@
 nameOverride: ""
 fullnameOverride: ""
 
+# IMPORTANT: ClusterRole and ClusterRoleBinding names are cluster-scoped and derived from
+# the release name. Deploy only one instance per cluster with a unique release name.
+# Multiple instances in the same cluster require distinct release names (use --set nameOverride).
+
 image:
   repository: ghcr.io/example/self-service-copilot
   tag: dev
