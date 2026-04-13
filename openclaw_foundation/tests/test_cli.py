@@ -31,17 +31,20 @@ def test_build_provider_adapter_returns_fake_provider() -> None:
 
 
 def test_build_provider_adapter_returns_real_provider(monkeypatch: pytest.MonkeyPatch) -> None:
-    fake_factory = Mock(return_value="core-v1")
+    fake_core_factory = Mock(return_value="core-v1")
+    fake_apps_factory = Mock(return_value="apps-v1")
     fake_adapter = Mock(return_value="real-adapter")
 
-    monkeypatch.setattr("openclaw_foundation.cli.build_core_v1_api", fake_factory)
+    monkeypatch.setattr("openclaw_foundation.cli.build_core_v1_api", fake_core_factory)
+    monkeypatch.setattr("openclaw_foundation.cli.build_apps_v1_api", fake_apps_factory)
     monkeypatch.setattr("openclaw_foundation.cli.RealKubernetesProviderAdapter", fake_adapter)
 
     result = build_provider_adapter("real")
 
     assert result == "real-adapter"
-    fake_factory.assert_called_once_with()
-    fake_adapter.assert_called_once_with("core-v1")
+    fake_core_factory.assert_called_once_with()
+    fake_apps_factory.assert_called_once_with()
+    fake_adapter.assert_called_once_with("core-v1", "apps-v1")
 
 
 def test_main_renders_config_error_message(
@@ -217,3 +220,19 @@ def test_cli_outputs_success_response_for_pod_events() -> None:
     assert payload["request_id"] == "req-events-001"
     assert payload["result_state"] == "success"
     assert "payments-api-123" in payload["summary"]
+
+
+def test_main_with_deployment_status_fixture_prints_success_response(capsys) -> None:
+    exit_code = main(
+        [
+            "--fixture",
+            "openclaw_foundation/fixtures/deployment_status_request.json",
+            "--provider",
+            "fake",
+        ]
+    )
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert '"result_state": "success"' in captured.out
+    assert "get_deployment_status" in captured.out

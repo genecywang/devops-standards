@@ -10,9 +10,11 @@ from openclaw_foundation.adapters.kubernetes import (
     KubernetesApiError,
     KubernetesConfigError,
     KubernetesEndpointUnreachableError,
+    FakeKubernetesProviderAdapter,
     KubernetesError,
     KubernetesResourceNotFoundError,
     RealKubernetesProviderAdapter,
+    build_apps_v1_api,
     build_core_v1_api,
 )
 
@@ -90,6 +92,30 @@ def test_build_core_v1_api_raises_config_error_when_no_loader_works(
 
     with pytest.raises(KubernetesConfigError, match="unable to load kubernetes config"):
         build_core_v1_api()
+
+
+def test_build_apps_v1_api_uses_incluster_first(monkeypatch: pytest.MonkeyPatch) -> None:
+    load_incluster_config = Mock()
+    load_kube_config = Mock()
+    apps_v1_api = Mock(return_value="apps-v1")
+
+    monkeypatch.setattr(
+        "openclaw_foundation.adapters.kubernetes.kube_config",
+        SimpleNamespace(
+            load_incluster_config=load_incluster_config,
+            load_kube_config=load_kube_config,
+        ),
+    )
+    monkeypatch.setattr(
+        "openclaw_foundation.adapters.kubernetes.client",
+        SimpleNamespace(AppsV1Api=apps_v1_api),
+    )
+
+    result = build_apps_v1_api()
+
+    assert result == "apps-v1"
+    load_incluster_config.assert_called_once_with()
+    load_kube_config.assert_not_called()
 
 
 def test_real_adapter_maps_pod_status_payload() -> None:
@@ -186,6 +212,34 @@ def test_real_adapter_maps_404_to_resource_not_found() -> None:
         )
 
 
+def test_fake_adapter_get_deployment_status_returns_bounded_payload() -> None:
+    adapter = FakeKubernetesProviderAdapter()
+
+    result = adapter.get_deployment_status(
+        cluster="staging-main",
+        namespace="payments",
+        deployment_name="payments-api",
+    )
+
+    assert result["deployment_name"] == "payments-api"
+    assert result["desired_replicas"] == 3
+    assert isinstance(result["conditions"], list)
+    assert set(result["conditions"][0].keys()) == {"type", "status", "reason", "message"}
+
+
+def test_fake_adapter_get_deployment_status_contains_redactable_condition_message() -> None:
+    adapter = FakeKubernetesProviderAdapter()
+
+    result = adapter.get_deployment_status(
+        cluster="staging-main",
+        namespace="payments",
+        deployment_name="payments-api",
+    )
+
+    all_messages = " ".join(str(c["message"]) for c in result["conditions"])
+    assert "Bearer" in all_messages
+
+
 # --- get_pod_events: Fake adapter ---
 
 
@@ -254,6 +308,35 @@ def test_real_adapter_get_pod_events_maps_none_timestamp() -> None:
     )
 
     assert result[0]["last_timestamp"] is None
+
+
+def test_real_adapter_get_deployment_status_maps_minimal_fields() -> None:
+    deployment = SimpleNamespace(
+        metadata=SimpleNamespace(name="payments-api"),
+        status=SimpleNamespace(
+            ready_replicas=2,
+            available_replicas=2,
+            updated_replicas=3,
+            conditions=[
+                SimpleNamespace(
+                    type="Available",
+                    status="True",
+                    reason="MinimumReplicasAvailable",
+                    message="Deployment has minimum availability.",
+                )
+            ],
+        ),
+        spec=SimpleNamespace(replicas=3),
+    )
+    apps_api = SimpleNamespace(read_namespaced_deployment_status=lambda name, namespace: deployment)
+    adapter = RealKubernetesProviderAdapter(core_v1_api=None, apps_v1_api=apps_api)
+
+    result = adapter.get_deployment_status("staging-main", "payments", "payments-api")
+
+    assert result["deployment_name"] == "payments-api"
+    assert result["desired_replicas"] == 3
+    assert result["ready_replicas"] == 2
+    assert result["conditions"][0]["type"] == "Available"
 
 
 def test_real_adapter_get_pod_events_maps_403_to_access_denied() -> None:

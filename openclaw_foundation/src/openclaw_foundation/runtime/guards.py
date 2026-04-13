@@ -28,6 +28,8 @@ def truncate_pod_status(payload: dict[str, object]) -> dict[str, object]:
 
 _MAX_EVENTS = 10
 _MAX_MESSAGE_LEN = 256
+_MAX_DEPLOYMENT_CONDITIONS = 5
+_MAX_CONDITION_MESSAGE_LEN = 256
 
 
 def truncate_pod_events(events: list[dict[str, object]]) -> list[dict[str, object]]:
@@ -39,6 +41,20 @@ def truncate_pod_events(events: list[dict[str, object]]) -> list[dict[str, objec
         if isinstance(msg, str) and len(msg) > _MAX_MESSAGE_LEN:
             entry["message"] = msg[:_MAX_MESSAGE_LEN] + "...[truncated]"
         result.append(entry)
+    return result
+
+
+def truncate_deployment_status(payload: dict[str, object]) -> dict[str, object]:
+    result = dict(payload)
+    conditions = list(result.get("conditions", []))[:_MAX_DEPLOYMENT_CONDITIONS]
+    bounded_conditions = []
+    for condition in conditions:
+        entry = dict(condition)
+        message = entry.get("message")
+        if isinstance(message, str) and len(message) > _MAX_CONDITION_MESSAGE_LEN:
+            entry["message"] = message[:_MAX_CONDITION_MESSAGE_LEN] + "...[truncated]"
+        bounded_conditions.append(entry)
+    result["conditions"] = bounded_conditions
     return result
 
 

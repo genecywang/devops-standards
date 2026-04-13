@@ -3,6 +3,7 @@ import pytest
 from openclaw_foundation.runtime.audit import AuditEvent
 from openclaw_foundation.runtime.guards import (
     redact_output,
+    truncate_deployment_status,
     truncate_pod_events,
     truncate_pod_status,
     validate_scope,
@@ -91,6 +92,36 @@ def test_truncate_pod_events_preserves_short_message_unchanged() -> None:
     result = truncate_pod_events(events)
 
     assert result[0]["message"] == "short message"
+
+
+def test_truncate_deployment_status_limits_conditions_to_five() -> None:
+    payload = {
+        "conditions": [
+            {"type": f"T{i}", "status": "True", "reason": "R", "message": "m"}
+            for i in range(8)
+        ]
+    }
+
+    result = truncate_deployment_status(payload)
+
+    assert len(result["conditions"]) == 5
+
+
+def test_truncate_deployment_status_truncates_long_condition_message() -> None:
+    payload = {
+        "conditions": [
+            {
+                "type": "Available",
+                "status": "False",
+                "reason": "R",
+                "message": "x" * 300,
+            }
+        ]
+    }
+
+    result = truncate_deployment_status(payload)
+
+    assert result["conditions"][0]["message"].endswith("...[truncated]")
 
 
 def test_audit_event_captures_canonical_fields() -> None:

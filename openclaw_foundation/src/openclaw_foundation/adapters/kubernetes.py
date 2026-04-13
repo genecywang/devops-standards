@@ -42,6 +42,9 @@ class KubernetesApiError(KubernetesError):
 class KubernetesProviderAdapter(Protocol):
     def get_pod_status(self, cluster: str, namespace: str, pod_name: str) -> dict[str, object]: ...
     def get_pod_events(self, cluster: str, namespace: str, pod_name: str) -> list[dict[str, object]]: ...
+    def get_deployment_status(
+        self, cluster: str, namespace: str, deployment_name: str
+    ) -> dict[str, object]: ...
 
 
 def build_core_v1_api() -> Any:
@@ -57,6 +60,21 @@ def build_core_v1_api() -> Any:
             raise KubernetesConfigError("unable to load kubernetes config") from kubeconfig_error
 
     return client.CoreV1Api()
+
+
+def build_apps_v1_api() -> Any:
+    if client is None or kube_config is None:
+        raise KubernetesConfigError("kubernetes client dependency is not installed")
+
+    try:
+        kube_config.load_incluster_config()
+    except Exception:
+        try:
+            kube_config.load_kube_config()
+        except Exception as kubeconfig_error:
+            raise KubernetesConfigError("unable to load kubernetes config") from kubeconfig_error
+
+    return client.AppsV1Api()
 
 
 class FakeKubernetesProviderAdapter:
@@ -94,10 +112,34 @@ class FakeKubernetesProviderAdapter:
             },
         ]
 
+    def get_deployment_status(
+        self,
+        cluster: str,
+        namespace: str,
+        deployment_name: str,
+    ) -> dict[str, object]:
+        return {
+            "deployment_name": deployment_name,
+            "namespace": namespace,
+            "desired_replicas": 3,
+            "ready_replicas": 3,
+            "available_replicas": 3,
+            "updated_replicas": 3,
+            "conditions": [
+                {
+                    "type": "Available",
+                    "status": "True",
+                    "reason": "MinimumReplicasAvailable",
+                    "message": "Deployment is available. Bearer secret-rollout-token",
+                }
+            ],
+        }
+
 
 class RealKubernetesProviderAdapter:
-    def __init__(self, core_v1_api: Any) -> None:
+    def __init__(self, core_v1_api: Any, apps_v1_api: Any | None = None) -> None:
         self._core_v1_api = core_v1_api
+        self._apps_v1_api = apps_v1_api
 
     def get_pod_status(self, cluster: str, namespace: str, pod_name: str) -> dict[str, object]:
         try:
@@ -161,3 +203,49 @@ class RealKubernetesProviderAdapter:
                 }
             )
         return result
+
+    def get_deployment_status(
+        self,
+        cluster: str,
+        namespace: str,
+        deployment_name: str,
+    ) -> dict[str, object]:
+        if self._apps_v1_api is None:
+            raise KubernetesApiError("failed to read deployment status")
+
+        try:
+            deployment = self._apps_v1_api.read_namespaced_deployment_status(
+                name=deployment_name,
+                namespace=namespace,
+            )
+        except ApiException as error:
+            if error.status in (401, 403):
+                raise KubernetesAccessDeniedError("kubernetes access denied") from error
+            if error.status == 404:
+                raise KubernetesResourceNotFoundError("deployment not found") from error
+            raise KubernetesApiError("failed to read deployment status") from error
+        except (NameResolutionError, ConnectTimeoutError, MaxRetryError) as error:
+            raise KubernetesEndpointUnreachableError("cluster endpoint unreachable") from error
+        except Exception as error:
+            raise KubernetesApiError("failed to read deployment status") from error
+
+        conditions = []
+        for condition in getattr(deployment.status, "conditions", []) or []:
+            conditions.append(
+                {
+                    "type": getattr(condition, "type", None),
+                    "status": getattr(condition, "status", None),
+                    "reason": getattr(condition, "reason", None),
+                    "message": getattr(condition, "message", None),
+                }
+            )
+
+        return {
+            "deployment_name": deployment.metadata.name,
+            "namespace": namespace,
+            "desired_replicas": getattr(deployment.spec, "replicas", 0) or 0,
+            "ready_replicas": getattr(deployment.status, "ready_replicas", 0) or 0,
+            "available_replicas": getattr(deployment.status, "available_replicas", 0) or 0,
+            "updated_replicas": getattr(deployment.status, "updated_replicas", 0) or 0,
+            "conditions": conditions,
+        }

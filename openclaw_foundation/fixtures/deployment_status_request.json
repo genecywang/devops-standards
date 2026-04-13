@@ -1,0 +1,22 @@
+{
+  "request_type": "investigation",
+  "request_id": "req-deploy-cli-001",
+  "source_product": "cli",
+  "scope": {
+    "environment": "staging",
+    "cluster": "staging-main"
+  },
+  "input_ref": "fixture:deployment-status",
+  "budget": {
+    "max_steps": 2,
+    "max_tool_calls": 1,
+    "max_duration_seconds": 15,
+    "max_output_tokens": 512
+  },
+  "tool_name": "get_deployment_status",
+  "target": {
+    "cluster": "staging-main",
+    "namespace": "payments",
+    "resource_name": "payments-api"
+  }
+}
