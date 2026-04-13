@@ -1,5 +1,13 @@
 from __future__ import annotations
 
+from openclaw_foundation.adapters.kubernetes import (
+    KubernetesAccessDeniedError,
+    KubernetesApiError,
+    KubernetesConfigError,
+    KubernetesEndpointUnreachableError,
+    KubernetesResourceNotFoundError,
+)
+from openclaw_foundation.adapters.prometheus import PrometheusQueryError
 from openclaw_foundation.models.enums import ResultState
 from openclaw_foundation.models.responses import CanonicalResponse
 
@@ -33,3 +41,19 @@ def format_parse_error(error: ParseError, supported_tools: frozenset[str]) -> st
 
 def format_dispatch_error(error: DispatchError, cmd: ParsedCommand) -> str:
     return f"[denied] {error}"
+
+
+def format_platform_error(error: Exception, cmd: ParsedCommand) -> str:
+    label = _resource_label(cmd)
+    if isinstance(error, KubernetesAccessDeniedError):
+        return f"[denied] {label}\n{error}"
+    if isinstance(error, KubernetesResourceNotFoundError):
+        return f"[failed] {label}\n{error}"
+    if isinstance(error, KubernetesEndpointUnreachableError):
+        return (
+            f"[failed] {label}\n{error}\n"
+            "next check: verify DNS, network path, VPN, or cluster endpoint"
+        )
+    if isinstance(error, (KubernetesApiError, KubernetesConfigError, PrometheusQueryError)):
+        return f"[failed] {label}\n{error}"
+    return f"[error] {label}\nunexpected failure, please retry"

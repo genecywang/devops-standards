@@ -28,6 +28,7 @@ from self_service_copilot.dispatcher import DispatchError, SlackContext, build_r
 from self_service_copilot.formatter import (
     format_dispatch_error,
     format_parse_error,
+    format_platform_error,
     format_response,
 )
 from self_service_copilot.parser import ParseError, parse
@@ -132,9 +133,9 @@ def main() -> None:
         try:
             response = runner.run(request)
             safe_reply(say, format_response(response, cmd), event_ts)
-        except Exception:
+        except Exception as error:
             logger.exception("unexpected failure while handling Slack mention")
-            safe_reply(say, "[error] unexpected failure, please retry", event_ts)
+            safe_reply(say, format_platform_error(error, cmd), event_ts)
 
     SocketModeHandler(app, os.environ["SLACK_APP_TOKEN"]).start()
 

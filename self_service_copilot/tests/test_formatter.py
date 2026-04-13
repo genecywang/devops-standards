@@ -1,3 +1,8 @@
+from openclaw_foundation.adapters.kubernetes import (
+    KubernetesEndpointUnreachableError,
+    KubernetesResourceNotFoundError,
+)
+from openclaw_foundation.adapters.prometheus import PrometheusQueryError
 from openclaw_foundation.models.enums import ResultState
 from openclaw_foundation.models.responses import CanonicalResponse
 
@@ -5,6 +10,7 @@ from self_service_copilot.dispatcher import DispatchError
 from self_service_copilot.formatter import (
     format_dispatch_error,
     format_parse_error,
+    format_platform_error,
     format_response,
 )
 from self_service_copilot.parser import ParsedCommand, UnknownCommandError, UsageError
@@ -100,3 +106,31 @@ def test_format_dispatch_error_starts_with_denied_label() -> None:
 
     assert reply.startswith("[denied]")
     assert "internal" in reply
+
+
+def test_format_platform_error_for_prometheus_query_error_uses_failed_label() -> None:
+    reply = format_platform_error(PrometheusQueryError("no metrics found for pod"), make_cmd("get_pod_runtime"))
+
+    assert reply.startswith("[failed]")
+    assert "get_pod_runtime" in reply
+    assert "no metrics found for pod" in reply
+
+
+def test_format_platform_error_for_kubernetes_not_found_uses_failed_label() -> None:
+    reply = format_platform_error(
+        KubernetesResourceNotFoundError("pod not found"),
+        make_cmd(),
+    )
+
+    assert reply.startswith("[failed]")
+    assert "pod not found" in reply
+
+
+def test_format_platform_error_for_endpoint_issue_includes_next_check() -> None:
+    reply = format_platform_error(
+        KubernetesEndpointUnreachableError("cluster endpoint unreachable"),
+        make_cmd(),
+    )
+
+    assert reply.startswith("[failed]")
+    assert "next check:" in reply
