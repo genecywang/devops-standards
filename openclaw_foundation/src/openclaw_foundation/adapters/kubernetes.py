@@ -4,9 +4,15 @@ from typing import Any, Protocol
 
 try:
     from kubernetes import client, config as kube_config
+    from kubernetes.client import ApiException
+    from urllib3.exceptions import ConnectTimeoutError, MaxRetryError, NameResolutionError
 except ImportError:  # pragma: no cover - exercised via real provider setup
     client = None
     kube_config = None
+    ApiException = None
+    ConnectTimeoutError = None
+    MaxRetryError = None
+    NameResolutionError = None
 
 
 class KubernetesError(RuntimeError):
@@ -77,6 +83,14 @@ class RealKubernetesProviderAdapter:
     def get_pod_status(self, cluster: str, namespace: str, pod_name: str) -> dict[str, object]:
         try:
             pod = self._core_v1_api.read_namespaced_pod_status(name=pod_name, namespace=namespace)
+        except ApiException as error:
+            if error.status in (401, 403):
+                raise KubernetesAccessDeniedError("kubernetes access denied") from error
+            if error.status == 404:
+                raise KubernetesResourceNotFoundError("pod not found") from error
+            raise KubernetesApiError("failed to read pod status") from error
+        except (NameResolutionError, ConnectTimeoutError, MaxRetryError) as error:
+            raise KubernetesEndpointUnreachableError("cluster endpoint unreachable") from error
         except Exception as error:
             raise KubernetesApiError("failed to read pod status") from error
 

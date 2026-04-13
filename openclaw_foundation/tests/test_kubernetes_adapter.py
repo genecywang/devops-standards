@@ -2,13 +2,15 @@ from types import SimpleNamespace
 from unittest.mock import Mock
 
 import pytest
+from kubernetes.client import ApiException
+from urllib3.exceptions import NameResolutionError
 
 from openclaw_foundation.adapters.kubernetes import (
+    KubernetesAccessDeniedError,
     KubernetesApiError,
     KubernetesConfigError,
-    KubernetesError,
-    KubernetesAccessDeniedError,
     KubernetesEndpointUnreachableError,
+    KubernetesError,
     KubernetesResourceNotFoundError,
     RealKubernetesProviderAdapter,
     build_core_v1_api,
@@ -131,6 +133,52 @@ def test_real_adapter_raises_domain_error_on_api_failure() -> None:
     adapter = RealKubernetesProviderAdapter(api)
 
     with pytest.raises(KubernetesApiError, match="failed to read pod status"):
+        adapter.get_pod_status(
+            cluster="staging-main",
+            namespace="payments",
+            pod_name="payments-api-123",
+        )
+
+
+def test_real_adapter_maps_name_resolution_error_to_endpoint_unreachable() -> None:
+    api = Mock()
+    api.read_namespaced_pod_status.side_effect = NameResolutionError(
+        "example.invalid",
+        object(),
+        OSError("dns failed"),
+    )
+
+    adapter = RealKubernetesProviderAdapter(api)
+
+    with pytest.raises(KubernetesEndpointUnreachableError, match="cluster endpoint unreachable"):
+        adapter.get_pod_status(
+            cluster="staging-main",
+            namespace="payments",
+            pod_name="payments-api-123",
+        )
+
+
+def test_real_adapter_maps_403_to_access_denied() -> None:
+    api = Mock()
+    api.read_namespaced_pod_status.side_effect = ApiException(status=403, reason="Forbidden")
+
+    adapter = RealKubernetesProviderAdapter(api)
+
+    with pytest.raises(KubernetesAccessDeniedError, match="kubernetes access denied"):
+        adapter.get_pod_status(
+            cluster="staging-main",
+            namespace="payments",
+            pod_name="payments-api-123",
+        )
+
+
+def test_real_adapter_maps_404_to_resource_not_found() -> None:
+    api = Mock()
+    api.read_namespaced_pod_status.side_effect = ApiException(status=404, reason="Not Found")
+
+    adapter = RealKubernetesProviderAdapter(api)
+
+    with pytest.raises(KubernetesResourceNotFoundError, match="pod not found"):
         adapter.get_pod_status(
             cluster="staging-main",
             namespace="payments",
