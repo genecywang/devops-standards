@@ -173,6 +173,7 @@ class DispatchError(ValueError):
 | InvestigationRequest 欄位 | 來源 |
 |---|---|
 | `request_id` | `make_request_id(ctx)` — helper 封裝，不散落字串拼接 |
+| `input_ref` | `f"slack://{ctx.channel_id}/{ctx.event_ts}"` — 穩定對應 Slack event，供 audit / trace 用 |
 | `source_product` | `"self_service_copilot"` |
 | `requested_by` | `ctx.actor_id` |
 | `scope.cluster` | `config.cluster`（不從 user input 取）|
