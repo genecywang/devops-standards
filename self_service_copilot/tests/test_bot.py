@@ -93,25 +93,19 @@ def test_is_expected_platform_error_returns_false_for_unexpected_error() -> None
     assert is_expected_platform_error(RuntimeError("boom")) is False
 
 
-def test_log_level_from_env_defaults_to_info(monkeypatch):
+def test_log_level_from_env_defaults_to_info(monkeypatch) -> None:
     monkeypatch.delenv("LOG_LEVEL", raising=False)
-    from importlib import reload
-    import self_service_copilot.bot as bot_module
-    reload(bot_module)
-    assert bot_module._log_level_from_env() == logging.INFO
+    from self_service_copilot.bot import _log_level_from_env
+    assert _log_level_from_env() == logging.INFO
 
 
-def test_log_level_from_env_reads_debug(monkeypatch):
+def test_log_level_from_env_reads_debug(monkeypatch) -> None:
     monkeypatch.setenv("LOG_LEVEL", "DEBUG")
-    from importlib import reload
-    import self_service_copilot.bot as bot_module
-    reload(bot_module)
-    assert bot_module._log_level_from_env() == logging.DEBUG
+    from self_service_copilot.bot import _log_level_from_env
+    assert _log_level_from_env() == logging.DEBUG
 
 
-def test_log_level_from_env_falls_back_to_info_for_invalid(monkeypatch):
+def test_log_level_from_env_falls_back_to_info_for_invalid(monkeypatch) -> None:
     monkeypatch.setenv("LOG_LEVEL", "NOTAVALIDLEVEL")
-    from importlib import reload
-    import self_service_copilot.bot as bot_module
-    reload(bot_module)
-    assert bot_module._log_level_from_env() == logging.INFO
+    from self_service_copilot.bot import _log_level_from_env
+    assert _log_level_from_env() == logging.INFO
