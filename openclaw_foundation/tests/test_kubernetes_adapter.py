@@ -184,3 +184,38 @@ def test_real_adapter_maps_404_to_resource_not_found() -> None:
             namespace="payments",
             pod_name="payments-api-123",
         )
+
+
+# --- get_pod_events: Fake adapter ---
+
+
+def test_fake_adapter_get_pod_events_returns_bounded_event_list() -> None:
+    from openclaw_foundation.adapters.kubernetes import FakeKubernetesProviderAdapter
+
+    adapter = FakeKubernetesProviderAdapter()
+
+    result = adapter.get_pod_events(
+        cluster="staging-main",
+        namespace="payments",
+        pod_name="payments-api-123",
+    )
+
+    assert isinstance(result, list)
+    assert len(result) >= 1
+    first = result[0]
+    assert set(first.keys()) == {"type", "reason", "message", "count", "last_timestamp"}
+
+
+def test_fake_adapter_get_pod_events_message_contains_redactable_content() -> None:
+    from openclaw_foundation.adapters.kubernetes import FakeKubernetesProviderAdapter
+
+    adapter = FakeKubernetesProviderAdapter()
+
+    result = adapter.get_pod_events(
+        cluster="staging-main",
+        namespace="payments",
+        pod_name="payments-api-123",
+    )
+
+    all_messages = " ".join(str(e["message"]) for e in result)
+    assert "Bearer" in all_messages

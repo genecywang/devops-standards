@@ -41,6 +41,7 @@ class KubernetesApiError(KubernetesError):
 
 class KubernetesProviderAdapter(Protocol):
     def get_pod_status(self, cluster: str, namespace: str, pod_name: str) -> dict[str, object]: ...
+    def get_pod_events(self, cluster: str, namespace: str, pod_name: str) -> list[dict[str, object]]: ...
 
 
 def build_core_v1_api() -> Any:
@@ -74,6 +75,24 @@ class FakeKubernetesProviderAdapter:
             "node_name": "node-a",
             "raw_object": {"debug": "drop-me"},
         }
+
+    def get_pod_events(self, cluster: str, namespace: str, pod_name: str) -> list[dict[str, object]]:
+        return [
+            {
+                "type": "Warning",
+                "reason": "BackOff",
+                "message": f"Back-off restarting failed container: Bearer secret-event-token",
+                "count": 3,
+                "last_timestamp": "2026-04-13T12:00:00Z",
+            },
+            {
+                "type": "Normal",
+                "reason": "Pulled",
+                "message": "Successfully pulled image example:v1",
+                "count": 1,
+                "last_timestamp": "2026-04-13T11:55:00Z",
+            },
+        ]
 
 
 class RealKubernetesProviderAdapter:
