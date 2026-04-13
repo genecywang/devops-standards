@@ -66,6 +66,9 @@ class RealPrometheusProviderAdapter:
             f'{{namespace="{namespace}",pod="{pod_name}"}}[15m]))'
         )["result"]
 
+        if not ready_result and not restart_result:
+            raise PrometheusQueryError("no metrics found for pod")
+
         ready = bool(ready_result) and float(ready_result[0]["value"][1]) == 1.0
         restart_count = sum(float(sample["value"][1]) for sample in restart_result)
         recent_restart_increase = (

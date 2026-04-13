@@ -91,3 +91,29 @@ def test_real_prometheus_adapter_raises_query_error_on_non_success_payload(monke
         assert "non-success" in str(error)
     else:
         raise AssertionError("expected PrometheusQueryError")
+
+
+def test_real_prometheus_adapter_raises_query_error_when_no_pod_metrics_exist(
+    monkeypatch,
+) -> None:
+    payloads = iter(
+        [
+            {"status": "success", "data": {"result": []}},
+            {"status": "success", "data": {"result": []}},
+            {"status": "success", "data": {"result": []}},
+        ]
+    )
+
+    monkeypatch.setattr(
+        "openclaw_foundation.adapters.prometheus.urlopen",
+        lambda url, timeout: _FakeHttpResponse(next(payloads)),
+    )
+
+    adapter = RealPrometheusProviderAdapter("https://prom.example.internal")
+
+    try:
+        adapter.get_pod_runtime("dev", "missing-pod")
+    except PrometheusQueryError as error:
+        assert "no metrics found for pod" in str(error)
+    else:
+        raise AssertionError("expected PrometheusQueryError")
