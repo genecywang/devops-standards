@@ -2,6 +2,18 @@
 
 這裡放的是 `OpenClaw` 的最小 Kubernetes plain manifests 骨架。
 
+## Included Resources
+
+- `Namespace`
+- `ServiceAccount`
+- `Role`
+- `RoleBinding`
+- `ConfigMap`
+- `Deployment`
+- `Service`
+- `NetworkPolicy`
+- `PodDisruptionBudget`
+
 ## Apply
 
 ```bash
@@ -13,3 +25,4 @@ kubectl apply -f deploy/openclaw/
 - 這一版使用 `Deployment`，不是 `StatefulSet`
 - 這一版不包含 `PVC`、`Ingress`、`HPA`
 - 部署前請先替換 `deployment.yaml` 內的 image
+- 這一版是 stateless runtime baseline，外部狀態需另外處理
