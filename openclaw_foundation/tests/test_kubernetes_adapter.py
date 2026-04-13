@@ -6,9 +6,21 @@ import pytest
 from openclaw_foundation.adapters.kubernetes import (
     KubernetesApiError,
     KubernetesConfigError,
+    KubernetesError,
+    KubernetesAccessDeniedError,
+    KubernetesEndpointUnreachableError,
+    KubernetesResourceNotFoundError,
     RealKubernetesProviderAdapter,
     build_core_v1_api,
 )
+
+
+def test_kubernetes_domain_errors_share_common_base() -> None:
+    assert issubclass(KubernetesConfigError, KubernetesError)
+    assert issubclass(KubernetesEndpointUnreachableError, KubernetesError)
+    assert issubclass(KubernetesAccessDeniedError, KubernetesError)
+    assert issubclass(KubernetesResourceNotFoundError, KubernetesError)
+    assert issubclass(KubernetesApiError, KubernetesError)
 
 
 def test_build_core_v1_api_uses_incluster_first(monkeypatch: pytest.MonkeyPatch) -> None:

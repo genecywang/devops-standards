@@ -9,11 +9,27 @@ except ImportError:  # pragma: no cover - exercised via real provider setup
     kube_config = None
 
 
-class KubernetesConfigError(RuntimeError):
+class KubernetesError(RuntimeError):
     pass
 
 
-class KubernetesApiError(RuntimeError):
+class KubernetesConfigError(KubernetesError):
+    pass
+
+
+class KubernetesEndpointUnreachableError(KubernetesError):
+    pass
+
+
+class KubernetesAccessDeniedError(KubernetesError):
+    pass
+
+
+class KubernetesResourceNotFoundError(KubernetesError):
+    pass
+
+
+class KubernetesApiError(KubernetesError):
     pass
 
 
