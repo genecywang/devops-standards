@@ -6,7 +6,7 @@ metadata:
   labels:
     {{- include "self-service-copilot.labels" . | nindent 4 }}
 spec:
-  replicas: 1
+  replicas: 1  # Do not increase — Slack Socket Mode delivers duplicate events to all replicas
   selector:
     matchLabels:
       {{- include "self-service-copilot.selectorLabels" . | nindent 6 }}
@@ -43,6 +43,7 @@ spec:
             {{- toYaml .Values.resources | nindent 12 }}
           securityContext:
             allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
             capabilities:
               drop: ["ALL"]
           livenessProbe:
@@ -52,8 +53,8 @@ spec:
                 - -c
                 - |
                   import pathlib, sys
-                  cmdline = pathlib.Path("/proc/1/cmdline").read_text()
-                  sys.exit(0 if "self_service_copilot.bot" in cmdline else 1)
+                  cmdline = pathlib.Path("/proc/1/cmdline").read_bytes()
+                  sys.exit(0 if b"self_service_copilot.bot" in cmdline else 1)
             initialDelaySeconds: 30
             periodSeconds: 30
             failureThreshold: 3
