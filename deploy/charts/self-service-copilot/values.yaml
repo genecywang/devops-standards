@@ -1,0 +1,29 @@
+image:
+  repository: ghcr.io/example/self-service-copilot
+  tag: dev
+  pullPolicy: IfNotPresent
+
+config:
+  cluster: staging-main
+  environment: staging
+  allowedClusters: staging-main
+  allowedNamespaces: payments
+  allowedChannelIds: ""
+  provider: fake
+  prometheusBaseUrl: ""
+  logLevel: INFO
+
+slack:
+  # Name of the pre-created Kubernetes Secret containing Slack tokens.
+  # Must be created externally before helm install.
+  secretName: self-service-copilot-slack
+  botTokenKey: SLACK_BOT_TOKEN
+  appTokenKey: SLACK_APP_TOKEN
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi
