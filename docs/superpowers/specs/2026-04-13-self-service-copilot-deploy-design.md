@@ -12,7 +12,7 @@
 ## Non-Goals
 
 - Ingress / HPA / PodDisruptionBudget
-- HTTP health server（不改 bot.py）
+- HTTP health server
 - Readiness probe
 - Secret lifecycle 管理（由外部建立）
 - Per-namespace RBAC hardening（Phase 2）
@@ -139,6 +139,33 @@ resources:
 
 Slack tokens 由外部 Secret 提供，Deployment 用 `envFrom` (configmap) + 兩個 `env[].valueFrom.secretKeyRef`。
 
+### prometheusBaseUrl 必填約束
+
+`config.prometheusBaseUrl` 預設空字串，對 `provider=fake` 無影響。
+`provider=real` 時若值為空，`bot.py:build_registry()` 會在啟動時拋出 `ValueError`，pod 立即 crash。
+
+為避免 runtime 才炸，Helm template 加 fail-fast 檢查：
+
+```yaml
+{{- if and (eq .Values.config.provider "real") (not .Values.config.prometheusBaseUrl) }}
+{{- fail "config.prometheusBaseUrl is required when config.provider is \"real\"" }}
+{{- end }}
+```
+
+這讓問題在 `helm install / upgrade` 時就報錯，不讓 pod 起來再炸。
+
+### LOG_LEVEL 生效方式
+
+`bot.py` 的 `logging.basicConfig` 目前寫死 `level=logging.INFO`。
+此輪同步修改 `bot.py`，改為讀取 `LOG_LEVEL` env var：
+
+```python
+log_level = os.environ.get("LOG_LEVEL", "INFO").upper()
+logging.basicConfig(level=getattr(logging, log_level, logging.INFO))
+```
+
+這讓 Helm 推入的 `LOG_LEVEL` 真正生效，不用重建 image 就能切換 DEBUG / WARNING。
+
 ---
 
 ## 4. RBAC
@@ -244,4 +271,8 @@ deploy/charts/self-service-copilot/templates/configmap.yaml
 deploy/charts/self-service-copilot/templates/deployment.yaml
 ```
 
-修改：無（不改任何 Python 程式碼）
+修改：
+
+```
+self_service_copilot/src/self_service_copilot/bot.py   # LOG_LEVEL env var 讀取
+```
