@@ -130,3 +130,34 @@ class RealKubernetesProviderAdapter:
             "container_statuses": statuses,
             "node_name": getattr(pod.spec, "node_name", None),
         }
+
+    def get_pod_events(self, cluster: str, namespace: str, pod_name: str) -> list[dict[str, object]]:
+        try:
+            event_list = self._core_v1_api.list_namespaced_event(
+                namespace=namespace,
+                field_selector=f"involvedObject.name={pod_name}",
+            )
+        except ApiException as error:
+            if error.status in (401, 403):
+                raise KubernetesAccessDeniedError("kubernetes access denied") from error
+            if error.status == 404:
+                raise KubernetesResourceNotFoundError("namespace not found") from error
+            raise KubernetesApiError("failed to list pod events") from error
+        except (NameResolutionError, ConnectTimeoutError, MaxRetryError) as error:
+            raise KubernetesEndpointUnreachableError("cluster endpoint unreachable") from error
+        except Exception as error:
+            raise KubernetesApiError("failed to list pod events") from error
+
+        result = []
+        for event in getattr(event_list, "items", []) or []:
+            last_ts = getattr(event, "last_timestamp", None)
+            result.append(
+                {
+                    "type": getattr(event, "type", None),
+                    "reason": getattr(event, "reason", None),
+                    "message": getattr(event, "message", None),
+                    "count": getattr(event, "count", None),
+                    "last_timestamp": last_ts.isoformat() if last_ts is not None else None,
+                }
+            )
+        return result

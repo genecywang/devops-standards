@@ -189,6 +189,136 @@ def test_real_adapter_maps_404_to_resource_not_found() -> None:
 # --- get_pod_events: Fake adapter ---
 
 
+import datetime
+
+
+# --- get_pod_events: Real adapter ---
+
+
+def test_real_adapter_maps_pod_events_payload() -> None:
+    api = Mock()
+    ts = datetime.datetime(2026, 4, 13, 12, 0, 0, tzinfo=datetime.timezone.utc)
+    api.list_namespaced_event.return_value = SimpleNamespace(
+        items=[
+            SimpleNamespace(
+                type="Warning",
+                reason="BackOff",
+                message="Back-off restarting failed container",
+                count=3,
+                last_timestamp=ts,
+            )
+        ]
+    )
+
+    adapter = RealKubernetesProviderAdapter(api)
+    result = adapter.get_pod_events(
+        cluster="staging-main",
+        namespace="payments",
+        pod_name="payments-api-123",
+    )
+
+    api.list_namespaced_event.assert_called_once_with(
+        namespace="payments",
+        field_selector="involvedObject.name=payments-api-123",
+    )
+    assert result == [
+        {
+            "type": "Warning",
+            "reason": "BackOff",
+            "message": "Back-off restarting failed container",
+            "count": 3,
+            "last_timestamp": "2026-04-13T12:00:00+00:00",
+        }
+    ]
+
+
+def test_real_adapter_get_pod_events_maps_none_timestamp() -> None:
+    api = Mock()
+    api.list_namespaced_event.return_value = SimpleNamespace(
+        items=[
+            SimpleNamespace(
+                type="Normal",
+                reason="Pulled",
+                message="image pulled",
+                count=1,
+                last_timestamp=None,
+            )
+        ]
+    )
+
+    adapter = RealKubernetesProviderAdapter(api)
+    result = adapter.get_pod_events(
+        cluster="staging-main",
+        namespace="payments",
+        pod_name="payments-api-123",
+    )
+
+    assert result[0]["last_timestamp"] is None
+
+
+def test_real_adapter_get_pod_events_maps_403_to_access_denied() -> None:
+    api = Mock()
+    api.list_namespaced_event.side_effect = ApiException(status=403, reason="Forbidden")
+
+    adapter = RealKubernetesProviderAdapter(api)
+
+    with pytest.raises(KubernetesAccessDeniedError, match="kubernetes access denied"):
+        adapter.get_pod_events(
+            cluster="staging-main",
+            namespace="payments",
+            pod_name="payments-api-123",
+        )
+
+
+def test_real_adapter_get_pod_events_maps_404_to_resource_not_found() -> None:
+    api = Mock()
+    api.list_namespaced_event.side_effect = ApiException(status=404, reason="Not Found")
+
+    adapter = RealKubernetesProviderAdapter(api)
+
+    with pytest.raises(KubernetesResourceNotFoundError, match="namespace not found"):
+        adapter.get_pod_events(
+            cluster="staging-main",
+            namespace="payments",
+            pod_name="payments-api-123",
+        )
+
+
+def test_real_adapter_get_pod_events_maps_generic_api_error() -> None:
+    api = Mock()
+    api.list_namespaced_event.side_effect = RuntimeError("boom")
+
+    adapter = RealKubernetesProviderAdapter(api)
+
+    with pytest.raises(KubernetesApiError, match="failed to list pod events"):
+        adapter.get_pod_events(
+            cluster="staging-main",
+            namespace="payments",
+            pod_name="payments-api-123",
+        )
+
+
+def test_real_adapter_get_pod_events_maps_name_resolution_error() -> None:
+    api = Mock()
+    api.list_namespaced_event.side_effect = NameResolutionError(
+        "example.invalid",
+        object(),
+        OSError("dns failed"),
+    )
+
+    adapter = RealKubernetesProviderAdapter(api)
+
+    with pytest.raises(KubernetesEndpointUnreachableError, match="cluster endpoint unreachable"):
+        adapter.get_pod_events(
+            cluster="staging-main",
+            namespace="payments",
+            pod_name="payments-api-123",
+        )
+
+
+# --- get_pod_events: Fake adapter ---
+
+
 def test_fake_adapter_get_pod_events_returns_bounded_event_list() -> None:
     from openclaw_foundation.adapters.kubernetes import FakeKubernetesProviderAdapter
 
