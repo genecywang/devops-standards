@@ -31,6 +31,7 @@ class InvestigationRequest:
     budget: ExecutionBudget
     tool_name: str = "fake_investigation"
     target: dict[str, str] | None = None
+    requested_by: str | None = None
 
     def __post_init__(self) -> None:
         if self.request_type != RequestType.INVESTIGATION:

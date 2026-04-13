@@ -46,3 +46,30 @@ def test_canonical_response_uses_result_state() -> None:
     )
 
     assert response.result_state == ResultState.SUCCESS
+
+
+def test_investigation_request_accepts_optional_requested_by() -> None:
+    request = InvestigationRequest(
+        request_type=RequestType.INVESTIGATION,
+        request_id="req-001",
+        source_product="self_service_copilot",
+        scope={"environment": "staging"},
+        input_ref="slack://C001/123",
+        budget=ExecutionBudget(max_steps=2, max_tool_calls=1, max_duration_seconds=15, max_output_tokens=512),
+        requested_by="U999",
+    )
+
+    assert request.requested_by == "U999"
+
+
+def test_investigation_request_requested_by_defaults_to_none() -> None:
+    request = InvestigationRequest(
+        request_type=RequestType.INVESTIGATION,
+        request_id="req-001",
+        source_product="cli",
+        scope={"environment": "staging"},
+        input_ref="fixture:x",
+        budget=ExecutionBudget(max_steps=2, max_tool_calls=1, max_duration_seconds=15, max_output_tokens=512),
+    )
+
+    assert request.requested_by is None
