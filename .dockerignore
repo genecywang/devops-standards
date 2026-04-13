@@ -3,3 +3,11 @@
 **/*.egg-info
 **/tests
 **/.DS_Store
+backlog/
+docs/
+deploy/
+setup/
+skills/
+*.md
+.git/
+AGENTS.md
