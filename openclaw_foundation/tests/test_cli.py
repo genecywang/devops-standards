@@ -190,3 +190,30 @@ def test_cli_subprocess_surfaces_readable_real_provider_error() -> None:
 
     assert completed.returncode == 1
     assert "next check:" in completed.stderr
+
+
+def test_cli_outputs_success_response_for_pod_events() -> None:
+    project_root = Path(__file__).resolve().parents[1]
+    env = {
+        "PYTHONPATH": str(project_root / "src"),
+    }
+
+    completed = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "openclaw_foundation.cli",
+            "--fixture",
+            str(project_root / "fixtures" / "pod_events_request.json"),
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
+        env=env,
+    )
+
+    payload = json.loads(completed.stdout)
+
+    assert payload["request_id"] == "req-events-001"
+    assert payload["result_state"] == "success"
+    assert "payments-api-123" in payload["summary"]

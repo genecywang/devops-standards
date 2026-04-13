@@ -17,6 +17,7 @@ from openclaw_foundation.adapters.kubernetes import (
 from openclaw_foundation.models.requests import InvestigationRequest
 from openclaw_foundation.runtime.runner import OpenClawRunner
 from openclaw_foundation.tools.fake_investigation import FakeInvestigationTool
+from openclaw_foundation.tools.kubernetes_pod_events import KubernetesPodEventsTool
 from openclaw_foundation.tools.kubernetes_pod_status import KubernetesPodStatusTool
 from openclaw_foundation.tools.registry import ToolRegistry
 
@@ -63,6 +64,13 @@ def main(argv: list[str] | None = None) -> int:
         registry.register(FakeInvestigationTool())
         registry.register(
             KubernetesPodStatusTool(
+                adapter=provider_adapter,
+                allowed_clusters={"staging-main"},
+                allowed_namespaces={"payments"},
+            )
+        )
+        registry.register(
+            KubernetesPodEventsTool(
                 adapter=provider_adapter,
                 allowed_clusters={"staging-main"},
                 allowed_namespaces={"payments"},
