@@ -236,3 +236,20 @@ def test_main_with_deployment_status_fixture_prints_success_response(capsys) -> 
     assert exit_code == 0
     assert '"result_state": "success"' in captured.out
     assert "get_deployment_status" in captured.out
+
+
+def test_main_with_pod_runtime_fixture_prints_success_response(capsys) -> None:
+    project_root = Path(__file__).resolve().parents[1]
+    exit_code = main(
+        [
+            "--fixture",
+            str(project_root / "fixtures" / "pod_runtime_request.json"),
+            "--provider",
+            "fake",
+        ]
+    )
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert '"result_state": "success"' in captured.out
+    assert "get_pod_runtime" in captured.out

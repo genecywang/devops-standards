@@ -1,5 +1,6 @@
 import argparse
 import json
+import os
 import sys
 from dataclasses import asdict
 from pathlib import Path
@@ -15,12 +16,17 @@ from openclaw_foundation.adapters.kubernetes import (
     build_apps_v1_api,
     build_core_v1_api,
 )
+from openclaw_foundation.adapters.prometheus import (
+    FakePrometheusProviderAdapter,
+    RealPrometheusProviderAdapter,
+)
 from openclaw_foundation.models.requests import InvestigationRequest
 from openclaw_foundation.runtime.runner import OpenClawRunner
 from openclaw_foundation.tools.fake_investigation import FakeInvestigationTool
 from openclaw_foundation.tools.kubernetes_deployment_status import KubernetesDeploymentStatusTool
 from openclaw_foundation.tools.kubernetes_pod_events import KubernetesPodEventsTool
 from openclaw_foundation.tools.kubernetes_pod_status import KubernetesPodStatusTool
+from openclaw_foundation.tools.prometheus_pod_runtime import PrometheusPodRuntimeTool
 from openclaw_foundation.tools.registry import ToolRegistry
 
 
@@ -36,6 +42,15 @@ def build_provider_adapter(provider: str):
         return FakeKubernetesProviderAdapter()
     if provider == "real":
         return RealKubernetesProviderAdapter(build_core_v1_api(), build_apps_v1_api())
+    raise ValueError(f"unsupported provider mode: {provider}")
+
+
+def build_prometheus_adapter(provider: str):
+    if provider == "fake":
+        return FakePrometheusProviderAdapter()
+    if provider == "real":
+        base_url = os.environ["OPENCLAW_PROMETHEUS_BASE_URL"]
+        return RealPrometheusProviderAdapter(base_url=base_url)
     raise ValueError(f"unsupported provider mode: {provider}")
 
 
@@ -85,6 +100,14 @@ def main(argv: list[str] | None = None) -> int:
                 allowed_namespaces={"payments"},
             )
         )
+        if request.tool_name == "get_pod_runtime":
+            prometheus_adapter = build_prometheus_adapter(args.provider)
+            registry.register(
+                PrometheusPodRuntimeTool(
+                    adapter=prometheus_adapter,
+                    allowed_namespaces={"dev", "payments"},
+                )
+            )
         response = OpenClawRunner(registry).run(request)
         print(json.dumps(asdict(response), indent=2))
         return 0

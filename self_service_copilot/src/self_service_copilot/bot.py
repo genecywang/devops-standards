@@ -12,10 +12,15 @@ from openclaw_foundation.adapters.kubernetes import (
     build_apps_v1_api,
     build_core_v1_api,
 )
+from openclaw_foundation.adapters.prometheus import (
+    FakePrometheusProviderAdapter,
+    RealPrometheusProviderAdapter,
+)
 from openclaw_foundation.runtime.runner import OpenClawRunner
 from openclaw_foundation.tools.kubernetes_deployment_status import KubernetesDeploymentStatusTool
 from openclaw_foundation.tools.kubernetes_pod_events import KubernetesPodEventsTool
 from openclaw_foundation.tools.kubernetes_pod_status import KubernetesPodStatusTool
+from openclaw_foundation.tools.prometheus_pod_runtime import PrometheusPodRuntimeTool
 from openclaw_foundation.tools.registry import ToolRegistry
 
 from self_service_copilot.config import CopilotConfig
@@ -38,9 +43,15 @@ def should_handle_channel(channel_id: str, allowed_channel_ids: set[str]) -> boo
 
 def build_registry(config: CopilotConfig) -> ToolRegistry:
     if config.provider == "real":
+        if not config.prometheus_base_url:
+            raise ValueError("OPENCLAW_PROMETHEUS_BASE_URL is required for real provider")
         adapter = RealKubernetesProviderAdapter(build_core_v1_api(), build_apps_v1_api())
+        prometheus_adapter = RealPrometheusProviderAdapter(
+            base_url=config.prometheus_base_url
+        )
     else:
         adapter = FakeKubernetesProviderAdapter()
+        prometheus_adapter = FakePrometheusProviderAdapter()
 
     registry = ToolRegistry()
     registry.register(
@@ -61,6 +72,12 @@ def build_registry(config: CopilotConfig) -> ToolRegistry:
         KubernetesDeploymentStatusTool(
             adapter=adapter,
             allowed_clusters=config.allowed_clusters,
+            allowed_namespaces=config.allowed_namespaces,
+        )
+    )
+    registry.register(
+        PrometheusPodRuntimeTool(
+            adapter=prometheus_adapter,
             allowed_namespaces=config.allowed_namespaces,
         )
     )

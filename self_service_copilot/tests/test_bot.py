@@ -22,6 +22,7 @@ def test_build_registry_registers_get_deployment_status_tool() -> None:
         environment="staging",
         allowed_clusters={"staging-main"},
         allowed_namespaces={"payments"},
+        prometheus_base_url=None,
         supported_tools=frozenset(
             {"get_pod_status", "get_pod_events", "get_deployment_status"}
         ),
@@ -39,3 +40,34 @@ def test_build_registry_registers_get_deployment_status_tool() -> None:
 
     tool = registry.get("get_deployment_status")
     assert tool.tool_name == "get_deployment_status"
+
+
+def test_build_registry_registers_get_pod_runtime_tool() -> None:
+    config = CopilotConfig(
+        cluster="staging-main",
+        environment="staging",
+        allowed_clusters={"staging-main"},
+        allowed_namespaces={"payments"},
+        prometheus_base_url=None,
+        supported_tools=frozenset(
+            {
+                "get_pod_status",
+                "get_pod_events",
+                "get_deployment_status",
+                "get_pod_runtime",
+            }
+        ),
+        default_budget=ExecutionBudget(
+            max_steps=2,
+            max_tool_calls=1,
+            max_duration_seconds=15,
+            max_output_tokens=512,
+        ),
+        provider="fake",
+        allowed_channel_ids=set(),
+    )
+
+    registry = build_registry(config)
+
+    tool = registry.get("get_pod_runtime")
+    assert tool.tool_name == "get_pod_runtime"
