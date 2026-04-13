@@ -21,6 +21,7 @@ export COPILOT_CLUSTER="staging-main"
 export COPILOT_ENVIRONMENT="staging"
 export COPILOT_ALLOWED_CLUSTERS="staging-main"
 export COPILOT_ALLOWED_NAMESPACES="payments"
+export COPILOT_ALLOWED_CHANNEL_IDS="C03F4JWGJGK"
 export COPILOT_PROVIDER="fake"
 .venv/bin/python -m self_service_copilot.bot
 ```
@@ -55,3 +56,4 @@ Known MVP limits:
 - plain text replies only
 - no Slack integration test yet
 - no retry on Slack SDK send failure
+- empty `COPILOT_ALLOWED_CHANNEL_IDS` means no channel restriction

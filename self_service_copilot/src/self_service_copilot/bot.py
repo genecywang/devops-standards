@@ -28,6 +28,12 @@ from self_service_copilot.parser import ParseError, parse
 logger = logging.getLogger(__name__)
 
 
+def should_handle_channel(channel_id: str, allowed_channel_ids: set[str]) -> bool:
+    if not allowed_channel_ids:
+        return True
+    return channel_id in allowed_channel_ids
+
+
 def build_registry(config: CopilotConfig) -> ToolRegistry:
     if config.provider == "real":
         adapter = RealKubernetesProviderAdapter(build_core_v1_api())
@@ -74,6 +80,15 @@ def main() -> None:
         event_ts = event.get("ts", "")
         channel_id = event.get("channel", "")
         actor_id = event.get("user", "")
+        logger.info(
+            "received app_mention channel=%s user=%s text=%r",
+            channel_id,
+            actor_id,
+            text,
+        )
+        if not should_handle_channel(channel_id, config.allowed_channel_ids):
+            logger.info("ignored mention from disallowed channel channel=%s user=%s", channel_id, actor_id)
+            return
         ctx = SlackContext(actor_id=actor_id, channel_id=channel_id, event_ts=event_ts)
 
         try:
