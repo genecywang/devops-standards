@@ -9,9 +9,11 @@ from slack_bolt.adapter.socket_mode import SocketModeHandler
 from openclaw_foundation.adapters.kubernetes import (
     FakeKubernetesProviderAdapter,
     RealKubernetesProviderAdapter,
+    build_apps_v1_api,
     build_core_v1_api,
 )
 from openclaw_foundation.runtime.runner import OpenClawRunner
+from openclaw_foundation.tools.kubernetes_deployment_status import KubernetesDeploymentStatusTool
 from openclaw_foundation.tools.kubernetes_pod_events import KubernetesPodEventsTool
 from openclaw_foundation.tools.kubernetes_pod_status import KubernetesPodStatusTool
 from openclaw_foundation.tools.registry import ToolRegistry
@@ -36,7 +38,7 @@ def should_handle_channel(channel_id: str, allowed_channel_ids: set[str]) -> boo
 
 def build_registry(config: CopilotConfig) -> ToolRegistry:
     if config.provider == "real":
-        adapter = RealKubernetesProviderAdapter(build_core_v1_api())
+        adapter = RealKubernetesProviderAdapter(build_core_v1_api(), build_apps_v1_api())
     else:
         adapter = FakeKubernetesProviderAdapter()
 
@@ -50,6 +52,13 @@ def build_registry(config: CopilotConfig) -> ToolRegistry:
     )
     registry.register(
         KubernetesPodEventsTool(
+            adapter=adapter,
+            allowed_clusters=config.allowed_clusters,
+            allowed_namespaces=config.allowed_namespaces,
+        )
+    )
+    registry.register(
+        KubernetesDeploymentStatusTool(
             adapter=adapter,
             allowed_clusters=config.allowed_clusters,
             allowed_namespaces=config.allowed_namespaces,

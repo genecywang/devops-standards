@@ -35,7 +35,9 @@ class CopilotConfig:
             allowed_clusters=allowed_clusters,
             allowed_namespaces=allowed_namespaces,
             allowed_channel_ids=allowed_channel_ids,
-            supported_tools=frozenset({"get_pod_status", "get_pod_events"}),
+            supported_tools=frozenset(
+                {"get_pod_status", "get_pod_events", "get_deployment_status"}
+            ),
             default_budget=ExecutionBudget(
                 max_steps=2,
                 max_tool_calls=1,
