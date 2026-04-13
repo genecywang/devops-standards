@@ -1,0 +1,19 @@
+{{- if and (eq .Values.config.provider "real") (not .Values.config.prometheusBaseUrl) }}
+{{- fail "config.prometheusBaseUrl is required when config.provider is \"real\"" }}
+{{- end }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "self-service-copilot.fullname" . }}-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "self-service-copilot.labels" . | nindent 4 }}
+data:
+  COPILOT_CLUSTER: {{ .Values.config.cluster | quote }}
+  COPILOT_ENVIRONMENT: {{ .Values.config.environment | quote }}
+  COPILOT_ALLOWED_CLUSTERS: {{ .Values.config.allowedClusters | quote }}
+  COPILOT_ALLOWED_NAMESPACES: {{ .Values.config.allowedNamespaces | quote }}
+  COPILOT_ALLOWED_CHANNEL_IDS: {{ .Values.config.allowedChannelIds | quote }}
+  COPILOT_PROVIDER: {{ .Values.config.provider | quote }}
+  OPENCLAW_PROMETHEUS_BASE_URL: {{ .Values.config.prometheusBaseUrl | quote }}
+  LOG_LEVEL: {{ .Values.config.logLevel | quote }}
