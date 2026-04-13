@@ -1,0 +1,21 @@
+{
+  "request_type": "investigation",
+  "request_id": "req-deployment-restart-001",
+  "source_product": "cli_fixture",
+  "input_ref": "fixture://deployment_restart_rate",
+  "scope": {
+    "cluster": "staging-main",
+    "environment": "staging"
+  },
+  "budget": {
+    "max_steps": 2,
+    "max_tool_calls": 1,
+    "max_duration_seconds": 15,
+    "max_output_tokens": 512
+  },
+  "tool_name": "get_deployment_restart_rate",
+  "target": {
+    "namespace": "payments",
+    "resource_name": "payments-api"
+  }
+}

@@ -42,6 +42,21 @@ def test_from_env_includes_get_pod_runtime_in_supported_tools(monkeypatch) -> No
     assert "get_pod_runtime" in config.supported_tools
 
 
+def test_from_env_includes_get_deployment_restart_rate_in_supported_tools(
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("COPILOT_CLUSTER", "staging-main")
+    monkeypatch.setenv("COPILOT_ENVIRONMENT", "staging")
+    monkeypatch.setenv("COPILOT_ALLOWED_CLUSTERS", "staging-main")
+    monkeypatch.setenv("COPILOT_ALLOWED_NAMESPACES", "payments")
+    monkeypatch.delenv("COPILOT_ALLOWED_CHANNEL_IDS", raising=False)
+    monkeypatch.setenv("COPILOT_PROVIDER", "fake")
+
+    config = CopilotConfig.from_env()
+
+    assert "get_deployment_restart_rate" in config.supported_tools
+
+
 def test_from_env_reads_prometheus_base_url(monkeypatch) -> None:
     monkeypatch.setenv("COPILOT_CLUSTER", "staging-main")
     monkeypatch.setenv("COPILOT_ENVIRONMENT", "staging")

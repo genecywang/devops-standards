@@ -26,6 +26,9 @@ from openclaw_foundation.tools.fake_investigation import FakeInvestigationTool
 from openclaw_foundation.tools.kubernetes_deployment_status import KubernetesDeploymentStatusTool
 from openclaw_foundation.tools.kubernetes_pod_events import KubernetesPodEventsTool
 from openclaw_foundation.tools.kubernetes_pod_status import KubernetesPodStatusTool
+from openclaw_foundation.tools.prometheus_deployment_restart_rate import (
+    PrometheusDeploymentRestartRateTool,
+)
 from openclaw_foundation.tools.prometheus_pod_runtime import PrometheusPodRuntimeTool
 from openclaw_foundation.tools.registry import ToolRegistry
 
@@ -100,10 +103,16 @@ def main(argv: list[str] | None = None) -> int:
                 allowed_namespaces={"payments"},
             )
         )
-        if request.tool_name == "get_pod_runtime":
+        if request.tool_name in {"get_pod_runtime", "get_deployment_restart_rate"}:
             prometheus_adapter = build_prometheus_adapter(args.provider)
             registry.register(
                 PrometheusPodRuntimeTool(
+                    adapter=prometheus_adapter,
+                    allowed_namespaces={"dev", "payments"},
+                )
+            )
+            registry.register(
+                PrometheusDeploymentRestartRateTool(
                     adapter=prometheus_adapter,
                     allowed_namespaces={"dev", "payments"},
                 )

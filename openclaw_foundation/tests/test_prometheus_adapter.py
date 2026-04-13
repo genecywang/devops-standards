@@ -22,6 +22,22 @@ def test_fake_prometheus_adapter_returns_runtime_payload() -> None:
     assert result["window"] == "15m"
 
 
+def test_fake_prometheus_adapter_returns_deployment_restart_rate_shape() -> None:
+    adapter = FakePrometheusProviderAdapter()
+
+    payload = adapter.get_deployment_restart_rate("payments", "payments-api")
+
+    assert payload["namespace"] == "payments"
+    assert payload["deployment_name"] == "payments-api"
+    assert payload["recent_restarts_15m"] == 3
+    assert payload["total_restarts"] == 7
+    assert payload["pods_shown"] == 2
+    assert payload["pods_total"] == 2
+    assert payload["no_pods"] is False
+    assert payload["window"] == "15m"
+    assert len(payload["pod_breakdown"]) == 2
+
+
 class _FakeHttpResponse:
     def __init__(self, payload: dict[str, object]) -> None:
         self._payload = payload
@@ -117,3 +133,93 @@ def test_real_prometheus_adapter_raises_query_error_when_no_pod_metrics_exist(
         assert "no metrics found for pod" in str(error)
     else:
         raise AssertionError("expected PrometheusQueryError")
+
+
+def test_real_prometheus_adapter_builds_deployment_restart_payload(monkeypatch) -> None:
+    adapter = RealPrometheusProviderAdapter(base_url="https://example.com")
+    responses = [
+        {
+            "result": [
+                {"metric": {"replicaset": "payments-api-rs1"}, "value": [0, "1"]},
+                {"metric": {"replicaset": "payments-api-rs2"}, "value": [0, "1"]},
+            ]
+        },
+        {
+            "result": [
+                {"metric": {"pod": "payments-api-pod-a"}, "value": [0, "1"]},
+                {"metric": {"pod": "payments-api-pod-b"}, "value": [0, "1"]},
+            ]
+        },
+        {
+            "result": [
+                {"metric": {"pod": "payments-api-pod-a"}, "value": [0, "4"]},
+                {"metric": {"pod": "payments-api-pod-b"}, "value": [0, "3"]},
+            ]
+        },
+        {
+            "result": [
+                {"metric": {"pod": "payments-api-pod-a"}, "value": [0, "2"]},
+                {"metric": {"pod": "payments-api-pod-b"}, "value": [0, "1"]},
+            ]
+        },
+    ]
+
+    monkeypatch.setattr(adapter, "query_instant", lambda query: responses.pop(0))
+
+    payload = adapter.get_deployment_restart_rate("payments", "payments-api")
+
+    assert payload["recent_restarts_15m"] == 3
+    assert payload["total_restarts"] == 7
+    assert payload["pods_shown"] == 2
+    assert payload["pods_total"] == 2
+    assert payload["no_pods"] is False
+    assert payload["pod_breakdown"][0]["pod_name"] == "payments-api-pod-a"
+
+
+def test_real_prometheus_adapter_raises_when_no_replicasets(monkeypatch) -> None:
+    adapter = RealPrometheusProviderAdapter(base_url="https://example.com")
+    monkeypatch.setattr(adapter, "query_instant", lambda query: {"result": []})
+
+    try:
+        adapter.get_deployment_restart_rate("payments", "payments-api")
+        raise AssertionError("expected PrometheusQueryError")
+    except PrometheusQueryError as error:
+        assert str(error) == "no replicasets found for deployment"
+
+
+def test_real_prometheus_adapter_returns_no_pods_when_q2_is_empty(monkeypatch) -> None:
+    adapter = RealPrometheusProviderAdapter(base_url="https://example.com")
+    responses = [
+        {"result": [{"metric": {"replicaset": "payments-api-rs1"}, "value": [0, "1"]}]},
+        {"result": []},
+    ]
+
+    monkeypatch.setattr(adapter, "query_instant", lambda query: responses.pop(0))
+
+    payload = adapter.get_deployment_restart_rate("payments", "payments-api")
+
+    assert payload["recent_restarts_15m"] == 0
+    assert payload["total_restarts"] == 0
+    assert payload["pod_breakdown"] == []
+    assert payload["no_pods"] is True
+
+
+def test_real_prometheus_adapter_returns_missing_metrics_shape_when_q3_q4_are_empty(
+    monkeypatch,
+) -> None:
+    adapter = RealPrometheusProviderAdapter(base_url="https://example.com")
+    responses = [
+        {"result": [{"metric": {"replicaset": "payments-api-rs1"}, "value": [0, "1"]}]},
+        {"result": [{"metric": {"pod": "payments-api-pod-a"}, "value": [0, "1"]}]},
+        {"result": []},
+        {"result": []},
+    ]
+
+    monkeypatch.setattr(adapter, "query_instant", lambda query: responses.pop(0))
+
+    payload = adapter.get_deployment_restart_rate("payments", "payments-api")
+
+    assert payload["recent_restarts_15m"] == 0
+    assert payload["total_restarts"] == 0
+    assert payload["pod_breakdown"] == []
+    assert payload["no_pods"] is False

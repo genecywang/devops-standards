@@ -100,6 +100,42 @@ def test_build_registry_registers_get_pod_runtime_tool() -> None:
     assert tool.tool_name == "get_pod_runtime"
 
 
+def test_build_registry_registers_get_deployment_restart_rate_tool() -> None:
+    config = CopilotConfig(
+        cluster="staging-main",
+        environment="staging",
+        allowed_clusters={"staging-main"},
+        allowed_namespaces={"payments"},
+        prometheus_base_url=None,
+        supported_tools=frozenset(
+            {
+                "get_pod_status",
+                "get_pod_events",
+                "get_deployment_status",
+                "get_pod_runtime",
+                "get_deployment_restart_rate",
+            }
+        ),
+        default_budget=ExecutionBudget(
+            max_steps=2,
+            max_tool_calls=1,
+            max_duration_seconds=15,
+            max_output_tokens=512,
+        ),
+        provider="fake",
+        allowed_channel_ids=set(),
+        user_rate_limit_count=5,
+        user_rate_limit_window_seconds=60,
+        channel_rate_limit_count=20,
+        channel_rate_limit_window_seconds=60,
+    )
+
+    registry = build_registry(config)
+
+    tool = registry.get("get_deployment_restart_rate")
+    assert tool.tool_name == "get_deployment_restart_rate"
+
+
 def test_is_expected_platform_error_returns_true_for_prometheus_error() -> None:
     assert is_expected_platform_error(PrometheusQueryError("no metrics found for pod")) is True
 

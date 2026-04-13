@@ -58,6 +58,7 @@ class CopilotConfig:
                     "get_pod_events",
                     "get_deployment_status",
                     "get_pod_runtime",
+                    "get_deployment_restart_rate",
                 }
             ),
             default_budget=ExecutionBudget(
