@@ -26,6 +26,22 @@ def truncate_pod_status(payload: dict[str, object]) -> dict[str, object]:
     }
 
 
+_MAX_EVENTS = 10
+_MAX_MESSAGE_LEN = 256
+
+
+def truncate_pod_events(events: list[dict[str, object]]) -> list[dict[str, object]]:
+    bounded = events[:_MAX_EVENTS]
+    result = []
+    for event in bounded:
+        entry = dict(event)
+        msg = entry.get("message")
+        if isinstance(msg, str) and len(msg) > _MAX_MESSAGE_LEN:
+            entry["message"] = msg[:_MAX_MESSAGE_LEN] + "...[truncated]"
+        result.append(entry)
+    return result
+
+
 def _mask_string(value: str) -> str:
     patterns = [
         (re.compile(r"Bearer\s+\S+", re.IGNORECASE), "Bearer [REDACTED]"),

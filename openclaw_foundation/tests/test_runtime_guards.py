@@ -3,6 +3,7 @@ import pytest
 from openclaw_foundation.runtime.audit import AuditEvent
 from openclaw_foundation.runtime.guards import (
     redact_output,
+    truncate_pod_events,
     truncate_pod_status,
     validate_scope,
 )
@@ -54,6 +55,42 @@ def test_redact_output_masks_sensitive_values() -> None:
 
     assert "secret-token" not in redacted["annotation"]
     assert "supersecret" not in redacted["env_hint"]
+
+
+def _make_event(reason: str = "Reason", message: str = "msg") -> dict:
+    return {
+        "type": "Normal",
+        "reason": reason,
+        "message": message,
+        "count": 1,
+        "last_timestamp": "2026-04-13T12:00:00Z",
+    }
+
+
+def test_truncate_pod_events_limits_list_to_ten_events() -> None:
+    events = [_make_event(reason=f"R{i}") for i in range(15)]
+
+    result = truncate_pod_events(events)
+
+    assert len(result) == 10
+
+
+def test_truncate_pod_events_truncates_message_longer_than_256_chars() -> None:
+    long_msg = "x" * 300
+    events = [_make_event(message=long_msg)]
+
+    result = truncate_pod_events(events)
+
+    assert len(result[0]["message"]) <= 270  # 256 + len("...[truncated]")
+    assert result[0]["message"].endswith("...[truncated]")
+
+
+def test_truncate_pod_events_preserves_short_message_unchanged() -> None:
+    events = [_make_event(message="short message")]
+
+    result = truncate_pod_events(events)
+
+    assert result[0]["message"] == "short message"
 
 
 def test_audit_event_captures_canonical_fields() -> None:
