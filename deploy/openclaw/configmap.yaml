@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: openclaw-runtime-config
+  namespace: openclaw-system
+data:
+  OPENCLAW_PROVIDER_MODE: "real"
+  OPENCLAW_ALLOWED_CLUSTERS: "staging-main"
+  OPENCLAW_ALLOWED_NAMESPACES: "payments"
+  OPENCLAW_LOG_LEVEL: "INFO"
