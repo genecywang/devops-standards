@@ -17,6 +17,10 @@ class CopilotConfig:
     provider: str  # "fake" | "real"
     prometheus_base_url: str | None = None
     allowed_channel_ids: set[str] = field(default_factory=set)
+    user_rate_limit_count: int = 5
+    user_rate_limit_window_seconds: int = 60
+    channel_rate_limit_count: int = 20
+    channel_rate_limit_window_seconds: int = 60
 
     @classmethod
     def from_env(cls) -> CopilotConfig:
@@ -38,6 +42,16 @@ class CopilotConfig:
             allowed_namespaces=allowed_namespaces,
             prometheus_base_url=prometheus_base_url,
             allowed_channel_ids=allowed_channel_ids,
+            user_rate_limit_count=int(os.environ.get("COPILOT_USER_RATE_LIMIT_COUNT", "5")),
+            user_rate_limit_window_seconds=int(
+                os.environ.get("COPILOT_USER_RATE_LIMIT_WINDOW_SECONDS", "60")
+            ),
+            channel_rate_limit_count=int(
+                os.environ.get("COPILOT_CHANNEL_RATE_LIMIT_COUNT", "20")
+            ),
+            channel_rate_limit_window_seconds=int(
+                os.environ.get("COPILOT_CHANNEL_RATE_LIMIT_WINDOW_SECONDS", "60")
+            ),
             supported_tools=frozenset(
                 {
                     "get_pod_status",

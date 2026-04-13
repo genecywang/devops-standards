@@ -6,10 +6,29 @@ from openclaw_foundation.models.requests import ExecutionBudget
 
 from self_service_copilot.bot import (
     build_registry,
+    handle_mention_event,
     is_expected_platform_error,
     should_handle_channel,
 )
 from self_service_copilot.config import CopilotConfig
+from self_service_copilot.rate_limit import CopilotRateLimiter, RateLimitRule
+
+
+class RecordingSay:
+    def __init__(self) -> None:
+        self.calls: list[tuple[str, str]] = []
+
+    def __call__(self, message: str, thread_ts: str) -> None:
+        self.calls.append((message, thread_ts))
+
+
+class RecordingRunner:
+    def __init__(self) -> None:
+        self.calls: list[object] = []
+
+    def run(self, request):
+        self.calls.append(request)
+        raise AssertionError("runner should not be called")
 
 
 def test_should_handle_channel_returns_false_for_disallowed_channel() -> None:
@@ -109,3 +128,87 @@ def test_log_level_from_env_falls_back_to_info_for_invalid(monkeypatch) -> None:
     monkeypatch.setenv("LOG_LEVEL", "NOTAVALIDLEVEL")
     from self_service_copilot.bot import _log_level_from_env
     assert _log_level_from_env() == logging.INFO
+
+
+def test_handle_mention_event_replies_when_rate_limited() -> None:
+    config = CopilotConfig(
+        cluster="staging-main",
+        environment="staging",
+        allowed_clusters={"staging-main"},
+        allowed_namespaces={"payments"},
+        prometheus_base_url=None,
+        supported_tools=frozenset({"get_pod_status"}),
+        default_budget=ExecutionBudget(
+            max_steps=2,
+            max_tool_calls=1,
+            max_duration_seconds=15,
+            max_output_tokens=512,
+        ),
+        provider="fake",
+        allowed_channel_ids=set(),
+    )
+    say = RecordingSay()
+    runner = RecordingRunner()
+    limiter = CopilotRateLimiter(
+        user_rule=RateLimitRule(limit=0, window_seconds=60),
+        channel_rule=RateLimitRule(limit=10, window_seconds=60),
+    )
+    event = {
+        "channel": "C1",
+        "user": "U1",
+        "text": "<@UBOT> get_pod_status payments payments-api-123",
+        "ts": "1710000000.000100",
+    }
+
+    handle_mention_event(
+        event=event,
+        say=say,
+        config=config,
+        bot_user_id="UBOT",
+        runner=runner,
+        limiter=limiter,
+    )
+
+    assert say.calls == [("[denied] rate limit exceeded, please retry later", "1710000000.000100")]
+
+
+def test_handle_mention_event_rate_limit_blocks_before_runner() -> None:
+    config = CopilotConfig(
+        cluster="staging-main",
+        environment="staging",
+        allowed_clusters={"staging-main"},
+        allowed_namespaces={"payments"},
+        prometheus_base_url=None,
+        supported_tools=frozenset({"get_pod_status"}),
+        default_budget=ExecutionBudget(
+            max_steps=2,
+            max_tool_calls=1,
+            max_duration_seconds=15,
+            max_output_tokens=512,
+        ),
+        provider="fake",
+        allowed_channel_ids=set(),
+    )
+    say = RecordingSay()
+    runner = RecordingRunner()
+    limiter = CopilotRateLimiter(
+        user_rule=RateLimitRule(limit=0, window_seconds=60),
+        channel_rule=RateLimitRule(limit=10, window_seconds=60),
+    )
+    event = {
+        "channel": "C1",
+        "user": "U1",
+        "text": "<@UBOT> get_pod_status payments payments-api-123",
+        "ts": "1710000000.000100",
+    }
+
+    handle_mention_event(
+        event=event,
+        say=say,
+        config=config,
+        bot_user_id="UBOT",
+        runner=runner,
+        limiter=limiter,
+    )
+
+    assert runner.calls == []

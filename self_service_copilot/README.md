@@ -50,6 +50,13 @@ This uses the same config loading path as `openclaw_foundation`:
 - first `in-cluster`
 - then local `kubeconfig`
 
+Optional rate limit env vars:
+
+- `COPILOT_USER_RATE_LIMIT_COUNT` (default: `5`)
+- `COPILOT_USER_RATE_LIMIT_WINDOW_SECONDS` (default: `60`)
+- `COPILOT_CHANNEL_RATE_LIMIT_COUNT` (default: `20`)
+- `COPILOT_CHANNEL_RATE_LIMIT_WINDOW_SECONDS` (default: `60`)
+
 Supported tools:
 
 - `get_pod_status`

@@ -54,3 +54,43 @@ def test_from_env_reads_prometheus_base_url(monkeypatch) -> None:
     config = CopilotConfig.from_env()
 
     assert config.prometheus_base_url == "http://prometheus.monitoring.svc:9090"
+
+
+def test_from_env_uses_default_rate_limits(monkeypatch) -> None:
+    monkeypatch.setenv("COPILOT_CLUSTER", "staging-main")
+    monkeypatch.setenv("COPILOT_ENVIRONMENT", "staging")
+    monkeypatch.setenv("COPILOT_ALLOWED_CLUSTERS", "staging-main")
+    monkeypatch.setenv("COPILOT_ALLOWED_NAMESPACES", "payments")
+    monkeypatch.setenv("COPILOT_PROVIDER", "fake")
+    monkeypatch.delenv("COPILOT_ALLOWED_CHANNEL_IDS", raising=False)
+    monkeypatch.delenv("COPILOT_USER_RATE_LIMIT_COUNT", raising=False)
+    monkeypatch.delenv("COPILOT_USER_RATE_LIMIT_WINDOW_SECONDS", raising=False)
+    monkeypatch.delenv("COPILOT_CHANNEL_RATE_LIMIT_COUNT", raising=False)
+    monkeypatch.delenv("COPILOT_CHANNEL_RATE_LIMIT_WINDOW_SECONDS", raising=False)
+
+    config = CopilotConfig.from_env()
+
+    assert config.user_rate_limit_count == 5
+    assert config.user_rate_limit_window_seconds == 60
+    assert config.channel_rate_limit_count == 20
+    assert config.channel_rate_limit_window_seconds == 60
+
+
+def test_from_env_reads_rate_limit_overrides(monkeypatch) -> None:
+    monkeypatch.setenv("COPILOT_CLUSTER", "staging-main")
+    monkeypatch.setenv("COPILOT_ENVIRONMENT", "staging")
+    monkeypatch.setenv("COPILOT_ALLOWED_CLUSTERS", "staging-main")
+    monkeypatch.setenv("COPILOT_ALLOWED_NAMESPACES", "payments")
+    monkeypatch.setenv("COPILOT_PROVIDER", "fake")
+    monkeypatch.delenv("COPILOT_ALLOWED_CHANNEL_IDS", raising=False)
+    monkeypatch.setenv("COPILOT_USER_RATE_LIMIT_COUNT", "7")
+    monkeypatch.setenv("COPILOT_USER_RATE_LIMIT_WINDOW_SECONDS", "30")
+    monkeypatch.setenv("COPILOT_CHANNEL_RATE_LIMIT_COUNT", "50")
+    monkeypatch.setenv("COPILOT_CHANNEL_RATE_LIMIT_WINDOW_SECONDS", "120")
+
+    config = CopilotConfig.from_env()
+
+    assert config.user_rate_limit_count == 7
+    assert config.user_rate_limit_window_seconds == 30
+    assert config.channel_rate_limit_count == 50
+    assert config.channel_rate_limit_window_seconds == 120

@@ -34,6 +34,11 @@ from self_service_copilot.formatter import (
     format_response,
 )
 from self_service_copilot.parser import ParseError, parse
+from self_service_copilot.rate_limit import (
+    CopilotRateLimiter,
+    RateLimitExceededError,
+    RateLimitRule,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -51,6 +56,26 @@ def should_handle_channel(channel_id: str, allowed_channel_ids: set[str]) -> boo
 
 def is_expected_platform_error(error: Exception) -> bool:
     return isinstance(error, (KubernetesError, PrometheusQueryError))
+
+
+def safe_reply(say, message: str, thread_ts: str) -> None:
+    try:
+        say(message, thread_ts=thread_ts)
+    except Exception:
+        logger.exception("failed to send Slack reply")
+
+
+def build_rate_limiter(config: CopilotConfig) -> CopilotRateLimiter:
+    return CopilotRateLimiter(
+        user_rule=RateLimitRule(
+            limit=config.user_rate_limit_count,
+            window_seconds=config.user_rate_limit_window_seconds,
+        ),
+        channel_rule=RateLimitRule(
+            limit=config.channel_rate_limit_count,
+            window_seconds=config.channel_rate_limit_window_seconds,
+        ),
+    )
 
 
 def build_registry(config: CopilotConfig) -> ToolRegistry:
@@ -96,61 +121,87 @@ def build_registry(config: CopilotConfig) -> ToolRegistry:
     return registry
 
 
+def handle_mention_event(
+    *,
+    event,
+    say,
+    config: CopilotConfig,
+    bot_user_id: str,
+    runner,
+    limiter: CopilotRateLimiter,
+) -> None:
+    text = event.get("text", "")
+    event_ts = event.get("ts", "")
+    channel_id = event.get("channel", "")
+    actor_id = event.get("user", "")
+    logger.info(
+        "received app_mention channel=%s user=%s text=%r",
+        channel_id,
+        actor_id,
+        text,
+    )
+    if not should_handle_channel(channel_id, config.allowed_channel_ids):
+        logger.info(
+            "ignored mention from disallowed channel channel=%s user=%s",
+            channel_id,
+            actor_id,
+        )
+        return
+
+    try:
+        limiter.check(actor_id=actor_id, channel_id=channel_id)
+    except RateLimitExceededError:
+        logger.info("rate limit exceeded for actor=%s channel=%s", actor_id, channel_id)
+        safe_reply(say, "[denied] rate limit exceeded, please retry later", event_ts)
+        return
+
+    ctx = SlackContext(actor_id=actor_id, channel_id=channel_id, event_ts=event_ts)
+
+    try:
+        cmd = parse(text, bot_user_id, config.supported_tools)
+    except ParseError as error:
+        safe_reply(say, format_parse_error(error, config.supported_tools), event_ts)
+        return
+
+    try:
+        request = build_request(cmd, ctx, config)
+    except DispatchError as error:
+        safe_reply(say, format_dispatch_error(error, cmd), event_ts)
+        return
+
+    try:
+        response = runner.run(request)
+        safe_reply(say, format_response(response, cmd), event_ts)
+    except Exception as error:
+        if is_expected_platform_error(error):
+            logger.info("platform error while handling Slack mention: %s", error)
+            safe_reply(say, format_platform_error(error, cmd), event_ts)
+            return
+        logger.exception("unexpected failure while handling Slack mention")
+        safe_reply(say, "[error] unexpected failure, please retry", event_ts)
+
+
 def main() -> None:
     logging.basicConfig(level=_log_level_from_env())
 
     config = CopilotConfig.from_env()
     registry = build_registry(config)
     runner = OpenClawRunner(registry)
+    limiter = build_rate_limiter(config)
 
     app = App(token=os.environ["SLACK_BOT_TOKEN"])
     bot_user_id: str = app.client.auth_test()["user_id"]
 
-    def safe_reply(say, message: str, thread_ts: str) -> None:
-        try:
-            say(message, thread_ts=thread_ts)
-        except Exception:
-            logger.exception("failed to send Slack reply")
-
     @app.event("app_mention")
     def handle_mention(event, say) -> None:
-        text = event.get("text", "")
-        event_ts = event.get("ts", "")
-        channel_id = event.get("channel", "")
-        actor_id = event.get("user", "")
-        logger.info(
-            "received app_mention channel=%s user=%s text=%r",
-            channel_id,
-            actor_id,
-            text,
+        handle_mention_event(
+            event=event,
+            say=say,
+            config=config,
+            bot_user_id=bot_user_id,
+            runner=runner,
+            limiter=limiter,
         )
-        if not should_handle_channel(channel_id, config.allowed_channel_ids):
-            logger.info("ignored mention from disallowed channel channel=%s user=%s", channel_id, actor_id)
-            return
-        ctx = SlackContext(actor_id=actor_id, channel_id=channel_id, event_ts=event_ts)
-
-        try:
-            cmd = parse(text, bot_user_id, config.supported_tools)
-        except ParseError as error:
-            safe_reply(say, format_parse_error(error, config.supported_tools), event_ts)
-            return
-
-        try:
-            request = build_request(cmd, ctx, config)
-        except DispatchError as error:
-            safe_reply(say, format_dispatch_error(error, cmd), event_ts)
-            return
-
-        try:
-            response = runner.run(request)
-            safe_reply(say, format_response(response, cmd), event_ts)
-        except Exception as error:
-            if is_expected_platform_error(error):
-                logger.info("platform error while handling Slack mention: %s", error)
-                safe_reply(say, format_platform_error(error, cmd), event_ts)
-                return
-            logger.exception("unexpected failure while handling Slack mention")
-            safe_reply(say, "[error] unexpected failure, please retry", event_ts)
 
     SocketModeHandler(app, os.environ["SLACK_APP_TOKEN"]).start()
 
