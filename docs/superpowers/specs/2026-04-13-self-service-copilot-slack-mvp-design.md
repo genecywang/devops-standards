@@ -1,7 +1,7 @@
 # Self-Service Ops Copilot — Slack MVP Design
 
 **Date:** 2026-04-13
-**Status:** Approved
+**Status:** Approved (rev 2 — foundation alignment fixes)
 **Scope:** Phase 1 MVP — Slack Socket Mode bot, @mention + semi-structured grammar, read-only tool dispatch via OpenClawRunner
 
 ---
@@ -21,9 +21,32 @@
 
 ---
 
+## Foundation Model 變更（這輪需要，最小化）
+
+### `InvestigationRequest` 新增 `requested_by`
+
+```python
+@dataclass(slots=True)
+class InvestigationRequest:
+    ...
+    requested_by: str | None = None   # 新增 optional field
+```
+
+Backward compatible（optional，None default），現有 CLI tests 不需更動。Dispatcher 從 `SlackContext.actor_id` 填入，供 audit 使用。
+
+### `CanonicalResponse` 這輪不動
+
+Formatter 這輪只使用 `summary + result_state`，不需要 `evidence`。`CanonicalResponse` 加 `evidence` 欄位 defer 到下一輪（需同時修改 runner 傳遞 `tool_result.evidence`）。
+
+### Runner `result_state` 這輪的真實範圍
+
+Runner 這輪實際會回的 `result_state`：`SUCCESS`、`FAILED`、`FALLBACK`。`DENIED` 和 `PARTIAL` 不由 runner 發出，`DENIED` 全留在 dispatcher（`DispatchError`，runner 不介入），`PARTIAL` defer。
+
+---
+
 ## Package 結構
 
-`openclaw_foundation` 維持 runtime / tool / adapter 邊界不變。Slack bot 與 Copilot product logic 獨立放在 `self_service_copilot/` package。
+`openclaw_foundation` 除加入 `requested_by` optional field 外維持不變。Slack bot 與 Copilot product logic 獨立放在 `self_service_copilot/` package。
 
 ```
 self_service_copilot/
@@ -35,7 +58,7 @@ self_service_copilot/
 │       ├── config.py       # CopilotConfig dataclass
 │       ├── parser.py       # mention text → ParsedCommand
 │       ├── dispatcher.py   # ParsedCommand + SlackContext → InvestigationRequest
-│       └── formatter.py    # ToolResult / ParseError → Slack reply string
+│       └── formatter.py    # CanonicalResponse / ParseError / DispatchError → Slack reply string
 └── tests/
     ├── test_parser.py
     ├── test_dispatcher.py
@@ -51,13 +74,13 @@ Slack @mention event
     ↓
 bot.py: SocketModeHandler receives app_mention event
     ↓
-parser.parse(text, bot_user_id) → ParsedCommand
-    ↓ (ParseError → format_parse_error → say → return)
+parser.parse(text, bot_user_id, supported_tools) → ParsedCommand
+    ↓ (ParseError → format_parse_error → say(thread_ts) → return)
 dispatcher.build_request(cmd, ctx, config) → InvestigationRequest
-    ↓ (DispatchError → format deny → say → return)
+    ↓ (DispatchError → format_dispatch_error → say(thread_ts) → return)
 OpenClawRunner(registry).run(request) → CanonicalResponse
     ↓
-formatter.format_tool_result(response, cmd) → str
+formatter.format_response(response, cmd) → str
     ↓
 say(reply_str, thread_ts=event_ts)
 ```
@@ -138,11 +161,18 @@ class SlackContext:
     event_ts: str     # thread reply 用，也當 request_id seed
 ```
 
+**`DispatchError`：**
+
+```python
+class DispatchError(ValueError):
+    pass   # allowlist violation — tool / namespace / cluster 不在允許範圍
+```
+
 **`build_request(cmd, ctx, config)` 補的 canonical defaults：**
 
 | InvestigationRequest 欄位 | 來源 |
 |---|---|
-| `request_id` | `make_request_id(ctx)` — 封裝在 helper，不散落字串拼接 |
+| `request_id` | `make_request_id(ctx)` — helper 封裝，不散落字串拼接 |
 | `source_product` | `"self_service_copilot"` |
 | `requested_by` | `ctx.actor_id` |
 | `scope.cluster` | `config.cluster`（不從 user input 取）|
@@ -187,56 +217,55 @@ class CopilotConfig:
 
 ## Formatter Contract
 
-**原則：** plain text，thread-friendly，不做 Slack Block Kit。以 canonical `result_state` / error type 決定格式，不靠 message string 猜。
+**原則：** plain text，thread-friendly，不做 Slack Block Kit。以 canonical `result_state` / error type 決定格式，不靠 message string 猜。Formatter 這輪只用 `CanonicalResponse.summary + result_state`，不依賴 `evidence`（`CanonicalResponse` 尚未有此欄位）。
 
-**success：**
+**success（`result_state=SUCCESS`）：**
 
 ```
 [success] get_pod_status payments/payments-api-123
-phase: Running
-containers: app (ready), sidecar (ready)
-node: node-a
+pod payments-api-123 is Running
 ```
 
-**partial（budget exceeded 或單一 tool timeout）：**
+`summary` 由 tool 填入，formatter 直接使用，不自行 parse evidence。
+
+**failed（`result_state=FAILED`）：**
 
 ```
-[partial] get_pod_events payments/payments-api-123
-partial result only
-reason: budget exceeded
-...evidence if any...
+[failed] get_pod_status payments/payments-api-123
+no registered tool available for get_pod_status
 ```
 
-**user error：**
+**fallback（`result_state=FALLBACK`）：**
+
+```
+[fallback] get_pod_status payments/payments-api-123
+budget exhausted before tool execution
+```
+
+**dispatcher deny（`DispatchError`，不進 runner）：**
+
+```
+[denied] namespace "internal" is not allowed
+```
+
+**user error（`ParseError`）：**
 
 ```
 [unknown command] get_pod_statuss
 Supported: get_pod_events <namespace> <resource_name>, get_pod_status <namespace> <resource_name>
 
-[usage] get_pod_status requires 2 arguments: <namespace> <resource_name>
+[usage] get_pod_status requires: <namespace> <resource_name>
 ```
 
 `supported_tools` 顯示時固定排序（sorted），確保輸出穩定。
 
-**platform error（denied / failed / fallback）：**
-
-```
-[denied] namespace "internal" is not allowed
-
-[failed] cluster endpoint unreachable
-next check: verify DNS, network path, VPN, or cluster endpoint
-
-[fallback] partial result only — investigation budget exceeded
-```
-
 **Formatter 介面：**
 
 ```python
-def format_tool_result(response: CanonicalResponse, cmd: ParsedCommand) -> str: ...
+def format_response(response: CanonicalResponse, cmd: ParsedCommand) -> str: ...
 def format_parse_error(error: ParseError, supported_tools: frozenset[str]) -> str: ...
+def format_dispatch_error(error: DispatchError, cmd: ParsedCommand) -> str: ...
 ```
-
-`format_tool_result` 以 `response.result_state` 為主要分流，優先從 response payload 取資料，對 `cmd` 的依賴限於 display label（tool_name、namespace/resource_name）。
 
 ---
 
@@ -250,11 +279,11 @@ ParseError (UnknownCommandError / UsageError)
     → return
 
 DispatchError (allowlist violation)
-    → format deny message → say(thread_ts)
+    → format_dispatch_error → say(thread_ts)
     → return
 
-runner result_state = failed / denied / fallback / partial
-    → format_tool_result → say(thread_ts)
+runner result_state = SUCCESS / FAILED / FALLBACK
+    → format_response → say(thread_ts)
 
 Unhandled exception（catch-all）
     → log full traceback
@@ -274,8 +303,8 @@ Slack SDK error on say()
 | 測試檔 | 覆蓋範圍 |
 |---|---|
 | `test_parser.py` | valid 輸入、`UnknownCommandError`、`UsageError`、多餘空白 strip |
-| `test_dispatcher.py` | 欄位映射、cluster 永遠從 config 來、allowlist deny、`request_id` 格式 |
-| `test_formatter.py` | 每種 `result_state`、每種 `ParseError`、`supported_tools` 排序穩定 |
+| `test_dispatcher.py` | 欄位映射（含 `requested_by`）、cluster 永遠從 config 來、allowlist deny、`request_id` 格式 |
+| `test_formatter.py` | `SUCCESS` / `FAILED` / `FALLBACK`、`ParseError` 兩種、`DispatchError`、`supported_tools` 排序穩定 |
 
 ---
 
@@ -283,6 +312,8 @@ Slack SDK error on say()
 
 - 只支援 `get_pod_status` 和 `get_pod_events`
 - 只支援 staging cluster（production 不在 MVP 範圍）
+- Formatter 只用 `summary + result_state`，不讀 `evidence`（下一輪再擴充）
+- Runner 只處理 `SUCCESS` / `FAILED` / `FALLBACK`，`DENIED` 在 dispatcher 攔截，`PARTIAL` defer
 - 不做 dedup / rate limit / cooldown（Phase 2）
 - 不做 user permission mapping（Phase 2）
 - 不做 rich blocks（後續視需要加）
@@ -293,6 +324,7 @@ Slack SDK error on say()
 ## 後續演進項目
 
 - 加入 `get_deployment_status`、`get_recent_logs`、`query_prometheus`（grammar 不需改，register 新 tool 即可）
+- `CanonicalResponse` 加 `evidence` 欄位，formatter 輸出更豐富的結構化內容
 - user permission / namespace 存取控制（依 Slack user ID 限制可查 namespace）
 - dedup / rate limit（同一使用者短時間大量查詢）
 - async worker（多 pod 水平擴展時）
