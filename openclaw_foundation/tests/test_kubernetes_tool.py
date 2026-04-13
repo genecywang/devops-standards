@@ -63,3 +63,21 @@ def test_get_pod_status_redacts_sensitive_annotation_values() -> None:
     result = tool.invoke(make_kubernetes_request())
 
     assert "secret-token" not in str(result.evidence[0])
+
+
+def test_get_pod_status_accepts_resource_name_target_key() -> None:
+    tool = KubernetesPodStatusTool(
+        adapter=FakeKubernetesProviderAdapter(),
+        allowed_clusters={"staging-main"},
+        allowed_namespaces={"payments"},
+    )
+    request = make_kubernetes_request()
+    request.target = {
+        "cluster": "staging-main",
+        "namespace": "payments",
+        "resource_name": "payments-api-123",
+    }
+
+    result = tool.invoke(request)
+
+    assert "payments-api-123" in result.summary

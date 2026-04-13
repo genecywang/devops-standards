@@ -24,7 +24,9 @@ class KubernetesPodStatusTool:
 
         cluster = request.target["cluster"]
         namespace = request.target["namespace"]
-        pod_name = request.target["pod_name"]
+        pod_name = request.target.get("resource_name") or request.target.get("pod_name")
+        if pod_name is None:
+            raise ValueError("resource_name or pod_name is required for get_pod_status")
         validate_scope(cluster, namespace, self._allowed_clusters, self._allowed_namespaces)
 
         payload = self._adapter.get_pod_status(cluster, namespace, pod_name)

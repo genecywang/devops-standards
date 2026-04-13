@@ -91,3 +91,21 @@ def test_get_pod_events_tool_evidence_does_not_contain_raw_object() -> None:
     for event in result.evidence:
         assert "raw_object" not in event
         assert "metadata" not in event
+
+
+def test_get_pod_events_tool_accepts_resource_name_target_key() -> None:
+    tool = KubernetesPodEventsTool(
+        adapter=FakeKubernetesProviderAdapter(),
+        allowed_clusters={"staging-main"},
+        allowed_namespaces={"payments"},
+    )
+    request = make_events_request()
+    request.target = {
+        "cluster": "staging-main",
+        "namespace": "payments",
+        "resource_name": "payments-api-123",
+    }
+
+    result = tool.invoke(request)
+
+    assert "payments-api-123" in result.summary
