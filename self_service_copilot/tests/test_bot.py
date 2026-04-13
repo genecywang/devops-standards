@@ -1,6 +1,12 @@
+from openclaw_foundation.adapters.kubernetes import KubernetesResourceNotFoundError
+from openclaw_foundation.adapters.prometheus import PrometheusQueryError
 from openclaw_foundation.models.requests import ExecutionBudget
 
-from self_service_copilot.bot import build_registry, should_handle_channel
+from self_service_copilot.bot import (
+    build_registry,
+    is_expected_platform_error,
+    should_handle_channel,
+)
 from self_service_copilot.config import CopilotConfig
 
 
@@ -71,3 +77,15 @@ def test_build_registry_registers_get_pod_runtime_tool() -> None:
 
     tool = registry.get("get_pod_runtime")
     assert tool.tool_name == "get_pod_runtime"
+
+
+def test_is_expected_platform_error_returns_true_for_prometheus_error() -> None:
+    assert is_expected_platform_error(PrometheusQueryError("no metrics found for pod")) is True
+
+
+def test_is_expected_platform_error_returns_true_for_kubernetes_error() -> None:
+    assert is_expected_platform_error(KubernetesResourceNotFoundError("pod not found")) is True
+
+
+def test_is_expected_platform_error_returns_false_for_unexpected_error() -> None:
+    assert is_expected_platform_error(RuntimeError("boom")) is False

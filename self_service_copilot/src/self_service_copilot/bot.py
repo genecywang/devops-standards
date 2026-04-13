@@ -8,12 +8,14 @@ from slack_bolt.adapter.socket_mode import SocketModeHandler
 
 from openclaw_foundation.adapters.kubernetes import (
     FakeKubernetesProviderAdapter,
+    KubernetesError,
     RealKubernetesProviderAdapter,
     build_apps_v1_api,
     build_core_v1_api,
 )
 from openclaw_foundation.adapters.prometheus import (
     FakePrometheusProviderAdapter,
+    PrometheusQueryError,
     RealPrometheusProviderAdapter,
 )
 from openclaw_foundation.runtime.runner import OpenClawRunner
@@ -40,6 +42,10 @@ def should_handle_channel(channel_id: str, allowed_channel_ids: set[str]) -> boo
     if not allowed_channel_ids:
         return True
     return channel_id in allowed_channel_ids
+
+
+def is_expected_platform_error(error: Exception) -> bool:
+    return isinstance(error, (KubernetesError, PrometheusQueryError))
 
 
 def build_registry(config: CopilotConfig) -> ToolRegistry:
@@ -134,8 +140,12 @@ def main() -> None:
             response = runner.run(request)
             safe_reply(say, format_response(response, cmd), event_ts)
         except Exception as error:
+            if is_expected_platform_error(error):
+                logger.info("platform error while handling Slack mention: %s", error)
+                safe_reply(say, format_platform_error(error, cmd), event_ts)
+                return
             logger.exception("unexpected failure while handling Slack mention")
-            safe_reply(say, format_platform_error(error, cmd), event_ts)
+            safe_reply(say, "[error] unexpected failure, please retry", event_ts)
 
     SocketModeHandler(app, os.environ["SLACK_APP_TOKEN"]).start()
 
