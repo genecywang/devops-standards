@@ -3,7 +3,11 @@ import json
 from dataclasses import asdict
 from pathlib import Path
 
-from openclaw_foundation.adapters.kubernetes import FakeKubernetesProviderAdapter
+from openclaw_foundation.adapters.kubernetes import (
+    FakeKubernetesProviderAdapter,
+    RealKubernetesProviderAdapter,
+    build_core_v1_api,
+)
 from openclaw_foundation.models.requests import InvestigationRequest
 from openclaw_foundation.runtime.runner import OpenClawRunner
 from openclaw_foundation.tools.fake_investigation import FakeInvestigationTool
@@ -11,20 +15,34 @@ from openclaw_foundation.tools.kubernetes_pod_status import KubernetesPodStatusT
 from openclaw_foundation.tools.registry import ToolRegistry
 
 
-def main() -> int:
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--fixture", required=True)
-    args = parser.parse_args()
+    parser.add_argument("--provider", choices=("fake", "real"), default="fake")
+    return parser.parse_args(argv)
+
+
+def build_provider_adapter(provider: str):
+    if provider == "fake":
+        return FakeKubernetesProviderAdapter()
+    if provider == "real":
+        return RealKubernetesProviderAdapter(build_core_v1_api())
+    raise ValueError(f"unsupported provider mode: {provider}")
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = parse_args(argv)
 
     fixture_path = Path(args.fixture)
     payload = json.loads(fixture_path.read_text())
     request = InvestigationRequest.from_dict(payload)
 
+    provider_adapter = build_provider_adapter(args.provider)
     registry = ToolRegistry()
     registry.register(FakeInvestigationTool())
     registry.register(
         KubernetesPodStatusTool(
-            adapter=FakeKubernetesProviderAdapter(),
+            adapter=provider_adapter,
             allowed_clusters={"staging-main"},
             allowed_namespaces={"payments"},
         )
