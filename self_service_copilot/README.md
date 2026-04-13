@@ -98,3 +98,65 @@ helm upgrade --install staging-copilot deploy/charts/self-service-copilot/ \
   --set config.allowedNamespaces=<ns1,ns2> \
   --set slack.secretName=self-service-copilot-slack
 ```
+
+## Staging Validation
+
+After deploy, validate these three paths.
+
+### 1. Env wiring
+
+Check rate limit env vars inside the pod:
+
+```bash
+kubectl exec -n <namespace> deploy/<copilot-deployment> -- printenv | rg 'COPILOT_(USER|CHANNEL)_RATE_LIMIT'
+```
+
+Expected:
+
+```text
+COPILOT_USER_RATE_LIMIT_COUNT=5
+COPILOT_USER_RATE_LIMIT_WINDOW_SECONDS=60
+COPILOT_CHANNEL_RATE_LIMIT_COUNT=20
+COPILOT_CHANNEL_RATE_LIMIT_WINDOW_SECONDS=60
+```
+
+### 2. Happy path
+
+In an allowed Slack channel, run:
+
+```text
+@copilot get_pod_status <namespace> <pod_name>
+```
+
+Expected:
+
+- bot replies with `[success]`
+- pod logs do not contain `rate limit exceeded`
+
+### 3. Throttle path
+
+From the same Slack user, send more than 5 requests within 60 seconds:
+
+```text
+@copilot get_pod_status <namespace> <pod_name>
+```
+
+Expected on the 6th request:
+
+```text
+[denied] rate limit exceeded, please retry later
+```
+
+Confirm pod log:
+
+```bash
+kubectl logs -n <namespace> deploy/<copilot-deployment> --since=10m | rg 'rate limit exceeded'
+```
+
+Expected:
+
+```text
+rate limit exceeded for actor=U... channel=C...
+```
+
+To validate `per-channel` throttling, have multiple users send requests in the same channel until total requests exceed 20 within 60 seconds.
