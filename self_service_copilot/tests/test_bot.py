@@ -1,3 +1,5 @@
+import logging
+
 from openclaw_foundation.adapters.kubernetes import KubernetesResourceNotFoundError
 from openclaw_foundation.adapters.prometheus import PrometheusQueryError
 from openclaw_foundation.models.requests import ExecutionBudget
@@ -89,3 +91,27 @@ def test_is_expected_platform_error_returns_true_for_kubernetes_error() -> None:
 
 def test_is_expected_platform_error_returns_false_for_unexpected_error() -> None:
     assert is_expected_platform_error(RuntimeError("boom")) is False
+
+
+def test_log_level_from_env_defaults_to_info(monkeypatch):
+    monkeypatch.delenv("LOG_LEVEL", raising=False)
+    from importlib import reload
+    import self_service_copilot.bot as bot_module
+    reload(bot_module)
+    assert bot_module._log_level_from_env() == logging.INFO
+
+
+def test_log_level_from_env_reads_debug(monkeypatch):
+    monkeypatch.setenv("LOG_LEVEL", "DEBUG")
+    from importlib import reload
+    import self_service_copilot.bot as bot_module
+    reload(bot_module)
+    assert bot_module._log_level_from_env() == logging.DEBUG
+
+
+def test_log_level_from_env_falls_back_to_info_for_invalid(monkeypatch):
+    monkeypatch.setenv("LOG_LEVEL", "NOTAVALIDLEVEL")
+    from importlib import reload
+    import self_service_copilot.bot as bot_module
+    reload(bot_module)
+    assert bot_module._log_level_from_env() == logging.INFO

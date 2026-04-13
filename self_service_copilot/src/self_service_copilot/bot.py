@@ -38,6 +38,11 @@ from self_service_copilot.parser import ParseError, parse
 logger = logging.getLogger(__name__)
 
 
+def _log_level_from_env() -> int:
+    level_name = os.environ.get("LOG_LEVEL", "INFO").upper()
+    return getattr(logging, level_name, logging.INFO)
+
+
 def should_handle_channel(channel_id: str, allowed_channel_ids: set[str]) -> bool:
     if not allowed_channel_ids:
         return True
@@ -92,7 +97,7 @@ def build_registry(config: CopilotConfig) -> ToolRegistry:
 
 
 def main() -> None:
-    logging.basicConfig(level=logging.INFO)
+    logging.basicConfig(level=_log_level_from_env())
 
     config = CopilotConfig.from_env()
     registry = build_registry(config)
