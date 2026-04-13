@@ -9,5 +9,5 @@ class FakeInvestigationTool:
     def invoke(self, request: InvestigationRequest) -> ToolResult:
         return ToolResult(
             summary=f"fake investigation completed for {request.request_id}",
-            evidence=[f"input_ref={request.input_ref}"],
+            evidence=[{"input_ref": request.input_ref}],
         )

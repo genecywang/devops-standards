@@ -6,7 +6,13 @@
     "environment": "staging",
     "cluster": "staging-main"
   },
-  "input_ref": "fixture:demo",
+  "input_ref": "fixture:k8s-demo",
+  "tool_name": "get_pod_status",
+  "target": {
+    "cluster": "staging-main",
+    "namespace": "payments",
+    "pod_name": "payments-api-123"
+  },
   "budget": {
     "max_steps": 2,
     "max_tool_calls": 1,

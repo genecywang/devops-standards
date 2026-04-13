@@ -40,12 +40,12 @@ class OpenClawRunner:
             )
 
         try:
-            tool = self._registry.get("fake_investigation")
+            tool = self._registry.get(request.tool_name)
         except KeyError:
             return self._response(
                 request,
                 ResultState.FAILED,
-                "no registered tool available for investigation",
+                f"no registered tool available for {request.tool_name}",
                 [],
             )
 

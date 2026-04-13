@@ -6,7 +6,7 @@ from openclaw_foundation.models.enums import ResultState
 @dataclass(slots=True)
 class ToolResult:
     summary: str
-    evidence: list[str] = field(default_factory=list)
+    evidence: list[dict[str, object]] = field(default_factory=list)
 
 
 @dataclass(slots=True)

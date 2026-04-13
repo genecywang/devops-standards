@@ -29,6 +29,8 @@ class InvestigationRequest:
     scope: dict[str, str]
     input_ref: str
     budget: ExecutionBudget
+    tool_name: str = "fake_investigation"
+    target: dict[str, str] | None = None
 
     def __post_init__(self) -> None:
         if self.request_type != RequestType.INVESTIGATION:
@@ -60,4 +62,6 @@ class InvestigationRequest:
                 max_duration_seconds=int(budget_payload["max_duration_seconds"]),
                 max_output_tokens=int(budget_payload["max_output_tokens"]),
             ),
+            tool_name=str(payload.get("tool_name", "fake_investigation")),
+            target=dict(payload["target"]) if "target" in payload and payload["target"] is not None else None,
         )

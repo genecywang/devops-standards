@@ -28,3 +28,4 @@ def test_cli_outputs_success_response() -> None:
 
     assert payload["request_id"] == "req-001"
     assert payload["result_state"] == "success"
+    assert "payments-api-123" in payload["summary"]

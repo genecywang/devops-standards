@@ -3,9 +3,11 @@ import json
 from dataclasses import asdict
 from pathlib import Path
 
+from openclaw_foundation.adapters.kubernetes import FakeKubernetesProviderAdapter
 from openclaw_foundation.models.requests import InvestigationRequest
 from openclaw_foundation.runtime.runner import OpenClawRunner
 from openclaw_foundation.tools.fake_investigation import FakeInvestigationTool
+from openclaw_foundation.tools.kubernetes_pod_status import KubernetesPodStatusTool
 from openclaw_foundation.tools.registry import ToolRegistry
 
 
@@ -20,6 +22,13 @@ def main() -> int:
 
     registry = ToolRegistry()
     registry.register(FakeInvestigationTool())
+    registry.register(
+        KubernetesPodStatusTool(
+            adapter=FakeKubernetesProviderAdapter(),
+            allowed_clusters={"staging-main"},
+            allowed_namespaces={"payments"},
+        )
+    )
     response = OpenClawRunner(registry).run(request)
     print(json.dumps(asdict(response), indent=2))
     return 0

@@ -1,7 +1,9 @@
 from openclaw_foundation.models.enums import RequestType
 from openclaw_foundation.models.requests import ExecutionBudget, InvestigationRequest
+from openclaw_foundation.tools.kubernetes_pod_status import KubernetesPodStatusTool
 from openclaw_foundation.runtime.runner import OpenClawRunner
 from openclaw_foundation.runtime.state_machine import RuntimeState
+from openclaw_foundation.adapters.kubernetes import FakeKubernetesProviderAdapter
 from openclaw_foundation.tools.fake_investigation import FakeInvestigationTool
 from openclaw_foundation.tools.registry import ToolRegistry
 
@@ -37,7 +39,7 @@ def test_fake_tool_returns_summary_and_evidence() -> None:
     result = tool.invoke(make_request())
 
     assert "req-001" in result.summary
-    assert result.evidence == ["input_ref=fixture:demo"]
+    assert result.evidence == [{"input_ref": "fixture:demo"}]
 
 
 def test_runner_success_path() -> None:
@@ -79,3 +81,40 @@ def test_runner_budget_exceeded_returns_fallback() -> None:
     response = runner.run(request)
 
     assert response.result_state == "fallback"
+
+
+def test_runner_executes_kubernetes_pod_status_tool() -> None:
+    registry = ToolRegistry()
+    registry.register(
+        KubernetesPodStatusTool(
+            adapter=FakeKubernetesProviderAdapter(),
+            allowed_clusters={"staging-main"},
+            allowed_namespaces={"payments"},
+        )
+    )
+    runner = OpenClawRunner(registry)
+    request = InvestigationRequest(
+        request_type=RequestType.INVESTIGATION,
+        request_id="req-k8s-001",
+        source_product="alert_auto_investigator",
+        scope={"environment": "staging", "cluster": "staging-main"},
+        input_ref="fixture:k8s-demo",
+        budget=ExecutionBudget(
+            max_steps=2,
+            max_tool_calls=1,
+            max_duration_seconds=30,
+            max_output_tokens=256,
+        ),
+        tool_name="get_pod_status",
+        target={
+            "cluster": "staging-main",
+            "namespace": "payments",
+            "pod_name": "payments-api-123",
+        },
+    )
+
+    response = runner.run(request)
+
+    assert response.result_state == "success"
+    assert response.actions_attempted == ["get_pod_status"]
+    assert "payments-api-123" in response.summary
