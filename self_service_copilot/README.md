@@ -50,10 +50,44 @@ This uses the same config loading path as `openclaw_foundation`:
 - first `in-cluster`
 - then local `kubeconfig`
 
+Supported tools:
+
+- `get_pod_status`
+- `get_pod_events`
+- `get_deployment_status`
+- `get_pod_runtime`
+
 Known MVP limits:
 
-- only `get_pod_status` and `get_pod_events`
 - plain text replies only
 - no Slack integration test yet
 - no retry on Slack SDK send failure
 - empty `COPILOT_ALLOWED_CHANNEL_IDS` means no channel restriction
+- no per-user / per-channel throttle yet
+
+## Image CI
+
+GitHub Actions workflow:
+
+- PR: run pytest + docker build, do not push image
+- `main` push: run pytest + docker build + push to `GHCR`
+- `workflow_dispatch`: manual build + push `sha-*` tag
+
+Published image tags:
+
+- `ghcr.io/<owner>/self-service-copilot:sha-<shortsha>`
+- `ghcr.io/<owner>/self-service-copilot:latest` (`main` only)
+
+## Manual Deploy
+
+After CI publishes an image, deploy manually with Helm:
+
+```bash
+helm upgrade --install staging-copilot deploy/charts/self-service-copilot/ \
+  --namespace <namespace> \
+  --set image.repository=ghcr.io/<owner>/self-service-copilot \
+  --set image.tag=sha-<shortsha> \
+  --set config.cluster=<cluster> \
+  --set config.allowedNamespaces=<ns1,ns2> \
+  --set slack.secretName=self-service-copilot-slack
+```
