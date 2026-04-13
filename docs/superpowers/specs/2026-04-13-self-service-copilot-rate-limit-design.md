@@ -159,16 +159,17 @@ class CopilotRateLimiter:
 rate limit 檢查放在 `bot.py` 的 mention handler 中，建議順序：
 
 1. channel allowlist check
-2. parse command
-3. rate limit check
+2. rate limit check
+3. parse command
 4. dispatcher
 5. runner
 6. formatter / reply
 
-不在 parse 前檢查的原因：
+rate limit 放在 parse 前的原因：
 
-- 需要 `actor_id` / `channel_id`
-- 但仍要盡量早於 dispatcher / runner，避免濫用直接打到 tool layer
+- 只需要 `actor_id` / `channel_id`，不需要 parsed command
+- 可讓 parse error 也被計入 throttle
+- 仍足夠早於 dispatcher / runner，避免濫用直接打到 tool layer
 
 對 parse error 是否計入 rate limit：
 
