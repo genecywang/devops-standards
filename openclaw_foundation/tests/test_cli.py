@@ -6,6 +6,8 @@ from unittest.mock import Mock
 
 import pytest
 
+_FIXTURES_DIR = Path(__file__).resolve().parent.parent / "fixtures"
+
 from openclaw_foundation.adapters.kubernetes import (
     FakeKubernetesProviderAdapter,
     KubernetesAccessDeniedError,
@@ -21,7 +23,7 @@ def test_build_provider_adapter_is_importable() -> None:
 
 
 def test_parse_args_defaults_provider_to_fake() -> None:
-    args = parse_args(["--fixture", "openclaw_foundation/fixtures/investigation_request.json"])
+    args = parse_args(["--fixture", str(_FIXTURES_DIR / "investigation_request.json")])
     assert args.provider == "fake"
 
 
@@ -58,7 +60,7 @@ def test_main_renders_config_error_message(
     exit_code = main(
         [
             "--fixture",
-            "openclaw_foundation/fixtures/investigation_request.json",
+            str(_FIXTURES_DIR / "investigation_request.json"),
             "--provider",
             "real",
         ]
@@ -82,7 +84,7 @@ def test_main_renders_endpoint_error_message(
     exit_code = main(
         [
             "--fixture",
-            "openclaw_foundation/fixtures/investigation_request.json",
+            str(_FIXTURES_DIR / "investigation_request.json"),
             "--provider",
             "real",
         ]
@@ -106,7 +108,7 @@ def test_main_renders_access_denied_message(
     exit_code = main(
         [
             "--fixture",
-            "openclaw_foundation/fixtures/investigation_request.json",
+            str(_FIXTURES_DIR / "investigation_request.json"),
             "--provider",
             "real",
         ]
@@ -130,7 +132,7 @@ def test_main_renders_not_found_message(
     exit_code = main(
         [
             "--fixture",
-            "openclaw_foundation/fixtures/investigation_request.json",
+            str(_FIXTURES_DIR / "investigation_request.json"),
             "--provider",
             "real",
         ]
@@ -226,7 +228,7 @@ def test_main_with_deployment_status_fixture_prints_success_response(capsys) -> 
     exit_code = main(
         [
             "--fixture",
-            "openclaw_foundation/fixtures/deployment_status_request.json",
+            str(_FIXTURES_DIR / "deployment_status_request.json"),
             "--provider",
             "fake",
         ]
