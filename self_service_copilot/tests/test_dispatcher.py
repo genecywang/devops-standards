@@ -16,6 +16,8 @@ def make_config(**overrides) -> CopilotConfig:
     defaults = dict(
         cluster="staging-main",
         environment="staging",
+        default_environment="staging",
+        environment_clusters={"staging": "staging-main"},
         allowed_clusters={"staging-main"},
         allowed_namespaces={"payments"},
         supported_tools=frozenset({"get_pod_status", "get_pod_events"}),
@@ -37,6 +39,7 @@ def make_cmd(tool_name: str = "get_pod_status", namespace: str = "payments") -> 
         namespace=namespace,
         resource_name="payments-api-123",
         raw_text=f"@copilot {tool_name} {namespace} payments-api-123",
+        requested_environment=None,
     )
 
 
@@ -88,6 +91,33 @@ def test_build_request_target_contains_namespace_and_resource_name() -> None:
     assert request.target["resource_name"] == "payments-api-123"
 
 
+def test_build_request_uses_default_environment_when_not_specified() -> None:
+    request = build_request(make_cmd(), make_ctx(), make_config())
+
+    assert request.scope["environment"] == "staging"
+
+
+def test_build_request_uses_requested_environment_and_cluster_mapping() -> None:
+    cmd = ParsedCommand(
+        tool_name="get_pod_status",
+        namespace="payments",
+        resource_name="payments-api-123",
+        raw_text="@copilot jp get_pod_status payments payments-api-123",
+        requested_environment="jp",
+    )
+    config = make_config(
+        default_environment="staging",
+        environment_clusters={"staging": "staging-main", "jp": "jp-main"},
+        allowed_clusters={"staging-main", "jp-main"},
+    )
+
+    request = build_request(cmd, make_ctx(), config)
+
+    assert request.scope["environment"] == "jp"
+    assert request.scope["cluster"] == "jp-main"
+    assert request.target["cluster"] == "jp-main"
+
+
 def test_build_request_raises_dispatch_error_for_disallowed_tool() -> None:
     cmd = make_cmd(tool_name="get_pod_logs")
 
@@ -99,6 +129,32 @@ def test_build_request_raises_dispatch_error_for_disallowed_namespace() -> None:
     cmd = make_cmd(namespace="internal")
 
     with pytest.raises(DispatchError, match="internal"):
+        build_request(cmd, make_ctx(), make_config())
+
+
+def test_build_request_raises_dispatch_error_for_invalid_resource_name() -> None:
+    cmd = ParsedCommand(
+        tool_name="get_pod_status",
+        namespace="payments",
+        resource_name="payments-api-123;",
+        raw_text="@copilot get_pod_status payments payments-api-123;",
+        requested_environment=None,
+    )
+
+    with pytest.raises(DispatchError, match="resource_name"):
+        build_request(cmd, make_ctx(), make_config())
+
+
+def test_build_request_raises_dispatch_error_for_unknown_environment() -> None:
+    cmd = ParsedCommand(
+        tool_name="get_pod_status",
+        namespace="payments",
+        resource_name="payments-api-123",
+        raw_text="@copilot au get_pod_status payments payments-api-123",
+        requested_environment="au",
+    )
+
+    with pytest.raises(DispatchError, match="environment"):
         build_request(cmd, make_ctx(), make_config())
 
 

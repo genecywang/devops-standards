@@ -32,6 +32,31 @@ Then mention the bot in Slack:
 @copilot get_pod_status payments payments-api-123
 ```
 
+Environment-aware grammar for shared channels:
+
+```text
+@copilot au get_pod_status payments payments-api-123
+@copilot jp get_deployment_restart_rate dev dev-py3-h2s-apisvc
+```
+
+When no environment prefix is provided, the bot uses the default configured environment.
+When you need to explicitly verify a specific environment during manual testing, prefer the environment-prefixed form.
+
+## Ownership Gate
+
+Each deployed bot instance owns only its own identity:
+
+- `COPILOT_ENVIRONMENT`
+- `COPILOT_CLUSTER`
+
+Current routing rules:
+
+- manual command without environment prefix: follow the existing default-environment path
+- manual command with environment prefix: another environment is ignored without a Slack reply
+- normalized Prometheus alert: matched by `Cluster:` first
+- Prometheus alert for another cluster: ignored without a Slack reply
+- Prometheus alert for the same cluster: filtered locally only; no auto-investigation reply yet
+
 Expected thread reply:
 
 ```text
@@ -57,12 +82,20 @@ Optional rate limit env vars:
 - `COPILOT_CHANNEL_RATE_LIMIT_COUNT` (default: `20`)
 - `COPILOT_CHANNEL_RATE_LIMIT_WINDOW_SECONDS` (default: `60`)
 
+Optional multi-environment env vars:
+
+- `COPILOT_DEFAULT_ENVIRONMENT` (defaults to `COPILOT_ENVIRONMENT`)
+- `COPILOT_ENVIRONMENT_CLUSTERS` format:
+  `staging=staging-main,au=au-main,jp=jp-main`
+
 Supported tools:
 
 - `get_pod_status`
 - `get_pod_events`
 - `get_deployment_status`
 - `get_pod_runtime`
+- `get_pod_cpu_usage`
+- `get_deployment_restart_rate`
 
 Known MVP limits:
 

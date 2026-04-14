@@ -10,6 +10,7 @@ class ParsedCommand:
     namespace: str
     resource_name: str
     raw_text: str
+    requested_environment: str | None = None
 
 
 class ParseError(ValueError):
@@ -29,12 +30,22 @@ def parse(text: str, bot_user_id: str, supported_tools: frozenset[str]) -> Parse
     cleaned = re.sub(rf"<@{re.escape(bot_user_id)}>", "", text).strip()
     tokens = cleaned.split()
 
-    if len(tokens) != 3:
+    if len(tokens) not in {3, 4}:
         raise UsageError(
-            f"expected: <tool_name> <namespace> <resource_name>, got {len(tokens)} token(s)"
+            "expected: [environment] <tool_name> <namespace> <resource_name>, "
+            f"got {len(tokens)} token(s)"
         )
 
-    tool_name, namespace, resource_name = tokens
+    requested_environment: str | None = None
+    if len(tokens) == 4:
+        if tokens[0] in supported_tools:
+            raise UsageError(
+                "expected: [environment] <tool_name> <namespace> <resource_name>, "
+                f"got {len(tokens)} token(s)"
+            )
+        requested_environment, tool_name, namespace, resource_name = tokens
+    else:
+        tool_name, namespace, resource_name = tokens
 
     if tool_name not in supported_tools:
         raise UnknownCommandError(tool_name)
@@ -44,4 +55,5 @@ def parse(text: str, bot_user_id: str, supported_tools: frozenset[str]) -> Parse
         namespace=namespace,
         resource_name=resource_name,
         raw_text=raw_text,
+        requested_environment=requested_environment,
     )

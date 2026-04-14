@@ -31,6 +31,19 @@ def test_parse_strips_extra_whitespace() -> None:
     assert cmd.resource_name == "payments-api-123"
 
 
+def test_parse_supports_environment_prefix() -> None:
+    cmd = parse(
+        f"<@{BOT_ID}> au get_pod_status payments payments-api-123",
+        BOT_ID,
+        SUPPORTED,
+    )
+
+    assert cmd.requested_environment == "au"
+    assert cmd.tool_name == "get_pod_status"
+    assert cmd.namespace == "payments"
+    assert cmd.resource_name == "payments-api-123"
+
+
 def test_parse_raises_unknown_command_error_for_unrecognised_tool() -> None:
     with pytest.raises(UnknownCommandError, match="get_pod_logs"):
         parse(f"<@{BOT_ID}> get_pod_logs payments payments-api-123", BOT_ID, SUPPORTED)
@@ -56,3 +69,4 @@ def test_parse_preserves_raw_text() -> None:
     cmd = parse(raw, BOT_ID, SUPPORTED)
 
     assert cmd.raw_text == raw
+    assert cmd.requested_environment is None

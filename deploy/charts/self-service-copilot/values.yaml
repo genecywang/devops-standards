@@ -13,6 +13,8 @@ image:
 config:
   cluster: staging-main
   environment: staging
+  defaultEnvironment: ""
+  environmentClusters: ""
   allowedClusters: staging-main
   allowedNamespaces: payments
   allowedChannelIds: ""

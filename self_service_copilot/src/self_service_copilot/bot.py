@@ -25,6 +25,7 @@ from openclaw_foundation.tools.kubernetes_pod_status import KubernetesPodStatusT
 from openclaw_foundation.tools.prometheus_deployment_restart_rate import (
     PrometheusDeploymentRestartRateTool,
 )
+from openclaw_foundation.tools.prometheus_pod_cpu_usage import PrometheusPodCpuUsageTool
 from openclaw_foundation.tools.prometheus_pod_runtime import PrometheusPodRuntimeTool
 from openclaw_foundation.tools.registry import ToolRegistry
 
@@ -36,6 +37,7 @@ from self_service_copilot.formatter import (
     format_platform_error,
     format_response,
 )
+from self_service_copilot.ownership import OwnershipDecision, decide_ownership
 from self_service_copilot.parser import ParseError, parse
 from self_service_copilot.rate_limit import (
     CopilotRateLimiter,
@@ -66,6 +68,25 @@ def safe_reply(say, message: str, thread_ts: str) -> None:
         say(message, thread_ts=thread_ts)
     except Exception:
         logger.exception("failed to send Slack reply")
+
+
+def log_ownership_decision(
+    decision: OwnershipDecision,
+    *,
+    my_environment: str,
+    my_cluster: str,
+) -> None:
+    logger.info(
+        "ownership decision source_type=%s target_environment=%s target_cluster=%s "
+        "my_environment=%s my_cluster=%s decision=%s reason=%s",
+        decision.source_type,
+        decision.target_environment,
+        decision.target_cluster,
+        my_environment,
+        my_cluster,
+        decision.decision,
+        decision.reason,
+    )
 
 
 def build_rate_limiter(config: CopilotConfig) -> CopilotRateLimiter:
@@ -122,6 +143,12 @@ def build_registry(config: CopilotConfig) -> ToolRegistry:
         )
     )
     registry.register(
+        PrometheusPodCpuUsageTool(
+            adapter=prometheus_adapter,
+            allowed_namespaces=config.allowed_namespaces,
+        )
+    )
+    registry.register(
         PrometheusDeploymentRestartRateTool(
             adapter=prometheus_adapter,
             allowed_namespaces=config.allowed_namespaces,
@@ -164,6 +191,23 @@ def handle_mention_event(
         safe_reply(say, "[denied] rate limit exceeded, please retry later", event_ts)
         return
 
+    ownership_decision = decide_ownership(
+        text=text,
+        bot_user_id=bot_user_id,
+        supported_tools=config.supported_tools,
+        my_environment=config.environment,
+        my_cluster=config.cluster,
+    )
+    log_ownership_decision(
+        ownership_decision,
+        my_environment=config.environment,
+        my_cluster=config.cluster,
+    )
+    if ownership_decision.decision == "ignored":
+        return
+    if ownership_decision.source_type == "prometheus_alert":
+        return
+
     ctx = SlackContext(actor_id=actor_id, channel_id=channel_id, event_ts=event_ts)
 
     try:
@@ -175,6 +219,15 @@ def handle_mention_event(
     try:
         request = build_request(cmd, ctx, config)
     except DispatchError as error:
+        logger.info(
+            "dispatch denied actor=%s channel=%s tool=%s namespace=%s resource_name=%s reason=%s",
+            actor_id,
+            channel_id,
+            cmd.tool_name,
+            cmd.namespace,
+            cmd.resource_name,
+            error,
+        )
         safe_reply(say, format_dispatch_error(error, cmd), event_ts)
         return
 

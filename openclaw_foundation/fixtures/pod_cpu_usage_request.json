@@ -1,0 +1,22 @@
+{
+  "request_type": "investigation",
+  "request_id": "req-pod-cpu-cli-001",
+  "source_product": "cli",
+  "scope": {
+    "environment": "staging",
+    "cluster": "staging-main"
+  },
+  "input_ref": "fixture:pod-cpu-usage",
+  "budget": {
+    "max_steps": 2,
+    "max_tool_calls": 1,
+    "max_duration_seconds": 15,
+    "max_output_tokens": 512
+  },
+  "tool_name": "get_pod_cpu_usage",
+  "target": {
+    "cluster": "staging-main",
+    "namespace": "dev",
+    "resource_name": "dev-py3-h2s-apisvc-5596c5b6bb-7hrg7"
+  }
+}

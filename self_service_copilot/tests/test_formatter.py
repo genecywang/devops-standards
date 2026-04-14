@@ -108,6 +108,14 @@ def test_format_dispatch_error_starts_with_denied_label() -> None:
     assert "internal" in reply
 
 
+def test_format_dispatch_error_for_invalid_resource_name_uses_denied_label() -> None:
+    error = DispatchError("resource_name 'payments-api-123;' is not allowed")
+    reply = format_dispatch_error(error, make_cmd())
+
+    assert reply.startswith("[denied]")
+    assert "resource_name" in reply
+
+
 def test_format_platform_error_for_prometheus_query_error_uses_failed_label() -> None:
     reply = format_platform_error(PrometheusQueryError("no metrics found for pod"), make_cmd("get_pod_runtime"))
 

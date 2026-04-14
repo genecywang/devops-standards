@@ -11,6 +11,12 @@ metadata:
 data:
   COPILOT_CLUSTER: {{ .Values.config.cluster | quote }}
   COPILOT_ENVIRONMENT: {{ .Values.config.environment | quote }}
+{{- if .Values.config.defaultEnvironment | trim }}
+  COPILOT_DEFAULT_ENVIRONMENT: {{ .Values.config.defaultEnvironment | quote }}
+{{- end }}
+{{- if .Values.config.environmentClusters | trim }}
+  COPILOT_ENVIRONMENT_CLUSTERS: {{ .Values.config.environmentClusters | quote }}
+{{- end }}
   COPILOT_ALLOWED_CLUSTERS: {{ .Values.config.allowedClusters | quote }}
   COPILOT_ALLOWED_NAMESPACES: {{ .Values.config.allowedNamespaces | quote }}
   COPILOT_ALLOWED_CHANNEL_IDS: {{ .Values.config.allowedChannelIds | quote }}
