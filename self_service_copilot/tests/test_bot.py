@@ -386,49 +386,6 @@ def test_handle_mention_event_ignores_manual_command_for_other_environment() -> 
     assert runner.calls == []
 
 
-def test_handle_mention_event_ignores_prometheus_alert_for_other_cluster() -> None:
-    config = CopilotConfig(
-        cluster="staging-main",
-        environment="staging",
-        allowed_clusters={"staging-main"},
-        allowed_namespaces={"payments"},
-        prometheus_base_url=None,
-        supported_tools=frozenset({"get_pod_status"}),
-        default_budget=ExecutionBudget(
-            max_steps=2,
-            max_tool_calls=1,
-            max_duration_seconds=15,
-            max_output_tokens=512,
-        ),
-        provider="fake",
-        allowed_channel_ids=set(),
-    )
-    say = RecordingSay()
-    runner = RecordingRunner()
-    limiter = CopilotRateLimiter(
-        user_rule=RateLimitRule(limit=10, window_seconds=60),
-        channel_rule=RateLimitRule(limit=10, window_seconds=60),
-    )
-    event = {
-        "channel": "C1",
-        "user": "U1",
-        "text": "AlertSource: prometheus\nCluster: prod-main\nSeverity: warning",
-        "ts": "1710000000.000100",
-    }
-
-    handle_mention_event(
-        event=event,
-        say=say,
-        config=config,
-        bot_user_id="UBOT",
-        runner=runner,
-        limiter=limiter,
-    )
-
-    assert say.calls == []
-    assert runner.calls == []
-
-
 def test_handle_mention_event_logs_ownership_decision_for_ignored_path(caplog) -> None:
     config = CopilotConfig(
         cluster="staging-main",
@@ -472,106 +429,10 @@ def test_handle_mention_event_logs_ownership_decision_for_ignored_path(caplog) -
     assert "ownership decision" in caplog.text
     assert "source_type=manual_command" in caplog.text
     assert "target_environment=prod" in caplog.text
-    assert "target_cluster=None" in caplog.text
     assert "my_environment=staging" in caplog.text
     assert "my_cluster=staging-main" in caplog.text
     assert "decision=ignored" in caplog.text
     assert "reason=not_my_environment" in caplog.text
-
-
-def test_handle_mention_event_matching_prometheus_alert_is_filtered_without_reply() -> None:
-    config = CopilotConfig(
-        cluster="staging-main",
-        environment="staging",
-        allowed_clusters={"staging-main"},
-        allowed_namespaces={"payments"},
-        prometheus_base_url=None,
-        supported_tools=frozenset({"get_pod_status"}),
-        default_budget=ExecutionBudget(
-            max_steps=2,
-            max_tool_calls=1,
-            max_duration_seconds=15,
-            max_output_tokens=512,
-        ),
-        provider="fake",
-        allowed_channel_ids=set(),
-    )
-    say = RecordingSay()
-    runner = RecordingRunner()
-    limiter = CopilotRateLimiter(
-        user_rule=RateLimitRule(limit=10, window_seconds=60),
-        channel_rule=RateLimitRule(limit=10, window_seconds=60),
-    )
-    event = {
-        "channel": "C1",
-        "user": "U1",
-        "text": "AlertSource: prometheus\nCluster: staging-main\nSeverity: warning",
-        "ts": "1710000000.000100",
-    }
-
-    handle_mention_event(
-        event=event,
-        say=say,
-        config=config,
-        bot_user_id="UBOT",
-        runner=runner,
-        limiter=limiter,
-    )
-
-    assert say.calls == []
-    assert runner.calls == []
-
-
-def test_handle_mention_event_matching_prometheus_alert_logs_ownership_decision_in_shared_channel(
-    caplog,
-) -> None:
-    config = CopilotConfig(
-        cluster="staging-main",
-        environment="staging",
-        allowed_clusters={"staging-main"},
-        allowed_namespaces={"payments"},
-        prometheus_base_url=None,
-        supported_tools=frozenset({"get_pod_status"}),
-        default_budget=ExecutionBudget(
-            max_steps=2,
-            max_tool_calls=1,
-            max_duration_seconds=15,
-            max_output_tokens=512,
-        ),
-        provider="fake",
-        allowed_channel_ids={"CSHARED"},
-    )
-    say = RecordingSay()
-    runner = RecordingRunner()
-    limiter = CopilotRateLimiter(
-        user_rule=RateLimitRule(limit=10, window_seconds=60),
-        channel_rule=RateLimitRule(limit=10, window_seconds=60),
-    )
-    event = {
-        "channel": "CSHARED",
-        "user": "U1",
-        "text": "AlertSource: prometheus\nCluster: staging-main\nSeverity: warning",
-        "ts": "1710000000.000100",
-    }
-
-    with caplog.at_level(logging.INFO):
-        handle_mention_event(
-            event=event,
-            say=say,
-            config=config,
-            bot_user_id="UBOT",
-            runner=runner,
-            limiter=limiter,
-        )
-
-    assert say.calls == []
-    assert runner.calls == []
-    assert "ownership decision" in caplog.text
-    assert "source_type=prometheus_alert" in caplog.text
-    assert "target_cluster=staging-main" in caplog.text
-    assert "my_cluster=staging-main" in caplog.text
-    assert "decision=handled" in caplog.text
-    assert "reason=cluster_match" in caplog.text
 
 
 def test_handle_mention_event_preserves_parse_error_reply_for_malformed_manual_command() -> None:

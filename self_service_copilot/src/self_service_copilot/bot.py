@@ -77,11 +77,10 @@ def log_ownership_decision(
     my_cluster: str,
 ) -> None:
     logger.info(
-        "ownership decision source_type=%s target_environment=%s target_cluster=%s "
+        "ownership decision source_type=%s target_environment=%s "
         "my_environment=%s my_cluster=%s decision=%s reason=%s",
         decision.source_type,
         decision.target_environment,
-        decision.target_cluster,
         my_environment,
         my_cluster,
         decision.decision,
@@ -196,7 +195,6 @@ def handle_mention_event(
         bot_user_id=bot_user_id,
         supported_tools=config.supported_tools,
         my_environment=config.environment,
-        my_cluster=config.cluster,
     )
     log_ownership_decision(
         ownership_decision,
@@ -204,8 +202,6 @@ def handle_mention_event(
         my_cluster=config.cluster,
     )
     if ownership_decision.decision == "ignored":
-        return
-    if ownership_decision.source_type == "prometheus_alert":
         return
 
     ctx = SlackContext(actor_id=actor_id, channel_id=channel_id, event_ts=event_ts)

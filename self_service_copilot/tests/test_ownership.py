@@ -11,7 +11,6 @@ def test_manual_command_matches_same_environment() -> None:
         bot_user_id=BOT_ID,
         supported_tools=SUPPORTED,
         my_environment="jp",
-        my_cluster="jp-main",
     )
 
     assert decision == OwnershipDecision(
@@ -28,7 +27,6 @@ def test_manual_command_without_environment_uses_default_path() -> None:
         bot_user_id=BOT_ID,
         supported_tools=SUPPORTED,
         my_environment="jp",
-        my_cluster="jp-main",
     )
 
     assert decision == OwnershipDecision(
@@ -44,7 +42,6 @@ def test_manual_command_for_other_environment_is_ignored() -> None:
         bot_user_id=BOT_ID,
         supported_tools=SUPPORTED,
         my_environment="jp",
-        my_cluster="jp-main",
     )
 
     assert decision == OwnershipDecision(
@@ -55,63 +52,12 @@ def test_manual_command_for_other_environment_is_ignored() -> None:
     )
 
 
-def test_prometheus_alert_matches_same_cluster() -> None:
-    decision = decide_ownership(
-        text="AlertSource: prometheus\nCluster: jp-main\nSeverity: warning",
-        bot_user_id=BOT_ID,
-        supported_tools=SUPPORTED,
-        my_environment="jp",
-        my_cluster="jp-main",
-    )
-
-    assert decision == OwnershipDecision(
-        source_type="prometheus_alert",
-        decision="handled",
-        reason="cluster_match",
-        target_cluster="jp-main",
-    )
-
-
-def test_prometheus_alert_without_match_is_ignored() -> None:
-    decision = decide_ownership(
-        text="AlertSource: prometheus\nCluster: au-main\nSeverity: warning",
-        bot_user_id=BOT_ID,
-        supported_tools=SUPPORTED,
-        my_environment="jp",
-        my_cluster="jp-main",
-    )
-
-    assert decision == OwnershipDecision(
-        source_type="prometheus_alert",
-        decision="ignored",
-        reason="not_my_cluster",
-        target_cluster="au-main",
-    )
-
-
-def test_prometheus_alert_missing_cluster_is_unroutable() -> None:
-    decision = decide_ownership(
-        text="AlertSource: prometheus\nSeverity: warning",
-        bot_user_id=BOT_ID,
-        supported_tools=SUPPORTED,
-        my_environment="jp",
-        my_cluster="jp-main",
-    )
-
-    assert decision == OwnershipDecision(
-        source_type="unknown",
-        decision="ignored",
-        reason="unroutable",
-    )
-
-
 def test_unrelated_text_is_unroutable() -> None:
     decision = decide_ownership(
         text="just a random slack message",
         bot_user_id=BOT_ID,
         supported_tools=SUPPORTED,
         my_environment="jp",
-        my_cluster="jp-main",
     )
 
     assert decision == OwnershipDecision(
@@ -127,7 +73,6 @@ def test_malformed_manual_command_defers_to_parse_handling() -> None:
         bot_user_id=BOT_ID,
         supported_tools=SUPPORTED,
         my_environment="jp",
-        my_cluster="jp-main",
     )
 
     assert decision == OwnershipDecision(

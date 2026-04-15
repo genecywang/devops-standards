@@ -53,9 +53,9 @@ Current routing rules:
 
 - manual command without environment prefix: follow the existing default-environment path
 - manual command with environment prefix: another environment is ignored without a Slack reply
-- normalized Prometheus alert: matched by `Cluster:` first
-- Prometheus alert for another cluster: ignored without a Slack reply
-- Prometheus alert for the same cluster: filtered locally only; no auto-investigation reply yet
+- any other message (no bot mention): ignored without a Slack reply
+
+Alert auto-investigation is out of scope for this service. It belongs to the future `alert_auto_investigator` service which will use its own ingress and `NormalizedAlertEvent` contract.
 
 Expected thread reply:
 
@@ -193,3 +193,4 @@ rate limit exceeded for actor=U... channel=C...
 ```
 
 To validate `per-channel` throttling, have multiple users send requests in the same channel until total requests exceed 20 within 60 seconds.
+
