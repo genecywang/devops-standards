@@ -1,0 +1,22 @@
+{
+  "request_type": "investigation",
+  "request_id": "req-logs-001",
+  "source_product": "self_service_copilot",
+  "scope": {
+    "environment": "staging",
+    "cluster": "staging-main"
+  },
+  "input_ref": "fixture:k8s-logs-demo",
+  "tool_name": "get_pod_logs",
+  "target": {
+    "cluster": "staging-main",
+    "namespace": "payments",
+    "resource_name": "payments-api-123"
+  },
+  "budget": {
+    "max_steps": 2,
+    "max_tool_calls": 1,
+    "max_duration_seconds": 30,
+    "max_output_tokens": 1024
+  }
+}

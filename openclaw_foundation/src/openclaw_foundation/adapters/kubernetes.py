@@ -42,6 +42,7 @@ class KubernetesApiError(KubernetesError):
 class KubernetesProviderAdapter(Protocol):
     def get_pod_status(self, cluster: str, namespace: str, pod_name: str) -> dict[str, object]: ...
     def get_pod_events(self, cluster: str, namespace: str, pod_name: str) -> list[dict[str, object]]: ...
+    def get_pod_logs(self, cluster: str, namespace: str, pod_name: str, tail_lines: int = 100) -> list[str]: ...
     def get_deployment_status(
         self, cluster: str, namespace: str, deployment_name: str
     ) -> dict[str, object]: ...
@@ -110,6 +111,16 @@ class FakeKubernetesProviderAdapter:
                 "count": 1,
                 "last_timestamp": "2026-04-13T11:55:00Z",
             },
+        ]
+
+    def get_pod_logs(
+        self, cluster: str, namespace: str, pod_name: str, tail_lines: int = 100
+    ) -> list[str]:
+        return [
+            f"2026-04-13T12:00:00Z INFO starting server pod={pod_name}",
+            "2026-04-13T12:00:01Z INFO listening on :8080",
+            "2026-04-13T12:00:05Z INFO request received method=GET path=/health",
+            "2026-04-13T12:00:10Z WARN slow query Authorization: Bearer secret-log-token",
         ]
 
     def get_deployment_status(
@@ -203,6 +214,30 @@ class RealKubernetesProviderAdapter:
                 }
             )
         return result
+
+    def get_pod_logs(
+        self, cluster: str, namespace: str, pod_name: str, tail_lines: int = 100
+    ) -> list[str]:
+        try:
+            logs: str = self._core_v1_api.read_namespaced_pod_log(
+                name=pod_name,
+                namespace=namespace,
+                tail_lines=tail_lines,
+            )
+        except ApiException as error:
+            if error.status in (401, 403):
+                raise KubernetesAccessDeniedError("kubernetes access denied") from error
+            if error.status == 404:
+                raise KubernetesResourceNotFoundError("pod not found") from error
+            raise KubernetesApiError("failed to read pod logs") from error
+        except (NameResolutionError, ConnectTimeoutError, MaxRetryError) as error:
+            raise KubernetesEndpointUnreachableError("cluster endpoint unreachable") from error
+        except Exception as error:
+            raise KubernetesApiError("failed to read pod logs") from error
+
+        if not logs:
+            return []
+        return logs.splitlines()
 
     def get_deployment_status(
         self,

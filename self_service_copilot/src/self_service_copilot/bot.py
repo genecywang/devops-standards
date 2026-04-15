@@ -21,6 +21,7 @@ from openclaw_foundation.adapters.prometheus import (
 from openclaw_foundation.runtime.runner import OpenClawRunner
 from openclaw_foundation.tools.kubernetes_deployment_status import KubernetesDeploymentStatusTool
 from openclaw_foundation.tools.kubernetes_pod_events import KubernetesPodEventsTool
+from openclaw_foundation.tools.kubernetes_pod_logs import KubernetesPodLogsTool
 from openclaw_foundation.tools.kubernetes_pod_status import KubernetesPodStatusTool
 from openclaw_foundation.tools.prometheus_deployment_restart_rate import (
     PrometheusDeploymentRestartRateTool,
@@ -123,6 +124,13 @@ def build_registry(config: CopilotConfig) -> ToolRegistry:
     )
     registry.register(
         KubernetesPodEventsTool(
+            adapter=adapter,
+            allowed_clusters=config.allowed_clusters,
+            allowed_namespaces=config.allowed_namespaces,
+        )
+    )
+    registry.register(
+        KubernetesPodLogsTool(
             adapter=adapter,
             allowed_clusters=config.allowed_clusters,
             allowed_namespaces=config.allowed_namespaces,

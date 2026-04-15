@@ -2,9 +2,11 @@ import pytest
 
 from openclaw_foundation.runtime.audit import AuditEvent
 from openclaw_foundation.runtime.guards import (
+    redact_log_lines,
     redact_output,
     truncate_deployment_status,
     truncate_pod_events,
+    truncate_pod_logs,
     truncate_pod_status,
     validate_scope,
 )
@@ -122,6 +124,38 @@ def test_truncate_deployment_status_truncates_long_condition_message() -> None:
     result = truncate_deployment_status(payload)
 
     assert result["conditions"][0]["message"].endswith("...[truncated]")
+
+
+def test_truncate_pod_logs_limits_to_100_lines() -> None:
+    lines = [f"line {i}" for i in range(120)]
+
+    result = truncate_pod_logs(lines)
+
+    assert len(result) == 100
+
+
+def test_truncate_pod_logs_truncates_long_line() -> None:
+    long_line = "x" * 600
+    result = truncate_pod_logs([long_line])
+
+    assert len(result[0]) <= 526  # 512 + len("...[truncated]")
+    assert result[0].endswith("...[truncated]")
+
+
+def test_truncate_pod_logs_preserves_short_line_unchanged() -> None:
+    result = truncate_pod_logs(["short line"])
+
+    assert result == ["short line"]
+
+
+def test_redact_log_lines_masks_bearer_token() -> None:
+    lines = ["INFO Authorization: Bearer secret-token", "INFO normal log"]
+
+    result = redact_log_lines(lines)
+
+    assert "secret-token" not in result[0]
+    assert "Bearer [REDACTED]" in result[0]
+    assert result[1] == "INFO normal log"
 
 
 def test_audit_event_captures_canonical_fields() -> None:

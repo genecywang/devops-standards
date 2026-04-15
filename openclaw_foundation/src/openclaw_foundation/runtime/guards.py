@@ -30,6 +30,8 @@ _MAX_EVENTS = 10
 _MAX_MESSAGE_LEN = 256
 _MAX_DEPLOYMENT_CONDITIONS = 5
 _MAX_CONDITION_MESSAGE_LEN = 256
+_MAX_LOG_LINES = 100
+_MAX_LOG_LINE_LEN = 512
 
 
 def truncate_pod_events(events: list[dict[str, object]]) -> list[dict[str, object]]:
@@ -56,6 +58,18 @@ def truncate_deployment_status(payload: dict[str, object]) -> dict[str, object]:
         bounded_conditions.append(entry)
     result["conditions"] = bounded_conditions
     return result
+
+
+def truncate_pod_logs(lines: list[str]) -> list[str]:
+    bounded = lines[:_MAX_LOG_LINES]
+    return [
+        line[:_MAX_LOG_LINE_LEN] + "...[truncated]" if len(line) > _MAX_LOG_LINE_LEN else line
+        for line in bounded
+    ]
+
+
+def redact_log_lines(lines: list[str]) -> list[str]:
+    return [_mask_string(line) for line in lines]
 
 
 def _mask_string(value: str) -> str:

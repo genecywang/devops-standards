@@ -146,6 +146,32 @@ def test_build_registry_registers_get_pod_cpu_usage_tool() -> None:
     assert tool.tool_name == "get_pod_cpu_usage"
 
 
+def test_build_registry_registers_get_pod_logs_tool() -> None:
+    config = CopilotConfig(
+        cluster="staging-main",
+        environment="staging",
+        allowed_clusters={"staging-main"},
+        allowed_namespaces={"payments"},
+        prometheus_base_url=None,
+        supported_tools=frozenset(
+            {"get_pod_status", "get_pod_events", "get_pod_logs"}
+        ),
+        default_budget=ExecutionBudget(
+            max_steps=2,
+            max_tool_calls=1,
+            max_duration_seconds=15,
+            max_output_tokens=512,
+        ),
+        provider="fake",
+        allowed_channel_ids=set(),
+    )
+
+    registry = build_registry(config)
+
+    tool = registry.get("get_pod_logs")
+    assert tool.tool_name == "get_pod_logs"
+
+
 def test_build_registry_registers_get_deployment_restart_rate_tool() -> None:
     config = CopilotConfig(
         cluster="staging-main",

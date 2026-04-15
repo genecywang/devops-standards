@@ -72,6 +72,7 @@ class CopilotConfig:
                 {
                     "get_pod_status",
                     "get_pod_events",
+                    "get_pod_logs",
                     "get_deployment_status",
                     "get_pod_runtime",
                     "get_pod_cpu_usage",
