@@ -1,0 +1,26 @@
+{{- if and (eq .Values.config.provider "real") (not (.Values.config.prometheusBaseUrl | trim)) }}
+{{- fail "config.prometheusBaseUrl is required when config.provider is \"real\"" }}
+{{- end }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "alert-auto-investigator.fullname" . }}-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "alert-auto-investigator.labels" . | nindent 4 }}
+data:
+  REGION_CODE: {{ .Values.config.regionCode | quote }}
+  FALLBACK_ENVIRONMENT: {{ .Values.config.fallbackEnvironment | quote }}
+  OWNED_ENVIRONMENTS: {{ .Values.config.ownedEnvironments | quote }}
+  COOLDOWN_SECONDS: {{ .Values.config.cooldownSeconds | quote }}
+  RATE_LIMIT_COUNT: {{ .Values.config.rateLimitCount | quote }}
+  RATE_LIMIT_WINDOW_SECONDS: {{ .Values.config.rateLimitWindowSeconds | quote }}
+  INVESTIGATE_ALLOWLIST: {{ .Values.config.investigateAllowlist | quote }}
+  INVESTIGATE_DENYLIST: {{ .Values.config.investigateDenylist | quote }}
+  ALERT_INVESTIGATOR_ALLOWED_CHANNEL_IDS: {{ .Values.config.allowedChannelIds | quote }}
+  INVESTIGATION_PROVIDER: {{ .Values.config.provider | quote }}
+  ALLOWED_CLUSTERS: {{ .Values.config.allowedClusters | quote }}
+  ALLOWED_NAMESPACES: {{ .Values.config.allowedNamespaces | quote }}
+{{- if .Values.config.prometheusBaseUrl | trim }}
+  OPENCLAW_PROMETHEUS_BASE_URL: {{ .Values.config.prometheusBaseUrl | quote }}
+{{- end }}

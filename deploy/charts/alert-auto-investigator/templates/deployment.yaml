@@ -1,0 +1,61 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "alert-auto-investigator.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "alert-auto-investigator.labels" . | nindent 4 }}
+spec:
+  replicas: 1  # Do not increase — Slack Socket Mode delivers duplicate events to all replicas
+  selector:
+    matchLabels:
+      {{- include "alert-auto-investigator.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "alert-auto-investigator.selectorLabels" . | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "alert-auto-investigator.fullname" . }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: {{ .Chart.Name }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["python", "-m", "alert_auto_investigator"]
+          envFrom:
+            - configMapRef:
+                name: {{ include "alert-auto-investigator.fullname" . }}-config
+          env:
+            - name: SLACK_BOT_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.slack.secretName }}
+                  key: {{ .Values.slack.botTokenKey }}
+            - name: SLACK_APP_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.slack.secretName }}
+                  key: {{ .Values.slack.appTokenKey }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          livenessProbe:
+            exec:
+              command:
+                - python
+                - -c
+                - |
+                  import pathlib, sys
+                  cmdline = pathlib.Path("/proc/1/cmdline").read_bytes()
+                  sys.exit(0 if b"alert_auto_investigator" in cmdline else 1)
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            failureThreshold: 3

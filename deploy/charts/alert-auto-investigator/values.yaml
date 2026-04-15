@@ -1,0 +1,41 @@
+nameOverride: ""
+fullnameOverride: ""
+
+# IMPORTANT: ClusterRole and ClusterRoleBinding names are cluster-scoped and derived from
+# the release name. Deploy only one instance per cluster with a unique release name.
+# Multiple instances in the same cluster require distinct release names (use --set nameOverride).
+
+image:
+  repository: ghcr.io/example/alert-auto-investigator
+  tag: dev
+  pullPolicy: IfNotPresent
+
+config:
+  regionCode: ap-east-1
+  fallbackEnvironment: dev
+  ownedEnvironments: dev
+  cooldownSeconds: "300"
+  rateLimitCount: "10"
+  rateLimitWindowSeconds: "3600"
+  investigateAllowlist: ""
+  investigateDenylist: ""
+  allowedChannelIds: ""
+  provider: stub
+  allowedClusters: ""
+  allowedNamespaces: ""
+  prometheusBaseUrl: ""
+
+slack:
+  # Name of the pre-created Kubernetes Secret containing Slack tokens.
+  # Must be created externally before helm install.
+  secretName: alert-auto-investigator-slack
+  botTokenKey: SLACK_BOT_TOKEN
+  appTokenKey: SLACK_APP_TOKEN
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi

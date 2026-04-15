@@ -176,7 +176,7 @@ data:
     {{ end }}
     {{ define "slack.devops.text" }}
     {{ range .Alerts }}
-    {{ if .Labels.alertname }}{{ .Labels.alertname }}{{ else }}Prometheus Alert{{ end }} on {{ if .Labels.instance }}{{ .Labels.instance }}{{ else if .Labels.pod }}{{ .Labels.pod }}{{ else if .Labels.deployment }}{{ .Labels.deployment }}{{ else if .Labels.service }}{{ .Labels.service }}{{ else if .Labels.namespace }}{{ .Labels.namespace }}{{ else if .Annotations.ClusterName }}{{ .Annotations.ClusterName }}{{ else }}unknown{{ end }}
+    Resource: {{ if .Labels.instance }}{{ .Labels.instance }}{{ else if .Labels.pod }}{{ .Labels.pod }}{{ else if .Labels.deployment }}{{ .Labels.deployment }}{{ else if .Labels.service }}{{ .Labels.service }}{{ else if .Labels.namespace }}{{ .Labels.namespace }}{{ else if .Annotations.ClusterName }}{{ .Annotations.ClusterName }}{{ else }}unknown{{ end }}
     Severity: {{ if .Labels.severity }}{{ .Labels.severity }}{{ else }}unknown{{ end }}
     Summary: {{ if .Annotations.summary }}{{ .Annotations.summary }}{{ else }}-{{ end }}
 
