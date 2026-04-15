@@ -1,5 +1,9 @@
+from unittest.mock import sentinel
+
+import pytest
+
 from alert_auto_investigator.config import InvestigatorConfig
-from alert_auto_investigator.service.runner_factory import build_registry, build_runner
+import alert_auto_investigator.service.runner_factory as runner_factory
 from alert_auto_investigator.service.stub_runner import StubInvestigationRunner
 from openclaw_foundation.runtime.runner import OpenClawRunner
 
@@ -26,13 +30,17 @@ def make_config(**overrides) -> InvestigatorConfig:
 
 
 def test_build_runner_returns_stub_runner_when_provider_is_stub() -> None:
-    runner = build_runner(make_config(provider="stub"))
+    runner = runner_factory.build_runner(make_config(provider="stub"))
 
     assert isinstance(runner, StubInvestigationRunner)
 
 
-def test_build_runner_returns_openclaw_runner_when_provider_is_real() -> None:
-    runner = build_runner(
+def test_build_runner_returns_openclaw_runner_when_provider_is_real(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(runner_factory, "build_registry", lambda config: sentinel.registry)
+
+    runner = runner_factory.build_runner(
         make_config(
             provider="real",
             prometheus_base_url="http://prometheus.monitoring:9090",
@@ -40,11 +48,12 @@ def test_build_runner_returns_openclaw_runner_when_provider_is_real() -> None:
     )
 
     assert isinstance(runner, OpenClawRunner)
+    assert runner._registry is sentinel.registry
 
 
 def test_build_runner_rejects_unknown_provider() -> None:
     try:
-        build_runner(make_config(provider="nope"))
+        runner_factory.build_runner(make_config(provider="nope"))
     except ValueError as error:
         assert "Unsupported INVESTIGATION_PROVIDER" in str(error)
     else:
@@ -53,7 +62,7 @@ def test_build_runner_rejects_unknown_provider() -> None:
 
 def test_build_registry_requires_prometheus_url_for_real_provider() -> None:
     try:
-        build_registry(make_config(provider="real", prometheus_base_url=None))
+        runner_factory.build_registry(make_config(provider="real", prometheus_base_url=None))
     except ValueError as error:
         assert "OPENCLAW_PROMETHEUS_BASE_URL is required" in str(error)
     else:
@@ -61,7 +70,7 @@ def test_build_registry_requires_prometheus_url_for_real_provider() -> None:
 
 
 def test_build_registry_registers_expected_tools() -> None:
-    registry = build_registry(make_config(provider="stub"))
+    registry = runner_factory.build_registry(make_config(provider="stub"))
 
     assert registry.get("get_pod_status").tool_name == "get_pod_status"
     assert registry.get("get_pod_events").tool_name == "get_pod_events"
