@@ -19,7 +19,7 @@ def make_config(**overrides) -> CopilotConfig:
         default_environment="staging",
         environment_clusters={"staging": "staging-main"},
         allowed_clusters={"staging-main"},
-        allowed_namespaces={"payments"},
+        allowed_namespaces={"dev"},
         supported_tools=frozenset({"get_pod_status", "get_pod_events"}),
         default_budget=ExecutionBudget(
             max_steps=2,
@@ -33,12 +33,12 @@ def make_config(**overrides) -> CopilotConfig:
     return CopilotConfig(**defaults)
 
 
-def make_cmd(tool_name: str = "get_pod_status", namespace: str = "payments") -> ParsedCommand:
+def make_cmd(tool_name: str = "get_pod_status", namespace: str = "dev") -> ParsedCommand:
     return ParsedCommand(
         tool_name=tool_name,
         namespace=namespace,
-        resource_name="payments-api-123",
-        raw_text=f"@copilot {tool_name} {namespace} payments-api-123",
+        resource_name="dev-api-123",
+        raw_text=f"@copilot {tool_name} {namespace} dev-api-123",
         requested_environment=None,
     )
 
@@ -87,8 +87,8 @@ def test_build_request_cluster_always_from_config_not_user_input() -> None:
 def test_build_request_target_contains_namespace_and_resource_name() -> None:
     request = build_request(make_cmd(), make_ctx(), make_config())
 
-    assert request.target["namespace"] == "payments"
-    assert request.target["resource_name"] == "payments-api-123"
+    assert request.target["namespace"] == "dev"
+    assert request.target["resource_name"] == "dev-api-123"
 
 
 def test_build_request_uses_default_environment_when_not_specified() -> None:
@@ -100,9 +100,9 @@ def test_build_request_uses_default_environment_when_not_specified() -> None:
 def test_build_request_uses_requested_environment_and_cluster_mapping() -> None:
     cmd = ParsedCommand(
         tool_name="get_pod_status",
-        namespace="payments",
-        resource_name="payments-api-123",
-        raw_text="@copilot jp get_pod_status payments payments-api-123",
+        namespace="dev",
+        resource_name="dev-api-123",
+        raw_text="@copilot jp get_pod_status dev dev-api-123",
         requested_environment="jp",
     )
     config = make_config(
@@ -135,9 +135,9 @@ def test_build_request_raises_dispatch_error_for_disallowed_namespace() -> None:
 def test_build_request_raises_dispatch_error_for_invalid_resource_name() -> None:
     cmd = ParsedCommand(
         tool_name="get_pod_status",
-        namespace="payments",
-        resource_name="payments-api-123;",
-        raw_text="@copilot get_pod_status payments payments-api-123;",
+        namespace="dev",
+        resource_name="dev-api-123;",
+        raw_text="@copilot get_pod_status dev dev-api-123;",
         requested_environment=None,
     )
 
@@ -148,9 +148,9 @@ def test_build_request_raises_dispatch_error_for_invalid_resource_name() -> None
 def test_build_request_raises_dispatch_error_for_unknown_environment() -> None:
     cmd = ParsedCommand(
         tool_name="get_pod_status",
-        namespace="payments",
-        resource_name="payments-api-123",
-        raw_text="@copilot au get_pod_status payments payments-api-123",
+        namespace="dev",
+        resource_name="dev-api-123",
+        raw_text="@copilot au get_pod_status dev dev-api-123",
         requested_environment="au",
     )
 

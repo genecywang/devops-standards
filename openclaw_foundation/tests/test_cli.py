@@ -169,7 +169,7 @@ def test_cli_outputs_success_response() -> None:
 
     assert payload["request_id"] == "req-001"
     assert payload["result_state"] == "success"
-    assert "payments-api-123" in payload["summary"]
+    assert "dev-api-123" in payload["summary"]
 
 
 def test_cli_subprocess_surfaces_readable_real_provider_error() -> None:
@@ -221,7 +221,7 @@ def test_cli_outputs_success_response_for_pod_events() -> None:
 
     assert payload["request_id"] == "req-events-001"
     assert payload["result_state"] == "success"
-    assert "payments-api-123" in payload["summary"]
+    assert "dev-api-123" in payload["summary"]
 
 
 def test_main_with_deployment_status_fixture_prints_success_response(capsys) -> None:

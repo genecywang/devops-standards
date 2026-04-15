@@ -21,13 +21,13 @@ SUPPORTED = frozenset({"get_pod_status", "get_pod_events"})
 def make_cmd(tool_name: str = "get_pod_status") -> ParsedCommand:
     return ParsedCommand(
         tool_name=tool_name,
-        namespace="payments",
-        resource_name="payments-api-123",
-        raw_text=f"<@BOT> {tool_name} payments payments-api-123",
+        namespace="dev",
+        resource_name="dev-api-123",
+        raw_text=f"<@BOT> {tool_name} dev dev-api-123",
     )
 
 
-def make_response(result_state: ResultState, summary: str = "pod payments-api-123 is Running") -> CanonicalResponse:
+def make_response(result_state: ResultState, summary: str = "pod dev-api-123 is Running") -> CanonicalResponse:
     return CanonicalResponse(
         request_id="slack:C001:1234",
         result_state=result_state,
@@ -47,13 +47,13 @@ def test_format_response_success_includes_tool_and_resource_label() -> None:
     reply = format_response(make_response(ResultState.SUCCESS), make_cmd())
 
     assert "get_pod_status" in reply
-    assert "payments/payments-api-123" in reply
+    assert "dev/dev-api-123" in reply
 
 
 def test_format_response_success_includes_summary() -> None:
     reply = format_response(make_response(ResultState.SUCCESS), make_cmd())
 
-    assert "pod payments-api-123 is Running" in reply
+    assert "pod dev-api-123 is Running" in reply
 
 
 def test_format_response_failed_starts_with_failed_label() -> None:
@@ -109,7 +109,7 @@ def test_format_dispatch_error_starts_with_denied_label() -> None:
 
 
 def test_format_dispatch_error_for_invalid_resource_name_uses_denied_label() -> None:
-    error = DispatchError("resource_name 'payments-api-123;' is not allowed")
+    error = DispatchError("resource_name 'dev-api-123;' is not allowed")
     reply = format_dispatch_error(error, make_cmd())
 
     assert reply.startswith("[denied]")

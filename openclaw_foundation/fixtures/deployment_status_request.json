@@ -16,7 +16,7 @@
   "tool_name": "get_deployment_status",
   "target": {
     "cluster": "staging-main",
-    "namespace": "payments",
-    "resource_name": "payments-api"
+    "namespace": "dev",
+    "resource_name": "dev-api"
   }
 }

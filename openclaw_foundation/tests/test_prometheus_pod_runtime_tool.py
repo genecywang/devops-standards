@@ -43,8 +43,8 @@ def test_get_pod_runtime_tool_returns_stable_summary() -> None:
 def test_get_pod_runtime_tool_denies_namespace_outside_allowlist() -> None:
     tool = PrometheusPodRuntimeTool(
         adapter=FakePrometheusProviderAdapter(),
-        allowed_namespaces={"payments"},
+        allowed_namespaces={"dev"},
     )
 
     with pytest.raises(PermissionError, match="namespace is not allowed"):
-        tool.invoke(make_request(namespace="dev"))
+        tool.invoke(make_request(namespace="prod"))

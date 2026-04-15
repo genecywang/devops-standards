@@ -17,7 +17,7 @@ class StubPrometheusAdapter:
         return self.payload
 
 
-def make_request(namespace: str = "payments") -> InvestigationRequest:
+def make_request(namespace: str = "dev") -> InvestigationRequest:
     return InvestigationRequest(
         request_type=RequestType.INVESTIGATION,
         request_id="req-deployment-restart-001",
@@ -34,38 +34,38 @@ def make_request(namespace: str = "payments") -> InvestigationRequest:
         target={
             "cluster": "staging-main",
             "namespace": namespace,
-            "resource_name": "payments-api",
+            "resource_name": "dev-api",
         },
     )
 
 
 def test_get_deployment_restart_rate_tool_uses_elevated_summary() -> None:
     payload = {
-        "namespace": "payments",
-        "deployment_name": "payments-api",
+        "namespace": "dev",
+        "deployment_name": "dev-api",
         "recent_restarts_15m": 3,
         "total_restarts": 7,
         "pod_breakdown": [
-            {"pod_name": "payments-api-a", "recent_restarts_15m": 2, "total_restarts": 4},
-            {"pod_name": "payments-api-b", "recent_restarts_15m": 1, "total_restarts": 3},
+            {"pod_name": "dev-api-a", "recent_restarts_15m": 2, "total_restarts": 4},
+            {"pod_name": "dev-api-b", "recent_restarts_15m": 1, "total_restarts": 3},
         ],
         "pods_shown": 2,
         "pods_total": 2,
         "no_pods": False,
         "window": "15m",
     }
-    tool = PrometheusDeploymentRestartRateTool(StubPrometheusAdapter(payload), {"payments"})
+    tool = PrometheusDeploymentRestartRateTool(StubPrometheusAdapter(payload), {"dev"})
 
     result = tool.invoke(make_request())
 
     assert "restart activity is elevated" in result.summary
-    assert "top pods: payments-api-a (2 recent, 4 total)" in result.summary
+    assert "top pods: dev-api-a (2 recent, 4 total)" in result.summary
 
 
 def test_get_deployment_restart_rate_tool_uses_quiet_summary() -> None:
     payload = {
-        "namespace": "payments",
-        "deployment_name": "payments-api",
+        "namespace": "dev",
+        "deployment_name": "dev-api",
         "recent_restarts_15m": 0,
         "total_restarts": 7,
         "pod_breakdown": [],
@@ -74,7 +74,7 @@ def test_get_deployment_restart_rate_tool_uses_quiet_summary() -> None:
         "no_pods": False,
         "window": "15m",
     }
-    tool = PrometheusDeploymentRestartRateTool(StubPrometheusAdapter(payload), {"payments"})
+    tool = PrometheusDeploymentRestartRateTool(StubPrometheusAdapter(payload), {"dev"})
 
     result = tool.invoke(make_request())
 
@@ -84,20 +84,20 @@ def test_get_deployment_restart_rate_tool_uses_quiet_summary() -> None:
 
 def test_get_deployment_restart_rate_tool_includes_truncation_note() -> None:
     payload = {
-        "namespace": "payments",
-        "deployment_name": "payments-api",
+        "namespace": "dev",
+        "deployment_name": "dev-api",
         "recent_restarts_15m": 5,
         "total_restarts": 9,
         "pod_breakdown": [
-            {"pod_name": "payments-api-a", "recent_restarts_15m": 3, "total_restarts": 4},
-            {"pod_name": "payments-api-b", "recent_restarts_15m": 2, "total_restarts": 3},
+            {"pod_name": "dev-api-a", "recent_restarts_15m": 3, "total_restarts": 4},
+            {"pod_name": "dev-api-b", "recent_restarts_15m": 2, "total_restarts": 3},
         ],
         "pods_shown": 2,
         "pods_total": 6,
         "no_pods": False,
         "window": "15m",
     }
-    tool = PrometheusDeploymentRestartRateTool(StubPrometheusAdapter(payload), {"payments"})
+    tool = PrometheusDeploymentRestartRateTool(StubPrometheusAdapter(payload), {"dev"})
 
     result = tool.invoke(make_request())
 
@@ -106,8 +106,8 @@ def test_get_deployment_restart_rate_tool_includes_truncation_note() -> None:
 
 def test_get_deployment_restart_rate_tool_reports_no_pods() -> None:
     payload = {
-        "namespace": "payments",
-        "deployment_name": "payments-api",
+        "namespace": "dev",
+        "deployment_name": "dev-api",
         "recent_restarts_15m": 0,
         "total_restarts": 0,
         "pod_breakdown": [],
@@ -116,7 +116,7 @@ def test_get_deployment_restart_rate_tool_reports_no_pods() -> None:
         "no_pods": True,
         "window": "15m",
     }
-    tool = PrometheusDeploymentRestartRateTool(StubPrometheusAdapter(payload), {"payments"})
+    tool = PrometheusDeploymentRestartRateTool(StubPrometheusAdapter(payload), {"dev"})
 
     result = tool.invoke(make_request())
 
@@ -125,8 +125,8 @@ def test_get_deployment_restart_rate_tool_reports_no_pods() -> None:
 
 def test_get_deployment_restart_rate_tool_denies_disallowed_namespace() -> None:
     payload = {
-        "namespace": "payments",
-        "deployment_name": "payments-api",
+        "namespace": "dev",
+        "deployment_name": "dev-api",
         "recent_restarts_15m": 0,
         "total_restarts": 0,
         "pod_breakdown": [],
@@ -135,7 +135,7 @@ def test_get_deployment_restart_rate_tool_denies_disallowed_namespace() -> None:
         "no_pods": True,
         "window": "15m",
     }
-    tool = PrometheusDeploymentRestartRateTool(StubPrometheusAdapter(payload), {"payments"})
+    tool = PrometheusDeploymentRestartRateTool(StubPrometheusAdapter(payload), {"dev"})
 
     with pytest.raises(PermissionError, match="namespace is not allowed"):
         tool.invoke(make_request(namespace="internal"))

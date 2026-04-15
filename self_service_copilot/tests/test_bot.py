@@ -41,7 +41,7 @@ class SuccessRunner:
         self.calls.append(request)
         return SimpleNamespace(
             result_state=ResultState.SUCCESS,
-            summary="pod payments-api-123 is Running",
+            summary="pod dev-api-123 is Running",
         )
 
 
@@ -62,7 +62,7 @@ def test_build_registry_registers_get_deployment_status_tool() -> None:
         cluster="staging-main",
         environment="staging",
         allowed_clusters={"staging-main"},
-        allowed_namespaces={"payments"},
+        allowed_namespaces={"dev"},
         prometheus_base_url=None,
         supported_tools=frozenset(
             {"get_pod_status", "get_pod_events", "get_deployment_status"}
@@ -88,7 +88,7 @@ def test_build_registry_registers_get_pod_runtime_tool() -> None:
         cluster="staging-main",
         environment="staging",
         allowed_clusters={"staging-main"},
-        allowed_namespaces={"payments"},
+        allowed_namespaces={"dev"},
         prometheus_base_url=None,
         supported_tools=frozenset(
             {
@@ -119,7 +119,7 @@ def test_build_registry_registers_get_pod_cpu_usage_tool() -> None:
         cluster="staging-main",
         environment="staging",
         allowed_clusters={"staging-main"},
-        allowed_namespaces={"payments"},
+        allowed_namespaces={"dev"},
         prometheus_base_url=None,
         supported_tools=frozenset(
             {
@@ -151,7 +151,7 @@ def test_build_registry_registers_get_pod_logs_tool() -> None:
         cluster="staging-main",
         environment="staging",
         allowed_clusters={"staging-main"},
-        allowed_namespaces={"payments"},
+        allowed_namespaces={"dev"},
         prometheus_base_url=None,
         supported_tools=frozenset(
             {"get_pod_status", "get_pod_events", "get_pod_logs"}
@@ -177,7 +177,7 @@ def test_build_registry_registers_get_deployment_restart_rate_tool() -> None:
         cluster="staging-main",
         environment="staging",
         allowed_clusters={"staging-main"},
-        allowed_namespaces={"payments"},
+        allowed_namespaces={"dev"},
         prometheus_base_url=None,
         supported_tools=frozenset(
             {
@@ -243,7 +243,7 @@ def test_handle_mention_event_replies_when_rate_limited() -> None:
         cluster="staging-main",
         environment="staging",
         allowed_clusters={"staging-main"},
-        allowed_namespaces={"payments"},
+        allowed_namespaces={"dev"},
         prometheus_base_url=None,
         supported_tools=frozenset({"get_pod_status"}),
         default_budget=ExecutionBudget(
@@ -264,7 +264,7 @@ def test_handle_mention_event_replies_when_rate_limited() -> None:
     event = {
         "channel": "C1",
         "user": "U1",
-        "text": "<@UBOT> get_pod_status payments payments-api-123",
+        "text": "<@UBOT> get_pod_status dev dev-api-123",
         "ts": "1710000000.000100",
     }
 
@@ -285,7 +285,7 @@ def test_handle_mention_event_rate_limit_blocks_before_runner() -> None:
         cluster="staging-main",
         environment="staging",
         allowed_clusters={"staging-main"},
-        allowed_namespaces={"payments"},
+        allowed_namespaces={"dev"},
         prometheus_base_url=None,
         supported_tools=frozenset({"get_pod_status"}),
         default_budget=ExecutionBudget(
@@ -306,7 +306,7 @@ def test_handle_mention_event_rate_limit_blocks_before_runner() -> None:
     event = {
         "channel": "C1",
         "user": "U1",
-        "text": "<@UBOT> get_pod_status payments payments-api-123",
+        "text": "<@UBOT> get_pod_status dev dev-api-123",
         "ts": "1710000000.000100",
     }
 
@@ -327,7 +327,7 @@ def test_handle_mention_event_logs_dispatch_denial_metadata(caplog) -> None:
         cluster="staging-main",
         environment="staging",
         allowed_clusters={"staging-main"},
-        allowed_namespaces={"payments"},
+        allowed_namespaces={"dev"},
         prometheus_base_url=None,
         supported_tools=frozenset({"get_pod_status"}),
         default_budget=ExecutionBudget(
@@ -348,7 +348,7 @@ def test_handle_mention_event_logs_dispatch_denial_metadata(caplog) -> None:
     event = {
         "channel": "C1",
         "user": "U1",
-        "text": "<@UBOT> staging get_pod_status payments payments-api-123;",
+        "text": "<@UBOT> staging get_pod_status dev dev-api-123;",
         "ts": "1710000000.000100",
     }
 
@@ -365,8 +365,8 @@ def test_handle_mention_event_logs_dispatch_denial_metadata(caplog) -> None:
     assert "[denied]" in say.calls[0][0]
     assert "dispatch denied" in caplog.text
     assert "tool=get_pod_status" in caplog.text
-    assert "namespace=payments" in caplog.text
-    assert "resource_name=payments-api-123;" in caplog.text
+    assert "namespace=dev" in caplog.text
+    assert "resource_name=dev-api-123;" in caplog.text
 
 
 def test_handle_mention_event_ignores_manual_command_for_other_environment() -> None:
@@ -374,7 +374,7 @@ def test_handle_mention_event_ignores_manual_command_for_other_environment() -> 
         cluster="staging-main",
         environment="staging",
         allowed_clusters={"staging-main"},
-        allowed_namespaces={"payments"},
+        allowed_namespaces={"dev"},
         prometheus_base_url=None,
         supported_tools=frozenset({"get_pod_status"}),
         default_budget=ExecutionBudget(
@@ -395,7 +395,7 @@ def test_handle_mention_event_ignores_manual_command_for_other_environment() -> 
     event = {
         "channel": "C1",
         "user": "U1",
-        "text": "<@UBOT> prod get_pod_status payments payments-api-123",
+        "text": "<@UBOT> prod get_pod_status dev dev-api-123",
         "ts": "1710000000.000100",
     }
 
@@ -417,7 +417,7 @@ def test_handle_mention_event_logs_ownership_decision_for_ignored_path(caplog) -
         cluster="staging-main",
         environment="staging",
         allowed_clusters={"staging-main"},
-        allowed_namespaces={"payments"},
+        allowed_namespaces={"dev"},
         prometheus_base_url=None,
         supported_tools=frozenset({"get_pod_status"}),
         default_budget=ExecutionBudget(
@@ -438,7 +438,7 @@ def test_handle_mention_event_logs_ownership_decision_for_ignored_path(caplog) -
     event = {
         "channel": "C1",
         "user": "U1",
-        "text": "<@UBOT> prod get_pod_status payments payments-api-123",
+        "text": "<@UBOT> prod get_pod_status dev dev-api-123",
         "ts": "1710000000.000100",
     }
 
@@ -466,7 +466,7 @@ def test_handle_mention_event_preserves_parse_error_reply_for_malformed_manual_c
         cluster="staging-main",
         environment="staging",
         allowed_clusters={"staging-main"},
-        allowed_namespaces={"payments"},
+        allowed_namespaces={"dev"},
         prometheus_base_url=None,
         supported_tools=frozenset({"get_pod_status"}),
         default_budget=ExecutionBudget(
@@ -487,7 +487,7 @@ def test_handle_mention_event_preserves_parse_error_reply_for_malformed_manual_c
     event = {
         "channel": "C1",
         "user": "U1",
-        "text": "<@UBOT> get_pod_status payments",
+        "text": "<@UBOT> get_pod_status dev",
         "ts": "1710000000.000100",
     }
 
@@ -510,7 +510,7 @@ def test_handle_mention_event_preserves_three_token_manual_command_path() -> Non
         cluster="staging-main",
         environment="staging",
         allowed_clusters={"staging-main"},
-        allowed_namespaces={"payments"},
+        allowed_namespaces={"dev"},
         prometheus_base_url=None,
         supported_tools=frozenset({"get_pod_status"}),
         default_budget=ExecutionBudget(
@@ -531,7 +531,7 @@ def test_handle_mention_event_preserves_three_token_manual_command_path() -> Non
     event = {
         "channel": "C1",
         "user": "U1",
-        "text": "<@UBOT> get_pod_status payments payments-api-123",
+        "text": "<@UBOT> get_pod_status dev dev-api-123",
         "ts": "1710000000.000100",
     }
 
@@ -546,4 +546,4 @@ def test_handle_mention_event_preserves_three_token_manual_command_path() -> Non
 
     assert len(runner.calls) == 1
     assert len(say.calls) == 1
-    assert say.calls[0][0].startswith("[success] get_pod_status payments/payments-api-123")
+    assert say.calls[0][0].startswith("[success] get_pod_status dev/dev-api-123")

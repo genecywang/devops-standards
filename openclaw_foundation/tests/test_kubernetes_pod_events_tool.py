@@ -6,7 +6,7 @@ from openclaw_foundation.models.requests import ExecutionBudget, InvestigationRe
 from openclaw_foundation.tools.kubernetes_pod_events import KubernetesPodEventsTool
 
 
-def make_events_request(namespace: str = "payments") -> InvestigationRequest:
+def make_events_request(namespace: str = "dev") -> InvestigationRequest:
     return InvestigationRequest(
         request_type=RequestType.INVESTIGATION,
         request_id="req-k8s-events-001",
@@ -23,7 +23,7 @@ def make_events_request(namespace: str = "payments") -> InvestigationRequest:
         target={
             "cluster": "staging-main",
             "namespace": namespace,
-            "pod_name": "payments-api-123",
+            "pod_name": "dev-api-123",
         },
     )
 
@@ -32,12 +32,12 @@ def test_get_pod_events_tool_returns_event_list_via_adapter() -> None:
     tool = KubernetesPodEventsTool(
         adapter=FakeKubernetesProviderAdapter(),
         allowed_clusters={"staging-main"},
-        allowed_namespaces={"payments"},
+        allowed_namespaces={"dev"},
     )
 
     result = tool.invoke(make_events_request())
 
-    assert "payments-api-123" in result.summary
+    assert "dev-api-123" in result.summary
     assert len(result.evidence) >= 1
     first = result.evidence[0]
     assert set(first.keys()) == {"type", "reason", "message", "count", "last_timestamp"}
@@ -47,7 +47,7 @@ def test_get_pod_events_tool_denies_cluster_outside_allowlist() -> None:
     tool = KubernetesPodEventsTool(
         adapter=FakeKubernetesProviderAdapter(),
         allowed_clusters={"prod-main"},
-        allowed_namespaces={"payments"},
+        allowed_namespaces={"dev"},
     )
 
     with pytest.raises(PermissionError, match="cluster is not allowed"):
@@ -62,14 +62,14 @@ def test_get_pod_events_tool_denies_namespace_outside_allowlist() -> None:
     )
 
     with pytest.raises(PermissionError, match="namespace is not allowed"):
-        tool.invoke(make_events_request(namespace="payments"))
+        tool.invoke(make_events_request(namespace="dev"))
 
 
 def test_get_pod_events_tool_redacts_bearer_token_in_message() -> None:
     tool = KubernetesPodEventsTool(
         adapter=FakeKubernetesProviderAdapter(),
         allowed_clusters={"staging-main"},
-        allowed_namespaces={"payments"},
+        allowed_namespaces={"dev"},
     )
 
     result = tool.invoke(make_events_request())
@@ -83,7 +83,7 @@ def test_get_pod_events_tool_evidence_does_not_contain_raw_object() -> None:
     tool = KubernetesPodEventsTool(
         adapter=FakeKubernetesProviderAdapter(),
         allowed_clusters={"staging-main"},
-        allowed_namespaces={"payments"},
+        allowed_namespaces={"dev"},
     )
 
     result = tool.invoke(make_events_request())
@@ -97,15 +97,15 @@ def test_get_pod_events_tool_accepts_resource_name_target_key() -> None:
     tool = KubernetesPodEventsTool(
         adapter=FakeKubernetesProviderAdapter(),
         allowed_clusters={"staging-main"},
-        allowed_namespaces={"payments"},
+        allowed_namespaces={"dev"},
     )
     request = make_events_request()
     request.target = {
         "cluster": "staging-main",
-        "namespace": "payments",
-        "resource_name": "payments-api-123",
+        "namespace": "dev",
+        "resource_name": "dev-api-123",
     }
 
     result = tool.invoke(request)
 
-    assert "payments-api-123" in result.summary
+    assert "dev-api-123" in result.summary

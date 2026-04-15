@@ -10,8 +10,8 @@
   "tool_name": "get_pod_events",
   "target": {
     "cluster": "staging-main",
-    "namespace": "payments",
-    "pod_name": "payments-api-123"
+    "namespace": "dev",
+    "pod_name": "dev-api-123"
   },
   "budget": {
     "max_steps": 2,

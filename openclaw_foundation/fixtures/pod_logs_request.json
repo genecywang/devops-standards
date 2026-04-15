@@ -10,8 +10,8 @@
   "tool_name": "get_pod_logs",
   "target": {
     "cluster": "staging-main",
-    "namespace": "payments",
-    "resource_name": "payments-api-123"
+    "namespace": "dev",
+    "resource_name": "dev-api-123"
   },
   "budget": {
     "max_steps": 2,

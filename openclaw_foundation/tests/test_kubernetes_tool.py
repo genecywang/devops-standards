@@ -6,7 +6,7 @@ from openclaw_foundation.models.requests import ExecutionBudget, InvestigationRe
 from openclaw_foundation.tools.kubernetes_pod_status import KubernetesPodStatusTool
 
 
-def make_kubernetes_request(namespace: str = "payments") -> InvestigationRequest:
+def make_kubernetes_request(namespace: str = "dev") -> InvestigationRequest:
     return InvestigationRequest(
         request_type=RequestType.INVESTIGATION,
         request_id="req-k8s-001",
@@ -23,7 +23,7 @@ def make_kubernetes_request(namespace: str = "payments") -> InvestigationRequest
         target={
             "cluster": "staging-main",
             "namespace": namespace,
-            "pod_name": "payments-api-123",
+            "pod_name": "dev-api-123",
         },
     )
 
@@ -32,12 +32,12 @@ def test_get_pod_status_tool_uses_adapter_and_returns_minimal_payload() -> None:
     tool = KubernetesPodStatusTool(
         adapter=FakeKubernetesProviderAdapter(),
         allowed_clusters={"staging-main"},
-        allowed_namespaces={"payments"},
+        allowed_namespaces={"dev"},
     )
 
     result = tool.invoke(make_kubernetes_request())
 
-    assert "payments-api-123" in result.summary
+    assert "dev-api-123" in result.summary
     assert result.evidence[0]["phase"] == "Running"
     assert "raw_object" not in result.evidence[0]
 
@@ -46,7 +46,7 @@ def test_get_pod_status_denies_cluster_outside_allowlist() -> None:
     tool = KubernetesPodStatusTool(
         adapter=FakeKubernetesProviderAdapter(),
         allowed_clusters={"prod-main"},
-        allowed_namespaces={"payments"},
+        allowed_namespaces={"dev"},
     )
 
     with pytest.raises(PermissionError, match="cluster is not allowed"):
@@ -57,7 +57,7 @@ def test_get_pod_status_redacts_sensitive_annotation_values() -> None:
     tool = KubernetesPodStatusTool(
         adapter=FakeKubernetesProviderAdapter(),
         allowed_clusters={"staging-main"},
-        allowed_namespaces={"payments"},
+        allowed_namespaces={"dev"},
     )
 
     result = tool.invoke(make_kubernetes_request())
@@ -69,15 +69,15 @@ def test_get_pod_status_accepts_resource_name_target_key() -> None:
     tool = KubernetesPodStatusTool(
         adapter=FakeKubernetesProviderAdapter(),
         allowed_clusters={"staging-main"},
-        allowed_namespaces={"payments"},
+        allowed_namespaces={"dev"},
     )
     request = make_kubernetes_request()
     request.target = {
         "cluster": "staging-main",
-        "namespace": "payments",
-        "resource_name": "payments-api-123",
+        "namespace": "dev",
+        "resource_name": "dev-api-123",
     }
 
     result = tool.invoke(request)
 
-    assert "payments-api-123" in result.summary
+    assert "dev-api-123" in result.summary

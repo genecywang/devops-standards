@@ -6,7 +6,7 @@ from openclaw_foundation.models.requests import ExecutionBudget, InvestigationRe
 from openclaw_foundation.tools.kubernetes_pod_logs import KubernetesPodLogsTool
 
 
-def make_logs_request(namespace: str = "payments") -> InvestigationRequest:
+def make_logs_request(namespace: str = "dev") -> InvestigationRequest:
     return InvestigationRequest(
         request_type=RequestType.INVESTIGATION,
         request_id="req-k8s-logs-001",
@@ -23,7 +23,7 @@ def make_logs_request(namespace: str = "payments") -> InvestigationRequest:
         target={
             "cluster": "staging-main",
             "namespace": namespace,
-            "resource_name": "payments-api-123",
+            "resource_name": "dev-api-123",
         },
     )
 
@@ -32,12 +32,12 @@ def test_get_pod_logs_tool_returns_log_lines_in_summary() -> None:
     tool = KubernetesPodLogsTool(
         adapter=FakeKubernetesProviderAdapter(),
         allowed_clusters={"staging-main"},
-        allowed_namespaces={"payments"},
+        allowed_namespaces={"dev"},
     )
 
     result = tool.invoke(make_logs_request())
 
-    assert "payments-api-123" in result.summary
+    assert "dev-api-123" in result.summary
     assert "log lines" in result.summary
     assert len(result.evidence) >= 1
     assert "line" in result.evidence[0]
@@ -47,7 +47,7 @@ def test_get_pod_logs_tool_denies_cluster_outside_allowlist() -> None:
     tool = KubernetesPodLogsTool(
         adapter=FakeKubernetesProviderAdapter(),
         allowed_clusters={"prod-main"},
-        allowed_namespaces={"payments"},
+        allowed_namespaces={"dev"},
     )
 
     with pytest.raises(PermissionError, match="cluster is not allowed"):
@@ -62,14 +62,14 @@ def test_get_pod_logs_tool_denies_namespace_outside_allowlist() -> None:
     )
 
     with pytest.raises(PermissionError, match="namespace is not allowed"):
-        tool.invoke(make_logs_request(namespace="payments"))
+        tool.invoke(make_logs_request(namespace="dev"))
 
 
 def test_get_pod_logs_tool_redacts_bearer_token_in_log_lines() -> None:
     tool = KubernetesPodLogsTool(
         adapter=FakeKubernetesProviderAdapter(),
         allowed_clusters={"staging-main"},
-        allowed_namespaces={"payments"},
+        allowed_namespaces={"dev"},
     )
 
     result = tool.invoke(make_logs_request())
@@ -83,18 +83,18 @@ def test_get_pod_logs_tool_accepts_pod_name_target_key() -> None:
     tool = KubernetesPodLogsTool(
         adapter=FakeKubernetesProviderAdapter(),
         allowed_clusters={"staging-main"},
-        allowed_namespaces={"payments"},
+        allowed_namespaces={"dev"},
     )
     request = make_logs_request()
     request.target = {
         "cluster": "staging-main",
-        "namespace": "payments",
-        "pod_name": "payments-api-123",
+        "namespace": "dev",
+        "pod_name": "dev-api-123",
     }
 
     result = tool.invoke(request)
 
-    assert "payments-api-123" in result.summary
+    assert "dev-api-123" in result.summary
 
 
 def test_get_pod_logs_tool_returns_no_logs_summary_for_empty_result() -> None:
@@ -105,7 +105,7 @@ def test_get_pod_logs_tool_returns_no_logs_summary_for_empty_result() -> None:
     tool = KubernetesPodLogsTool(
         adapter=EmptyLogAdapter(),
         allowed_clusters={"staging-main"},
-        allowed_namespaces={"payments"},
+        allowed_namespaces={"dev"},
     )
 
     result = tool.invoke(make_logs_request())

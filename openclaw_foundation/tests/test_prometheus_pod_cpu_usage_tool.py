@@ -82,8 +82,8 @@ def test_get_pod_cpu_usage_tool_denies_namespace_outside_allowlist() -> None:
                 "window": "5m",
             }
         ),
-        allowed_namespaces={"payments"},
+        allowed_namespaces={"dev"},
     )
 
     with pytest.raises(PermissionError, match="namespace is not allowed"):
-        tool.invoke(make_request(namespace="dev"))
+        tool.invoke(make_request(namespace="prod"))

@@ -15,7 +15,7 @@
   },
   "tool_name": "get_deployment_restart_rate",
   "target": {
-    "namespace": "payments",
-    "resource_name": "payments-api"
+    "namespace": "dev",
+    "resource_name": "dev-api"
   }
 }

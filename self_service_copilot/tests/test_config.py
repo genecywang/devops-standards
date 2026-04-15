@@ -8,7 +8,7 @@ def test_from_env_parses_allowed_channel_ids(monkeypatch) -> None:
     monkeypatch.setenv("COPILOT_CLUSTER", "staging-main")
     monkeypatch.setenv("COPILOT_ENVIRONMENT", "staging")
     monkeypatch.setenv("COPILOT_ALLOWED_CLUSTERS", "staging-main")
-    monkeypatch.setenv("COPILOT_ALLOWED_NAMESPACES", "payments")
+    monkeypatch.setenv("COPILOT_ALLOWED_NAMESPACES", "dev")
     monkeypatch.setenv("COPILOT_ALLOWED_CHANNEL_IDS", "C123, C456")
     monkeypatch.setenv("COPILOT_PROVIDER", "fake")
 
@@ -21,7 +21,7 @@ def test_from_env_uses_cluster_and_environment_as_bot_identity(monkeypatch) -> N
     monkeypatch.setenv("COPILOT_CLUSTER", "prod-main")
     monkeypatch.setenv("COPILOT_ENVIRONMENT", "production")
     monkeypatch.setenv("COPILOT_ALLOWED_CLUSTERS", "prod-main")
-    monkeypatch.setenv("COPILOT_ALLOWED_NAMESPACES", "payments")
+    monkeypatch.setenv("COPILOT_ALLOWED_NAMESPACES", "dev")
     monkeypatch.setenv("COPILOT_PROVIDER", "fake")
     monkeypatch.delenv("COPILOT_ALLOWED_CHANNEL_IDS", raising=False)
 
@@ -36,7 +36,7 @@ def test_copilot_config_positional_constructor_remains_compatible() -> None:
         "staging-main",
         "staging",
         {"staging-main"},
-        {"payments"},
+        {"dev"},
         frozenset({"get_pod_status"}),
         ExecutionBudget(
             max_steps=2,
@@ -57,7 +57,7 @@ def test_from_env_defaults_environment_mapping_from_legacy_vars(monkeypatch) -> 
     monkeypatch.setenv("COPILOT_CLUSTER", "staging-main")
     monkeypatch.setenv("COPILOT_ENVIRONMENT", "staging")
     monkeypatch.setenv("COPILOT_ALLOWED_CLUSTERS", "staging-main")
-    monkeypatch.setenv("COPILOT_ALLOWED_NAMESPACES", "payments")
+    monkeypatch.setenv("COPILOT_ALLOWED_NAMESPACES", "dev")
     monkeypatch.setenv("COPILOT_PROVIDER", "fake")
     monkeypatch.delenv("COPILOT_ALLOWED_CHANNEL_IDS", raising=False)
     monkeypatch.delenv("COPILOT_DEFAULT_ENVIRONMENT", raising=False)
@@ -75,7 +75,7 @@ def test_from_env_reads_environment_cluster_mapping(monkeypatch) -> None:
     monkeypatch.setenv("COPILOT_DEFAULT_ENVIRONMENT", "staging")
     monkeypatch.setenv("COPILOT_ENVIRONMENT_CLUSTERS", "staging=staging-main,au=au-main,jp=jp-main")
     monkeypatch.setenv("COPILOT_ALLOWED_CLUSTERS", "staging-main,au-main,jp-main")
-    monkeypatch.setenv("COPILOT_ALLOWED_NAMESPACES", "payments")
+    monkeypatch.setenv("COPILOT_ALLOWED_NAMESPACES", "dev")
     monkeypatch.setenv("COPILOT_PROVIDER", "fake")
     monkeypatch.delenv("COPILOT_ALLOWED_CHANNEL_IDS", raising=False)
 
@@ -95,7 +95,7 @@ def test_from_env_ignores_empty_default_environment(monkeypatch) -> None:
     monkeypatch.setenv("COPILOT_DEFAULT_ENVIRONMENT", "")
     monkeypatch.delenv("COPILOT_ENVIRONMENT_CLUSTERS", raising=False)
     monkeypatch.setenv("COPILOT_ALLOWED_CLUSTERS", "staging-main")
-    monkeypatch.setenv("COPILOT_ALLOWED_NAMESPACES", "payments")
+    monkeypatch.setenv("COPILOT_ALLOWED_NAMESPACES", "dev")
     monkeypatch.setenv("COPILOT_PROVIDER", "fake")
     monkeypatch.delenv("COPILOT_ALLOWED_CHANNEL_IDS", raising=False)
 
@@ -113,7 +113,7 @@ def test_from_env_falls_back_to_default_environment_when_mapping_missing_it(
     monkeypatch.setenv("COPILOT_DEFAULT_ENVIRONMENT", "staging")
     monkeypatch.setenv("COPILOT_ENVIRONMENT_CLUSTERS", "au=au-main,jp=jp-main")
     monkeypatch.setenv("COPILOT_ALLOWED_CLUSTERS", "staging-main,au-main,jp-main")
-    monkeypatch.setenv("COPILOT_ALLOWED_NAMESPACES", "payments")
+    monkeypatch.setenv("COPILOT_ALLOWED_NAMESPACES", "dev")
     monkeypatch.setenv("COPILOT_PROVIDER", "fake")
     monkeypatch.delenv("COPILOT_ALLOWED_CHANNEL_IDS", raising=False)
 
@@ -134,7 +134,7 @@ def test_from_env_falls_back_to_default_environment_for_whitespace_mapping(
     monkeypatch.setenv("COPILOT_DEFAULT_ENVIRONMENT", "staging")
     monkeypatch.setenv("COPILOT_ENVIRONMENT_CLUSTERS", "   ,  ")
     monkeypatch.setenv("COPILOT_ALLOWED_CLUSTERS", "staging-main")
-    monkeypatch.setenv("COPILOT_ALLOWED_NAMESPACES", "payments")
+    monkeypatch.setenv("COPILOT_ALLOWED_NAMESPACES", "dev")
     monkeypatch.setenv("COPILOT_PROVIDER", "fake")
     monkeypatch.delenv("COPILOT_ALLOWED_CHANNEL_IDS", raising=False)
 
@@ -153,7 +153,7 @@ def test_from_env_rejects_malformed_environment_cluster_mapping(
     monkeypatch.setenv("COPILOT_DEFAULT_ENVIRONMENT", "staging")
     monkeypatch.setenv("COPILOT_ENVIRONMENT_CLUSTERS", environment_clusters)
     monkeypatch.setenv("COPILOT_ALLOWED_CLUSTERS", "staging-main")
-    monkeypatch.setenv("COPILOT_ALLOWED_NAMESPACES", "payments")
+    monkeypatch.setenv("COPILOT_ALLOWED_NAMESPACES", "dev")
     monkeypatch.setenv("COPILOT_PROVIDER", "fake")
     monkeypatch.delenv("COPILOT_ALLOWED_CHANNEL_IDS", raising=False)
 
@@ -165,7 +165,7 @@ def test_from_env_includes_get_deployment_status_in_supported_tools(monkeypatch)
     monkeypatch.setenv("COPILOT_CLUSTER", "staging-main")
     monkeypatch.setenv("COPILOT_ENVIRONMENT", "staging")
     monkeypatch.setenv("COPILOT_ALLOWED_CLUSTERS", "staging-main")
-    monkeypatch.setenv("COPILOT_ALLOWED_NAMESPACES", "payments")
+    monkeypatch.setenv("COPILOT_ALLOWED_NAMESPACES", "dev")
     monkeypatch.delenv("COPILOT_ALLOWED_CHANNEL_IDS", raising=False)
     monkeypatch.setenv("COPILOT_PROVIDER", "fake")
 
@@ -178,7 +178,7 @@ def test_from_env_includes_get_pod_runtime_in_supported_tools(monkeypatch) -> No
     monkeypatch.setenv("COPILOT_CLUSTER", "staging-main")
     monkeypatch.setenv("COPILOT_ENVIRONMENT", "staging")
     monkeypatch.setenv("COPILOT_ALLOWED_CLUSTERS", "staging-main")
-    monkeypatch.setenv("COPILOT_ALLOWED_NAMESPACES", "payments")
+    monkeypatch.setenv("COPILOT_ALLOWED_NAMESPACES", "dev")
     monkeypatch.delenv("COPILOT_ALLOWED_CHANNEL_IDS", raising=False)
     monkeypatch.setenv("COPILOT_PROVIDER", "fake")
 
@@ -193,7 +193,7 @@ def test_from_env_includes_get_deployment_restart_rate_in_supported_tools(
     monkeypatch.setenv("COPILOT_CLUSTER", "staging-main")
     monkeypatch.setenv("COPILOT_ENVIRONMENT", "staging")
     monkeypatch.setenv("COPILOT_ALLOWED_CLUSTERS", "staging-main")
-    monkeypatch.setenv("COPILOT_ALLOWED_NAMESPACES", "payments")
+    monkeypatch.setenv("COPILOT_ALLOWED_NAMESPACES", "dev")
     monkeypatch.delenv("COPILOT_ALLOWED_CHANNEL_IDS", raising=False)
     monkeypatch.setenv("COPILOT_PROVIDER", "fake")
 
@@ -206,7 +206,7 @@ def test_from_env_includes_get_pod_cpu_usage_in_supported_tools(monkeypatch) -> 
     monkeypatch.setenv("COPILOT_CLUSTER", "staging-main")
     monkeypatch.setenv("COPILOT_ENVIRONMENT", "staging")
     monkeypatch.setenv("COPILOT_ALLOWED_CLUSTERS", "staging-main")
-    monkeypatch.setenv("COPILOT_ALLOWED_NAMESPACES", "payments")
+    monkeypatch.setenv("COPILOT_ALLOWED_NAMESPACES", "dev")
     monkeypatch.delenv("COPILOT_ALLOWED_CHANNEL_IDS", raising=False)
     monkeypatch.setenv("COPILOT_PROVIDER", "fake")
 
@@ -219,7 +219,7 @@ def test_from_env_reads_prometheus_base_url(monkeypatch) -> None:
     monkeypatch.setenv("COPILOT_CLUSTER", "staging-main")
     monkeypatch.setenv("COPILOT_ENVIRONMENT", "staging")
     monkeypatch.setenv("COPILOT_ALLOWED_CLUSTERS", "staging-main")
-    monkeypatch.setenv("COPILOT_ALLOWED_NAMESPACES", "payments")
+    monkeypatch.setenv("COPILOT_ALLOWED_NAMESPACES", "dev")
     monkeypatch.setenv("OPENCLAW_PROMETHEUS_BASE_URL", "http://prometheus.monitoring.svc:9090")
     monkeypatch.delenv("COPILOT_ALLOWED_CHANNEL_IDS", raising=False)
     monkeypatch.setenv("COPILOT_PROVIDER", "real")
@@ -233,7 +233,7 @@ def test_from_env_uses_default_rate_limits(monkeypatch) -> None:
     monkeypatch.setenv("COPILOT_CLUSTER", "staging-main")
     monkeypatch.setenv("COPILOT_ENVIRONMENT", "staging")
     monkeypatch.setenv("COPILOT_ALLOWED_CLUSTERS", "staging-main")
-    monkeypatch.setenv("COPILOT_ALLOWED_NAMESPACES", "payments")
+    monkeypatch.setenv("COPILOT_ALLOWED_NAMESPACES", "dev")
     monkeypatch.setenv("COPILOT_PROVIDER", "fake")
     monkeypatch.delenv("COPILOT_ALLOWED_CHANNEL_IDS", raising=False)
     monkeypatch.delenv("COPILOT_USER_RATE_LIMIT_COUNT", raising=False)
@@ -253,7 +253,7 @@ def test_from_env_reads_rate_limit_overrides(monkeypatch) -> None:
     monkeypatch.setenv("COPILOT_CLUSTER", "staging-main")
     monkeypatch.setenv("COPILOT_ENVIRONMENT", "staging")
     monkeypatch.setenv("COPILOT_ALLOWED_CLUSTERS", "staging-main")
-    monkeypatch.setenv("COPILOT_ALLOWED_NAMESPACES", "payments")
+    monkeypatch.setenv("COPILOT_ALLOWED_NAMESPACES", "dev")
     monkeypatch.setenv("COPILOT_PROVIDER", "fake")
     monkeypatch.delenv("COPILOT_ALLOWED_CHANNEL_IDS", raising=False)
     monkeypatch.setenv("COPILOT_USER_RATE_LIMIT_COUNT", "7")

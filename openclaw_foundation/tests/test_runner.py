@@ -89,7 +89,7 @@ def test_runner_executes_kubernetes_pod_status_tool() -> None:
         KubernetesPodStatusTool(
             adapter=FakeKubernetesProviderAdapter(),
             allowed_clusters={"staging-main"},
-            allowed_namespaces={"payments"},
+            allowed_namespaces={"dev"},
         )
     )
     runner = OpenClawRunner(registry)
@@ -108,8 +108,8 @@ def test_runner_executes_kubernetes_pod_status_tool() -> None:
         tool_name="get_pod_status",
         target={
             "cluster": "staging-main",
-            "namespace": "payments",
-            "pod_name": "payments-api-123",
+            "namespace": "dev",
+            "pod_name": "dev-api-123",
         },
     )
 
@@ -117,4 +117,4 @@ def test_runner_executes_kubernetes_pod_status_tool() -> None:
 
     assert response.result_state == "success"
     assert response.actions_attempted == ["get_pod_status"]
-    assert "payments-api-123" in response.summary
+    assert "dev-api-123" in response.summary

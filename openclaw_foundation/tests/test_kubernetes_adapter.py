@@ -121,7 +121,7 @@ def test_build_apps_v1_api_uses_incluster_first(monkeypatch: pytest.MonkeyPatch)
 def test_real_adapter_maps_pod_status_payload() -> None:
     api = Mock()
     api.read_namespaced_pod_status.return_value = SimpleNamespace(
-        metadata=SimpleNamespace(name="payments-api-123"),
+        metadata=SimpleNamespace(name="dev-api-123"),
         status=SimpleNamespace(
             phase="Running",
             container_statuses=[
@@ -139,13 +139,13 @@ def test_real_adapter_maps_pod_status_payload() -> None:
 
     result = adapter.get_pod_status(
         cluster="staging-main",
-        namespace="payments",
-        pod_name="payments-api-123",
+        namespace="dev",
+        pod_name="dev-api-123",
     )
 
     assert result == {
-        "pod_name": "payments-api-123",
-        "namespace": "payments",
+        "pod_name": "dev-api-123",
+        "namespace": "dev",
         "phase": "Running",
         "container_statuses": [{"name": "app", "ready": True, "image": "example:v1"}],
         "node_name": "node-a",
@@ -161,8 +161,8 @@ def test_real_adapter_raises_domain_error_on_api_failure() -> None:
     with pytest.raises(KubernetesApiError, match="failed to read pod status"):
         adapter.get_pod_status(
             cluster="staging-main",
-            namespace="payments",
-            pod_name="payments-api-123",
+            namespace="dev",
+            pod_name="dev-api-123",
         )
 
 
@@ -179,8 +179,8 @@ def test_real_adapter_maps_name_resolution_error_to_endpoint_unreachable() -> No
     with pytest.raises(KubernetesEndpointUnreachableError, match="cluster endpoint unreachable"):
         adapter.get_pod_status(
             cluster="staging-main",
-            namespace="payments",
-            pod_name="payments-api-123",
+            namespace="dev",
+            pod_name="dev-api-123",
         )
 
 
@@ -193,8 +193,8 @@ def test_real_adapter_maps_403_to_access_denied() -> None:
     with pytest.raises(KubernetesAccessDeniedError, match="kubernetes access denied"):
         adapter.get_pod_status(
             cluster="staging-main",
-            namespace="payments",
-            pod_name="payments-api-123",
+            namespace="dev",
+            pod_name="dev-api-123",
         )
 
 
@@ -207,8 +207,8 @@ def test_real_adapter_maps_404_to_resource_not_found() -> None:
     with pytest.raises(KubernetesResourceNotFoundError, match="pod not found"):
         adapter.get_pod_status(
             cluster="staging-main",
-            namespace="payments",
-            pod_name="payments-api-123",
+            namespace="dev",
+            pod_name="dev-api-123",
         )
 
 
@@ -217,11 +217,11 @@ def test_fake_adapter_get_deployment_status_returns_bounded_payload() -> None:
 
     result = adapter.get_deployment_status(
         cluster="staging-main",
-        namespace="payments",
-        deployment_name="payments-api",
+        namespace="dev",
+        deployment_name="dev-api",
     )
 
-    assert result["deployment_name"] == "payments-api"
+    assert result["deployment_name"] == "dev-api"
     assert result["desired_replicas"] == 3
     assert isinstance(result["conditions"], list)
     assert set(result["conditions"][0].keys()) == {"type", "status", "reason", "message"}
@@ -232,8 +232,8 @@ def test_fake_adapter_get_deployment_status_contains_redactable_condition_messag
 
     result = adapter.get_deployment_status(
         cluster="staging-main",
-        namespace="payments",
-        deployment_name="payments-api",
+        namespace="dev",
+        deployment_name="dev-api",
     )
 
     all_messages = " ".join(str(c["message"]) for c in result["conditions"])
@@ -267,13 +267,13 @@ def test_real_adapter_maps_pod_events_payload() -> None:
     adapter = RealKubernetesProviderAdapter(api)
     result = adapter.get_pod_events(
         cluster="staging-main",
-        namespace="payments",
-        pod_name="payments-api-123",
+        namespace="dev",
+        pod_name="dev-api-123",
     )
 
     api.list_namespaced_event.assert_called_once_with(
-        namespace="payments",
-        field_selector="involvedObject.name=payments-api-123",
+        namespace="dev",
+        field_selector="involvedObject.name=dev-api-123",
     )
     assert result == [
         {
@@ -303,8 +303,8 @@ def test_real_adapter_get_pod_events_maps_none_timestamp() -> None:
     adapter = RealKubernetesProviderAdapter(api)
     result = adapter.get_pod_events(
         cluster="staging-main",
-        namespace="payments",
-        pod_name="payments-api-123",
+        namespace="dev",
+        pod_name="dev-api-123",
     )
 
     assert result[0]["last_timestamp"] is None
@@ -312,7 +312,7 @@ def test_real_adapter_get_pod_events_maps_none_timestamp() -> None:
 
 def test_real_adapter_get_deployment_status_maps_minimal_fields() -> None:
     deployment = SimpleNamespace(
-        metadata=SimpleNamespace(name="payments-api"),
+        metadata=SimpleNamespace(name="dev-api"),
         status=SimpleNamespace(
             ready_replicas=2,
             available_replicas=2,
@@ -331,9 +331,9 @@ def test_real_adapter_get_deployment_status_maps_minimal_fields() -> None:
     apps_api = SimpleNamespace(read_namespaced_deployment_status=lambda name, namespace: deployment)
     adapter = RealKubernetesProviderAdapter(core_v1_api=None, apps_v1_api=apps_api)
 
-    result = adapter.get_deployment_status("staging-main", "payments", "payments-api")
+    result = adapter.get_deployment_status("staging-main", "dev", "dev-api")
 
-    assert result["deployment_name"] == "payments-api"
+    assert result["deployment_name"] == "dev-api"
     assert result["desired_replicas"] == 3
     assert result["ready_replicas"] == 2
     assert result["conditions"][0]["type"] == "Available"
@@ -348,8 +348,8 @@ def test_real_adapter_get_pod_events_maps_403_to_access_denied() -> None:
     with pytest.raises(KubernetesAccessDeniedError, match="kubernetes access denied"):
         adapter.get_pod_events(
             cluster="staging-main",
-            namespace="payments",
-            pod_name="payments-api-123",
+            namespace="dev",
+            pod_name="dev-api-123",
         )
 
 
@@ -362,8 +362,8 @@ def test_real_adapter_get_pod_events_maps_404_to_resource_not_found() -> None:
     with pytest.raises(KubernetesResourceNotFoundError, match="namespace not found"):
         adapter.get_pod_events(
             cluster="staging-main",
-            namespace="payments",
-            pod_name="payments-api-123",
+            namespace="dev",
+            pod_name="dev-api-123",
         )
 
 
@@ -376,8 +376,8 @@ def test_real_adapter_get_pod_events_maps_generic_api_error() -> None:
     with pytest.raises(KubernetesApiError, match="failed to list pod events"):
         adapter.get_pod_events(
             cluster="staging-main",
-            namespace="payments",
-            pod_name="payments-api-123",
+            namespace="dev",
+            pod_name="dev-api-123",
         )
 
 
@@ -394,8 +394,8 @@ def test_real_adapter_get_pod_events_maps_name_resolution_error() -> None:
     with pytest.raises(KubernetesEndpointUnreachableError, match="cluster endpoint unreachable"):
         adapter.get_pod_events(
             cluster="staging-main",
-            namespace="payments",
-            pod_name="payments-api-123",
+            namespace="dev",
+            pod_name="dev-api-123",
         )
 
 
@@ -409,8 +409,8 @@ def test_fake_adapter_get_pod_events_returns_bounded_event_list() -> None:
 
     result = adapter.get_pod_events(
         cluster="staging-main",
-        namespace="payments",
-        pod_name="payments-api-123",
+        namespace="dev",
+        pod_name="dev-api-123",
     )
 
     assert isinstance(result, list)
@@ -426,8 +426,8 @@ def test_fake_adapter_get_pod_events_message_contains_redactable_content() -> No
 
     result = adapter.get_pod_events(
         cluster="staging-main",
-        namespace="payments",
-        pod_name="payments-api-123",
+        namespace="dev",
+        pod_name="dev-api-123",
     )
 
     all_messages = " ".join(str(e["message"]) for e in result)

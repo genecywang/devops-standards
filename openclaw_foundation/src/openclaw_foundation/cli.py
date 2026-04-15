@@ -88,28 +88,28 @@ def main(argv: list[str] | None = None) -> int:
             KubernetesPodStatusTool(
                 adapter=provider_adapter,
                 allowed_clusters={"staging-main"},
-                allowed_namespaces={"payments"},
+                allowed_namespaces={"dev"},
             )
         )
         registry.register(
             KubernetesPodEventsTool(
                 adapter=provider_adapter,
                 allowed_clusters={"staging-main"},
-                allowed_namespaces={"payments"},
+                allowed_namespaces={"dev"},
             )
         )
         registry.register(
             KubernetesDeploymentStatusTool(
                 adapter=provider_adapter,
                 allowed_clusters={"staging-main"},
-                allowed_namespaces={"payments"},
+                allowed_namespaces={"dev"},
             )
         )
         registry.register(
             KubernetesPodLogsTool(
                 adapter=provider_adapter,
                 allowed_clusters={"staging-main"},
-                allowed_namespaces={"payments"},
+                allowed_namespaces={"dev"},
             )
         )
         if request.tool_name in {
@@ -121,19 +121,19 @@ def main(argv: list[str] | None = None) -> int:
             registry.register(
                 PrometheusPodRuntimeTool(
                     adapter=prometheus_adapter,
-                    allowed_namespaces={"dev", "payments"},
+                    allowed_namespaces={"dev"},
                 )
             )
             registry.register(
                 PrometheusPodCpuUsageTool(
                     adapter=prometheus_adapter,
-                    allowed_namespaces={"dev", "payments"},
+                    allowed_namespaces={"dev"},
                 )
             )
             registry.register(
                 PrometheusDeploymentRestartRateTool(
                     adapter=prometheus_adapter,
-                    allowed_namespaces={"dev", "payments"},
+                    allowed_namespaces={"dev"},
                 )
             )
         response = OpenClawRunner(registry).run(request)

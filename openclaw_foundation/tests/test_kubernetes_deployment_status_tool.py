@@ -6,7 +6,7 @@ from openclaw_foundation.models.requests import ExecutionBudget, InvestigationRe
 from openclaw_foundation.tools.kubernetes_deployment_status import KubernetesDeploymentStatusTool
 
 
-def make_request(namespace: str = "payments") -> InvestigationRequest:
+def make_request(namespace: str = "dev") -> InvestigationRequest:
     return InvestigationRequest(
         request_type=RequestType.INVESTIGATION,
         request_id="req-deploy-001",
@@ -23,7 +23,7 @@ def make_request(namespace: str = "payments") -> InvestigationRequest:
         target={
             "cluster": "staging-main",
             "namespace": namespace,
-            "resource_name": "payments-api",
+            "resource_name": "dev-api",
         },
     )
 
@@ -32,12 +32,12 @@ def test_get_deployment_status_tool_uses_adapter_and_returns_summary() -> None:
     tool = KubernetesDeploymentStatusTool(
         adapter=FakeKubernetesProviderAdapter(),
         allowed_clusters={"staging-main"},
-        allowed_namespaces={"payments"},
+        allowed_namespaces={"dev"},
     )
 
     result = tool.invoke(make_request())
 
-    assert "payments-api" in result.summary
+    assert "dev-api" in result.summary
     assert len(result.evidence) == 1
     assert result.evidence[0]["desired_replicas"] == 3
 
@@ -46,7 +46,7 @@ def test_get_deployment_status_tool_denies_cluster_outside_allowlist() -> None:
     tool = KubernetesDeploymentStatusTool(
         adapter=FakeKubernetesProviderAdapter(),
         allowed_clusters={"prod-main"},
-        allowed_namespaces={"payments"},
+        allowed_namespaces={"dev"},
     )
 
     with pytest.raises(PermissionError, match="cluster is not allowed"):
@@ -57,7 +57,7 @@ def test_get_deployment_status_tool_redacts_condition_messages() -> None:
     tool = KubernetesDeploymentStatusTool(
         adapter=FakeKubernetesProviderAdapter(),
         allowed_clusters={"staging-main"},
-        allowed_namespaces={"payments"},
+        allowed_namespaces={"dev"},
     )
 
     result = tool.invoke(make_request())
