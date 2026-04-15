@@ -1,7 +1,0 @@
-pyproject.toml
-src/self_service_copilot/__init__.py
-src/self_service_copilot.egg-info/PKG-INFO
-src/self_service_copilot.egg-info/SOURCES.txt
-src/self_service_copilot.egg-info/dependency_links.txt
-src/self_service_copilot.egg-info/requires.txt
-src/self_service_copilot.egg-info/top_level.txt

@@ -7,7 +7,7 @@ name = "alert-auto-investigator"
 version = "0.1.0"
 description = "Alert auto-investigator: normalizes and routes alerts to OpenClaw"
 requires-python = ">=3.11"
-dependencies = []
+dependencies = ["openclaw-foundation"]
 
 [project.optional-dependencies]
 dev = ["pytest>=8.0.0"]
