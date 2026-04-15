@@ -24,6 +24,7 @@ Owner: Platform Foundation.
 ## Inputs and Dependencies
 
 - `docs/platform-foundation/contracts.md`
+- `docs/platform-foundation/normalized-alert-contract.md`
 - `docs/platform-foundation/runtime.md`
 - `docs/platform-foundation/security.md`
 - `docs/platform-foundation/observability.md`
