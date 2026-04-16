@@ -60,8 +60,6 @@ def main() -> None:
         tool_routing={
             "pod": "get_pod_events",
             "deployment": "get_deployment_status",
-            "node": "get_pod_events",
-            "host": "get_pod_events",
         }
     )
     dispatcher = OpenClawDispatcher(build_runner(config), investigation_config)

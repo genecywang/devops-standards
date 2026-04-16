@@ -100,7 +100,16 @@ def handle_message(
         logger.info("skip alert_key=%s reason=%s", alert.alert_key, decision.reason)
         return
 
-    response = dispatcher.dispatch(alert)
+    try:
+        response = dispatcher.dispatch(alert)
+    except Exception:
+        logger.exception(
+            "dispatch failed alert_key=%s resource_type=%s resource_name=%s",
+            alert.alert_key,
+            alert.resource_type,
+            alert.resource_name,
+        )
+        return
     if response is None:
         logger.info(
             "no tool mapped resource_type=%s alert_key=%s",

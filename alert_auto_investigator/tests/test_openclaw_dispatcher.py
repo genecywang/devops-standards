@@ -123,11 +123,12 @@ def test_dispatch_routes_deployment_to_get_deployment_status() -> None:
     assert runner.last_request.tool_name == "get_deployment_status"
 
 
-def test_dispatch_routes_node_to_get_pod_events() -> None:
+def test_dispatch_returns_none_for_node_resource_type_by_default() -> None:
     dispatcher, runner = make_dispatcher()
-    dispatcher.dispatch(make_event(resource_type="node"))
+    result = dispatcher.dispatch(make_event(resource_type="node", namespace=""))
 
-    assert runner.last_request.tool_name == "get_pod_events"
+    assert result is None
+    assert runner.last_request is None
 
 
 def test_dispatch_honours_custom_tool_routing() -> None:

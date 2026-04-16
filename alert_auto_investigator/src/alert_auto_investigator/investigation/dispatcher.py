@@ -11,8 +11,6 @@ from alert_auto_investigator.models.normalized_alert_event import NormalizedAler
 DEFAULT_TOOL_ROUTING: dict[str, str] = {
     "pod": "get_pod_events",
     "deployment": "get_deployment_status",
-    # nodes trigger pod-level event investigation on the affected node
-    "node": "get_pod_events",
 }
 
 

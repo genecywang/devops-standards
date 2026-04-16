@@ -458,6 +458,32 @@ class TestHandleMessageRecordAndReply:
 
         client.chat_postMessage.assert_not_called()
 
+    def test_dispatch_exception_is_logged_and_does_not_reply(self) -> None:
+        client = MagicMock()
+        dispatcher = MagicMock()
+        dispatcher.dispatch.side_effect = ValueError("namespace is required")
+        config = _make_config(cooldown_seconds=300.0)
+        store = InMemoryAlertStateStore()
+        policy = ControlPolicy(
+            owned_environments=frozenset(config.owned_environments),
+            cooldown_seconds=300.0,
+            rate_limit_count=100,
+            rate_limit_window_seconds=60.0,
+        )
+        pipeline = ControlPipeline(policy, store)
+
+        handle_message(
+            _make_event(attachments=[{"text": _ALERTMANAGER_TEXT}], ts="100.000"),
+            client, config, pipeline, dispatcher,
+        )
+        handle_message(
+            _make_event(attachments=[{"text": _ALERTMANAGER_TEXT}], ts="200.000"),
+            client, config, pipeline, dispatcher,
+        )
+
+        assert dispatcher.dispatch.call_count == 2
+        client.chat_postMessage.assert_not_called()
+
     def test_replies_to_thread_ts_when_in_thread(self) -> None:
         client = MagicMock()
         dispatcher = MagicMock()
