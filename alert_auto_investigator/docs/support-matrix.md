@@ -16,6 +16,30 @@ These resource types trigger a real investigation via an OpenClaw tool.
 | `deployment` | `get_deployment_status` | Alertmanager (label: `deployment`) |
 | `job` | `get_job_status` | Alertmanager (label: `job_name` or `exported_job`) |
 
+### Runtime Scope Guard
+
+`INVESTIGATE` means the bot knows how to route the alert to a real tool. It does
+**not** mean every alert of that type will be allowed to execute at runtime.
+
+Actual execution is still constrained by runner scope:
+
+- `ALLOWED_CLUSTERS`
+- `ALLOWED_NAMESPACES`
+
+If the alert is supported but outside the configured scope, dispatch is blocked by
+policy and no Slack investigation reply is posted. The handler logs:
+
+- `dispatch_blocked_by_scope ... reason=cluster is not allowed`
+- `dispatch_blocked_by_scope ... reason=namespace is not allowed`
+
+Example:
+
+- `job` alerts in namespace `monitoring` are fully supported by the code path
+- but if `ALLOWED_NAMESPACES` only contains `dev`, the alert is expected to stop
+  at scope guard with `dispatch_blocked_by_scope`
+
+This is a policy decision, not a parser failure and not a missing tool mapping.
+
 ---
 
 ## Next Candidates (`NEXT_CANDIDATE`)
@@ -91,3 +115,6 @@ production volume.
 4. Build and register the OpenClaw tool in `service/runner_factory.py`.
 5. Add the routing entry to `DEFAULT_TOOL_ROUTING` in `investigation/dispatcher.py` and change the policy to `INVESTIGATE`.
 6. Update this document.
+7. Verify runtime scope for the new type:
+   - ensure expected `ALLOWED_CLUSTERS` / `ALLOWED_NAMESPACES` values are present in deployment config
+   - if the type should stay supported-but-restricted, document that policy explicitly
