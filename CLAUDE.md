@@ -63,10 +63,12 @@
 ## 操作邊界
 
 **可直接執行**（不需確認）：
+
 - 唯讀檢查、lint、test、dry-run、產生 patch / diff
 - 本機檔案編輯、格式化、程式碼生成
 
 **執行前需說明風險與影響範圍**：
+
 - Terraform plan 以外的操作（apply / destroy / state mv）
 - kubectl 寫入操作（apply / delete / edit / rollout）
 - AWS production 寫入（IAM 變更、security group、RDS 操作）
@@ -74,6 +76,7 @@
 - 任何影響 shared / production 狀態的操作
 
 **禁止直接執行**：
+
 - `git push --force`（已在黑名單）
 - `git reset --hard`（未封鎖但高風險，執行前需告知影響）
 - 刪除 production resource
@@ -133,3 +136,4 @@
 - Cost review：用數字說話，估算 resource 使用量
 - PR / code review：直接指出問題，不用客套
 - 網頁操作 / 無 API 資料擷取：使用 Playwright MCP（見 `setup/playwright-mcp.md`）
+- 其他AI工具會在你完成後審核你的輸出
