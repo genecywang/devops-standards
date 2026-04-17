@@ -127,6 +127,32 @@ def make_job_request(namespace: str = "dev") -> InvestigationRequest:
     )
 
 
+class FailedJobAdapter(FakeKubernetesProviderAdapter):
+    def get_job_status(
+        self,
+        cluster: str,
+        namespace: str,
+        job_name: str,
+    ) -> dict[str, object]:
+        return {
+            "job_name": job_name,
+            "namespace": namespace,
+            "active": 0,
+            "succeeded": 0,
+            "failed": 1,
+            "owner_kind": "CronJob",
+            "owner_name": "nightly-backfill",
+            "conditions": [
+                {
+                    "type": "Failed",
+                    "status": "True",
+                    "reason": "BackoffLimitExceeded",
+                    "message": "Job has reached the specified backoff limit.",
+                }
+            ],
+        }
+
+
 def test_get_job_status_tool_uses_adapter_and_returns_summary() -> None:
     tool = KubernetesJobStatusTool(
         adapter=FakeKubernetesProviderAdapter(),
@@ -143,6 +169,21 @@ def test_get_job_status_tool_uses_adapter_and_returns_summary() -> None:
     assert result.evidence[0]["succeeded"] == 1
     assert result.evidence[0]["owner_kind"] == "CronJob"
     assert result.evidence[0]["owner_name"] == "nightly-backfill"
+
+
+def test_get_job_status_tool_surfaces_failure_reason_in_summary() -> None:
+    tool = KubernetesJobStatusTool(
+        adapter=FailedJobAdapter(),
+        allowed_clusters={"staging-main"},
+        allowed_namespaces={"dev"},
+    )
+
+    result = tool.invoke(make_job_request())
+
+    assert "job nightly-backfill-12345 is failed" in result.summary
+    assert "reason=BackoffLimitExceeded" in result.summary
+    assert "message=Job has reached the specified backoff limit." in result.summary
+    assert "owned by cronjob nightly-backfill" in result.summary
 
 
 def test_get_job_status_tool_denies_cluster_outside_allowlist() -> None:

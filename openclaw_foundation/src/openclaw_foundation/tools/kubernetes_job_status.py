@@ -56,10 +56,38 @@ class KubernetesJobStatusTool:
         if isinstance(owner_kind, str) and isinstance(owner_name, str) and owner_kind and owner_name:
             owner_suffix = f", owned by {owner_kind.lower()} {owner_name}"
 
+        detail_suffix = _build_job_summary_detail(redacted)
+
         return ToolResult(
             summary=(
                 f"job {job_name} is {health}: active={active}, succeeded={succeeded}, failed={failed}"
-                f"{owner_suffix}"
+                f"{detail_suffix}{owner_suffix}"
             ),
             evidence=[redacted],
         )
+
+
+def _build_job_summary_detail(payload: dict[str, object]) -> str:
+    conditions = payload.get("conditions", [])
+    if not isinstance(conditions, list):
+        return ""
+
+    for condition in conditions:
+        if not isinstance(condition, dict):
+            continue
+        if str(condition.get("status") or "").lower() != "true":
+            continue
+
+        reason = str(condition.get("reason") or "").strip()
+        message = str(condition.get("message") or "").strip()
+        if not reason and not message:
+            continue
+
+        parts = []
+        if reason:
+            parts.append(f"reason={reason}")
+        if message:
+            parts.append(f"message={message}")
+        return ", " + ", ".join(parts)
+
+    return ""
