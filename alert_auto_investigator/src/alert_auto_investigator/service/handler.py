@@ -4,7 +4,7 @@ import logging
 from typing import TYPE_CHECKING
 
 from alert_auto_investigator.ingress import (
-    parse_alertmanager_slack_message,
+    parse_alertmanager_slack_messages,
     parse_cloudwatch_slack_message,
 )
 from alert_auto_investigator.models.control_decision import ControlAction
@@ -49,19 +49,25 @@ def _reply_ts(event: dict) -> str:
     return event.get("thread_ts") or event["ts"]
 
 
-def _detect_alert(
+def _detect_alerts(
     texts: list[str],
     region_code: str,
     fallback_environment: str,
-) -> NormalizedAlertEvent | None:
+) -> list[NormalizedAlertEvent]:
+    """Return all parseable NormalizedAlertEvents from a list of candidate texts.
+
+    CloudWatch messages produce at most one alert per text. Alertmanager messages
+    may contain multiple alerts (FIRING:N); all are returned.
+    """
+    alerts: list[NormalizedAlertEvent] = []
     for text in texts:
-        result = parse_cloudwatch_slack_message(text)
-        if result:
-            return result
-        result = parse_alertmanager_slack_message(text, region_code, fallback_environment)
-        if result:
-            return result
-    return None
+        cw = parse_cloudwatch_slack_message(text)
+        if cw is not None:
+            alerts.append(cw)
+            continue
+        am_alerts = parse_alertmanager_slack_messages(text, region_code, fallback_environment)
+        alerts.extend(am_alerts)
+    return alerts
 
 
 def handle_message(
@@ -75,12 +81,9 @@ def handle_message(
 ) -> None:
     """Process a single Slack message event.
 
-    Guards → text extraction → alert detection → control pipeline →
-    dispatch → record → Slack thread reply.
+    Guards → text extraction → alert detection → for each alert:
+    control pipeline → dispatch → record → Slack thread reply.
     """
-    # Guard: ignore only messages posted by this bot itself.
-    # Incoming webhooks from Alertmanager / CloudWatch also carry bot_id and
-    # must still be processed.
     if own_bot_id is not None and event.get("bot_id") == own_bot_id:
         return
     if own_bot_user_id is not None and event.get("user") == own_bot_user_id:
@@ -91,38 +94,37 @@ def handle_message(
         return
 
     texts = _extract_texts(event)
-    alert = _detect_alert(texts, config.region_code, config.fallback_environment)
-    if alert is None:
+    alerts = _detect_alerts(texts, config.region_code, config.fallback_environment)
+    if not alerts:
         return  # not a structured alert — silent skip, do not reply
 
-    decision = pipeline.evaluate(alert)
-    if decision.action != ControlAction.INVESTIGATE:
-        logger.info("skip alert_key=%s reason=%s", alert.alert_key, decision.reason)
-        return
+    reply_ts = _reply_ts(event)
 
-    try:
-        response = dispatcher.dispatch(alert)
-    except Exception:
-        logger.exception(
-            "dispatch failed alert_key=%s resource_type=%s resource_name=%s",
-            alert.alert_key,
-            alert.resource_type,
-            alert.resource_name,
+    for alert in alerts:
+        decision = pipeline.evaluate(alert)
+        if decision.action != ControlAction.INVESTIGATE:
+            logger.info("skip alert_key=%s reason=%s", alert.alert_key, decision.reason)
+            continue
+
+        try:
+            response = dispatcher.dispatch(alert)
+        except Exception:
+            logger.exception(
+                "dispatch failed alert_key=%s resource_type=%s resource_name=%s",
+                alert.alert_key,
+                alert.resource_type,
+                alert.resource_name,
+            )
+            continue
+        if response is None:
+            # dispatcher already logs the specific reason (skip_by_design / next_candidate / unknown)
+            continue
+
+        # Record only after a successful dispatch to avoid poisoning cooldown
+        pipeline.record_investigation(alert)
+
+        client.chat_postMessage(  # type: ignore[union-attr]
+            channel=event["channel"],
+            thread_ts=reply_ts,
+            text=format_investigation_reply(alert, response),
         )
-        return
-    if response is None:
-        logger.info(
-            "no tool mapped resource_type=%s alert_key=%s",
-            alert.resource_type,
-            alert.alert_key,
-        )
-        return
-
-    # Record only after a successful dispatch to avoid poisoning cooldown
-    pipeline.record_investigation(alert)
-
-    client.chat_postMessage(  # type: ignore[union-attr]
-        channel=event["channel"],
-        thread_ts=_reply_ts(event),
-        text=format_investigation_reply(alert, response),
-    )

@@ -1,4 +1,5 @@
 from alert_auto_investigator.models.normalized_alert_event import NormalizedAlertEvent
+from alert_auto_investigator.models.resource_type import NAMESPACE_SCOPED_RESOURCE_TYPES
 
 _ALERTMANAGER_STATUS_MAP = {
     "firing": "firing",
@@ -8,7 +9,6 @@ _CLOUDWATCH_STATUS_MAP = {
     "ALARM": "firing",
     "OK": "resolved",
 }
-_NAMESPACE_KEY_RESOURCE_TYPES = {"pod", "deployment", "service"}
 _BLOCK_MARKER = "--- Structured Alert ---"
 
 
@@ -37,18 +37,17 @@ def _build_alertmanager_alert_key(
     resource_type: str,
     resource_name: str,
 ) -> str:
-    if resource_type in _NAMESPACE_KEY_RESOURCE_TYPES:
+    if resource_type in NAMESPACE_SCOPED_RESOURCE_TYPES:
         return f"alertmanager:{cluster}:{namespace}:{alert_name}:{resource_name}"
     return f"alertmanager:{cluster}:{alert_name}:{resource_name}"
 
 
-def parse_alertmanager_slack_message(
-    text: str,
+def _build_alertmanager_event(
+    fields: dict[str, str],
     region_code: str,
     fallback_environment: str,
+    raw_text: str,
 ) -> NormalizedAlertEvent | None:
-    fields = _parse_key_value_block(text, stop_at="RawLabels:")
-
     alert_source = fields.get("AlertSource")
     cluster = fields.get("Cluster")
     alert_name = fields.get("AlertName")
@@ -92,8 +91,43 @@ def parse_alertmanager_slack_message(
         severity=fields.get("Severity", ""),
         namespace=namespace,
         description=fields.get("Description", ""),
-        raw_text=text,
+        raw_text=raw_text,
     )
+
+
+def parse_alertmanager_slack_messages(
+    text: str,
+    region_code: str,
+    fallback_environment: str,
+) -> list[NormalizedAlertEvent]:
+    """Parse all Alertmanager alerts from a Slack message.
+
+    Alertmanager groups N firing alerts into a single [FIRING:N] Slack message.
+    Each alert has its own --- Structured Alert --- block. Returns one
+    NormalizedAlertEvent per parseable block; empty list if none found.
+    """
+    if _BLOCK_MARKER not in text:
+        return []
+
+    # Split on the marker; segments[0] is the human-readable preamble,
+    # segments[1:] are the structured blocks (one per alert).
+    segments = text.split(_BLOCK_MARKER)
+    results = []
+    for block in segments[1:]:
+        fields = _parse_key_value_block(block, stop_at="RawLabels:")
+        event = _build_alertmanager_event(fields, region_code, fallback_environment, raw_text=text)
+        if event is not None:
+            results.append(event)
+    return results
+
+
+def parse_alertmanager_slack_message(
+    text: str,
+    region_code: str,
+    fallback_environment: str,
+) -> NormalizedAlertEvent | None:
+    events = parse_alertmanager_slack_messages(text, region_code, fallback_environment)
+    return events[0] if events else None
 
 
 def parse_cloudwatch_slack_message(text: str) -> NormalizedAlertEvent | None:

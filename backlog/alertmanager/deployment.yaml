@@ -1,0 +1,67 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: alertmanager
+  namespace: monitoring
+spec:
+  strategy:
+    type: Recreate
+  replicas: 1
+  selector:
+    matchLabels:
+      app: alertmanager
+      sla: prod
+  template:
+    metadata:
+      name: alertmanager
+      labels:
+        app: alertmanager
+        sla: prod
+    spec:
+      initContainers:
+        - name: init-permissions
+          image: busybox
+          command: ["sh", "-c", "chown -R nobody:nobody /alertmanager"]
+          volumeMounts:
+            - name: alertmanager
+              mountPath: /alertmanager
+      containers:
+        - name: alertmanager
+          # image: prom/alertmanager:v0.24.0
+          # image: prom/alertmanager:v0.26.0
+          image: quay.io/prometheus/alertmanager:v0.28.1
+          args:
+            - "--config.file=/etc/alertmanager/config.yml"
+            - "--storage.path=/alertmanager"
+            - "--web.external-url=https://alertmgm.health2sync.com"
+            - "--cluster.advertise-address=0.0.0.0:9093"
+          resources:
+            limits:
+              memory: "512Mi"
+              cpu: "1000m"
+            requests:
+              memory: "64Mi"
+              cpu: "100m"
+          ports:
+            - name: alertmanager
+              containerPort: 9093
+          volumeMounts:
+            - name: config-volume
+              mountPath: /etc/alertmanager
+            - name: templates-volume
+              mountPath: /etc/alertmanager-templates
+            - name: alertmanager
+              mountPath: /alertmanager
+      volumes:
+        - name: config-volume
+          configMap:
+            name: alertmanager-config
+        - name: templates-volume
+          configMap:
+            name: alertmanager-templates
+        - name: alertmanager
+          persistentVolumeClaim:
+            claimName: ebs-pvc-alertmanager
+          # emptyDir: {}
+      nodeSelector:
+        role: cronjob

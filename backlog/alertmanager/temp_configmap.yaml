@@ -172,14 +172,18 @@ data:
     {{ define "pushover.default.url" }}{{ template "__alertmanagerURL" . }}{{ end }}
   slack.tmpl: |
     {{ define "slack.devops.title" }}
-    {{ if .CommonLabels.alertname }}{{ .CommonLabels.alertname }}{{ else }}Prometheus Alert{{ end }}
+    [{{ .Status | toUpper }}:{{ len .Alerts }}] {{ if .CommonLabels.alertname }}{{ .CommonLabels.alertname }}{{ else }}Prometheus Alert{{ end }} | {{ if .CommonLabels.environment }}{{ .CommonLabels.environment }}{{ else if .CommonLabels.env }}{{ .CommonLabels.env }}{{ else }}unknown{{ end }} | {{ if .CommonLabels.cluster }}{{ .CommonLabels.cluster }}{{ else }}unknown{{ end }}
     {{ end }}
     {{ define "slack.devops.text" }}
     {{ range .Alerts }}
-    Resource: {{ if .Labels.instance }}{{ .Labels.instance }}{{ else if .Labels.pod }}{{ .Labels.pod }}{{ else if .Labels.deployment }}{{ .Labels.deployment }}{{ else if .Labels.service }}{{ .Labels.service }}{{ else if .Labels.namespace }}{{ .Labels.namespace }}{{ else if .Annotations.ClusterName }}{{ .Annotations.ClusterName }}{{ else }}unknown{{ end }}
+    Alert: {{ if .Labels.alertname }}{{ .Labels.alertname }}{{ else }}unknown{{ end }}
+    Resource: {{ if .Labels.job_name }}{{ .Labels.job_name }}{{ else if .Labels.exported_job }}{{ .Labels.exported_job }}{{ else if .Labels.cronjob }}{{ .Labels.cronjob }}{{ else if .Labels.pod }}{{ .Labels.pod }}{{ else if .Labels.deployment }}{{ .Labels.deployment }}{{ else if .Labels.service }}{{ .Labels.service }}{{ else if .Labels.namespace }}{{ .Labels.namespace }}{{ else if .Labels.instance }}{{ .Labels.instance }}{{ else if .Annotations.ClusterName }}{{ .Annotations.ClusterName }}{{ else }}unknown{{ end }}
+    Environment: {{ if .Labels.environment }}{{ .Labels.environment }}{{ else if .Labels.env }}{{ .Labels.env }}{{ else }}unknown{{ end }}
+    Cluster: {{ if .Labels.cluster }}{{ .Labels.cluster }}{{ else if .Annotations.ClusterName }}{{ .Annotations.ClusterName }}{{ else }}unknown{{ end }}
     Severity: {{ if .Labels.severity }}{{ .Labels.severity }}{{ else }}unknown{{ end }}
     Summary: {{ if .Annotations.summary }}{{ .Annotations.summary }}{{ else }}-{{ end }}
 
+    ```
     --- Structured Alert ---
     AlertSource: prometheus
     Environment: {{ if .Labels.environment }}{{ .Labels.environment }}{{ else if .Labels.env }}{{ .Labels.env }}{{ else }}unknown{{ end }}
@@ -187,8 +191,8 @@ data:
     Severity: {{ if .Labels.severity }}{{ .Labels.severity }}{{ else }}unknown{{ end }}
     Status: {{ $.Status }}
     AlertName: {{ if .Labels.alertname }}{{ .Labels.alertname }}{{ else }}unknown{{ end }}
-    ResourceType: {{ if .Labels.job_name }}job{{ else if .Labels.pod }}pod{{ else if .Labels.deployment }}deployment{{ else if .Labels.service }}service{{ else if .Labels.namespace }}namespace{{ else if .Labels.instance }}host{{ else }}unknown{{ end }}
-    ResourceName: {{ if .Labels.job_name }}{{ .Labels.job_name }}{{ else if .Labels.pod }}{{ .Labels.pod }}{{ else if .Labels.deployment }}{{ .Labels.deployment }}{{ else if .Labels.service }}{{ .Labels.service }}{{ else if .Labels.namespace }}{{ .Labels.namespace }}{{ else if .Labels.instance }}{{ .Labels.instance }}{{ else if .Labels.alertname }}{{ .Labels.alertname }}{{ else }}unknown{{ end }}
+    ResourceType: {{ if .Labels.job_name }}job{{ else if .Labels.exported_job }}job{{ else if .Labels.cronjob }}cronjob{{ else if .Labels.pod }}pod{{ else if .Labels.deployment }}deployment{{ else if .Labels.service }}service{{ else if .Labels.namespace }}namespace{{ else if .Labels.instance }}node{{ else }}unknown{{ end }}
+    ResourceName: {{ if .Labels.job_name }}{{ .Labels.job_name }}{{ else if .Labels.exported_job }}{{ .Labels.exported_job }}{{ else if .Labels.cronjob }}{{ .Labels.cronjob }}{{ else if .Labels.pod }}{{ .Labels.pod }}{{ else if .Labels.deployment }}{{ .Labels.deployment }}{{ else if .Labels.service }}{{ .Labels.service }}{{ else if .Labels.namespace }}{{ .Labels.namespace }}{{ else if .Labels.instance }}{{ .Labels.instance }}{{ else if .Labels.alertname }}{{ .Labels.alertname }}{{ else }}unknown{{ end }}
     Namespace: {{ if .Labels.namespace }}{{ .Labels.namespace }}{{ else }}-{{ end }}
     Summary: {{ if .Annotations.summary }}{{ .Annotations.summary }}{{ else }}-{{ end }}
     Description: {{ if .Annotations.description }}{{ .Annotations.description }}{{ else }}-{{ end }}
@@ -196,6 +200,7 @@ data:
     RawLabels:
     {{ range .Labels.SortedPairs }}- {{ .Name }}={{ .Value }}
     {{ end }}
+    ```
 
     {{ end }}
     {{ end }}

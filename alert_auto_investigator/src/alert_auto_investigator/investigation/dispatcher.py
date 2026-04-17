@@ -1,16 +1,17 @@
+import logging
 import uuid
 from dataclasses import dataclass
 from typing import Protocol
 
 from alert_auto_investigator.models.normalized_alert_event import NormalizedAlertEvent
+from alert_auto_investigator.models.resource_type import InvestigationPolicy, ResourceType, SUPPORT_MATRIX
 
+logger = logging.getLogger(__name__)
 
-# Default resource_type -> tool_name mapping for the tools registered in openclaw_foundation.
-# Callers can override or extend this when constructing InvestigationConfig.
-# resource_types not present in the routing table produce no investigation (dispatch returns None).
 DEFAULT_TOOL_ROUTING: dict[str, str] = {
-    "pod": "get_pod_events",
-    "deployment": "get_deployment_status",
+    ResourceType.POD: "get_pod_events",
+    ResourceType.DEPLOYMENT: "get_deployment_status",
+    ResourceType.JOB: "get_job_status",
 }
 
 
@@ -61,6 +62,25 @@ class OpenClawDispatcher:
         """
         tool_name = self._config.tool_routing.get(event.resource_type)
         if tool_name is None:
+            policy = SUPPORT_MATRIX.get(event.resource_type)
+            if policy is InvestigationPolicy.SKIP:
+                logger.debug(
+                    "skip_by_design resource_type=%s alert_key=%s",
+                    event.resource_type,
+                    event.alert_key,
+                )
+            elif policy is InvestigationPolicy.NEXT_CANDIDATE:
+                logger.info(
+                    "next_candidate_not_yet_implemented resource_type=%s alert_key=%s",
+                    event.resource_type,
+                    event.alert_key,
+                )
+            else:
+                logger.warning(
+                    "unknown_resource_type resource_type=%s alert_key=%s — not in support matrix",
+                    event.resource_type,
+                    event.alert_key,
+                )
             return None
 
         if request_id is None:

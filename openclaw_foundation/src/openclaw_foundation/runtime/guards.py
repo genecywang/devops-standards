@@ -60,6 +60,20 @@ def truncate_deployment_status(payload: dict[str, object]) -> dict[str, object]:
     return result
 
 
+def truncate_job_status(payload: dict[str, object]) -> dict[str, object]:
+    result = dict(payload)
+    conditions = list(result.get("conditions", []))[:_MAX_DEPLOYMENT_CONDITIONS]
+    bounded_conditions = []
+    for condition in conditions:
+        entry = dict(condition)
+        message = entry.get("message")
+        if isinstance(message, str) and len(message) > _MAX_CONDITION_MESSAGE_LEN:
+            entry["message"] = message[:_MAX_CONDITION_MESSAGE_LEN] + "...[truncated]"
+        bounded_conditions.append(entry)
+    result["conditions"] = bounded_conditions
+    return result
+
+
 def truncate_pod_logs(lines: list[str]) -> list[str]:
     bounded = lines[:_MAX_LOG_LINES]
     return [

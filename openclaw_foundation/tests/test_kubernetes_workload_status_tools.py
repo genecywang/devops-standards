@@ -4,6 +4,7 @@ from openclaw_foundation.adapters.kubernetes import FakeKubernetesProviderAdapte
 from openclaw_foundation.models.enums import RequestType
 from openclaw_foundation.models.requests import ExecutionBudget, InvestigationRequest
 from openclaw_foundation.tools.kubernetes_deployment_status import KubernetesDeploymentStatusTool
+from openclaw_foundation.tools.kubernetes_job_status import KubernetesJobStatusTool
 
 
 def make_request(namespace: str = "dev") -> InvestigationRequest:
@@ -64,3 +65,64 @@ def test_get_deployment_status_tool_redacts_condition_messages() -> None:
 
     all_messages = " ".join(str(c["message"]) for c in result.evidence[0]["conditions"])
     assert "secret-rollout-token" not in all_messages
+
+
+def make_job_request(namespace: str = "dev") -> InvestigationRequest:
+    return InvestigationRequest(
+        request_type=RequestType.INVESTIGATION,
+        request_id="req-job-001",
+        source_product="alert_auto_investigator",
+        scope={"environment": "staging", "cluster": "staging-main"},
+        input_ref="fixture:job-status",
+        budget=ExecutionBudget(
+            max_steps=2,
+            max_tool_calls=1,
+            max_duration_seconds=30,
+            max_output_tokens=256,
+        ),
+        tool_name="get_job_status",
+        target={
+            "cluster": "staging-main",
+            "namespace": namespace,
+            "resource_name": "nightly-backfill-12345",
+        },
+    )
+
+
+def test_get_job_status_tool_uses_adapter_and_returns_summary() -> None:
+    tool = KubernetesJobStatusTool(
+        adapter=FakeKubernetesProviderAdapter(),
+        allowed_clusters={"staging-main"},
+        allowed_namespaces={"dev"},
+    )
+
+    result = tool.invoke(make_job_request())
+
+    assert "nightly-backfill-12345" in result.summary
+    assert "succeeded" in result.summary
+    assert len(result.evidence) == 1
+    assert result.evidence[0]["succeeded"] == 1
+
+
+def test_get_job_status_tool_denies_cluster_outside_allowlist() -> None:
+    tool = KubernetesJobStatusTool(
+        adapter=FakeKubernetesProviderAdapter(),
+        allowed_clusters={"prod-main"},
+        allowed_namespaces={"dev"},
+    )
+
+    with pytest.raises(PermissionError, match="cluster is not allowed"):
+        tool.invoke(make_job_request())
+
+
+def test_get_job_status_tool_redacts_condition_messages() -> None:
+    tool = KubernetesJobStatusTool(
+        adapter=FakeKubernetesProviderAdapter(),
+        allowed_clusters={"staging-main"},
+        allowed_namespaces={"dev"},
+    )
+
+    result = tool.invoke(make_job_request())
+
+    all_messages = " ".join(str(c["message"]) for c in result.evidence[0]["conditions"])
+    assert "secret-job-token" not in all_messages

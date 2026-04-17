@@ -4,10 +4,11 @@ Covers:
 - _extract_texts: attachment-first, fallback to event text
 - _reply_ts: thread_ts preference
 - handle_message: bot guards, silent skip, parse routing,
-  control pipeline gating, record-after-dispatch, Slack reply targeting
+  control pipeline gating, record-after-dispatch, Slack reply targeting,
+  multi-alert (FIRING:N) dispatch
 """
 
-from unittest.mock import ANY, MagicMock
+from unittest.mock import ANY, MagicMock, call
 
 from alert_auto_investigator.config import InvestigatorConfig
 from alert_auto_investigator.control.pipeline import ControlPipeline
@@ -20,9 +21,9 @@ from alert_auto_investigator.service.handler import _extract_texts, _reply_ts, h
 # ---------------------------------------------------------------------------
 
 _ALERTMANAGER_TEXT = """\
-HostOutOfMemory on ip-172-16-52-233.ap-east-1.compute.internal
+NodeOutOfMemory on ip-172-16-52-233.ap-east-1.compute.internal
 Severity: warning
-Summary: Host out of memory (instance ip-172-16-52-233.ap-east-1.compute.internal)
+Summary: Node out of memory (instance ip-172-16-52-233.ap-east-1.compute.internal)
 
 --- Structured Alert ---
 AlertSource: prometheus
@@ -30,15 +31,15 @@ Environment: unknown
 Cluster: test-cluster
 Severity: warning
 Status: firing
-AlertName: HostOutOfMemory
-ResourceType: host
+AlertName: NodeOutOfMemory
+ResourceType: node
 ResourceName: ip-172-16-52-233.ap-east-1.compute.internal
 Namespace: -
-Summary: Host out of memory
+Summary: Node out of memory
 Description: Node memory > 85%
 
 RawLabels:
-- alertname=HostOutOfMemory
+- alertname=NodeOutOfMemory
 - cluster=test-cluster
 - severity=warning
 """
@@ -58,6 +59,45 @@ event_time: 2024-01-01T00:00:00Z
 alert_key: cloudwatch_alarm:123456789012:ap-east-1:HighCPUUtilization
 resource_type: ec2_instance
 resource_name: i-1234567890abcdef0
+"""
+
+_MULTI_ALERT_TEXT = """\
+[FIRING:2] KubernetesContainerOomKiller | dev | test-cluster
+Alert: KubernetesContainerOomKiller
+Resource: worker-pod-aaa
+
+--- Structured Alert ---
+AlertSource: prometheus
+Environment: dev
+Cluster: test-cluster
+Severity: critical
+Status: firing
+AlertName: KubernetesContainerOomKiller
+ResourceType: node
+ResourceName: worker-pod-aaa
+Namespace: -
+Summary: OOMKilled
+
+RawLabels:
+- alertname=KubernetesContainerOomKiller
+
+Alert: KubernetesContainerOomKiller
+Resource: server-pod-bbb
+
+--- Structured Alert ---
+AlertSource: prometheus
+Environment: dev
+Cluster: test-cluster
+Severity: critical
+Status: firing
+AlertName: KubernetesContainerOomKiller
+ResourceType: node
+ResourceName: server-pod-bbb
+Namespace: -
+Summary: OOMKilled
+
+RawLabels:
+- alertname=KubernetesContainerOomKiller
 """
 
 
@@ -281,7 +321,7 @@ class TestHandleMessageParsing:
 
         dispatcher.dispatch.assert_called_once()
         alert = dispatcher.dispatch.call_args.args[0]
-        assert alert.alert_name == "HostOutOfMemory"
+        assert alert.alert_name == "NodeOutOfMemory"
         assert alert.source == "alertmanager"
 
     def test_parses_cloudwatch_from_attachment(self) -> None:
@@ -353,7 +393,7 @@ class TestHandleMessageControlGating:
     def test_skips_when_alert_in_denylist(self) -> None:
         client = MagicMock()
         dispatcher = MagicMock()
-        config = _make_config(denylist=["HostOutOfMemory"])
+        config = _make_config(denylist=["NodeOutOfMemory"])
         pipeline = _make_pipeline(config)
 
         handle_message(
@@ -388,8 +428,8 @@ class TestHandleMessageRecordAndReply:
 
         reply_text = client.chat_postMessage.call_args.kwargs["text"]
         assert "*Investigation Result*" in reply_text
-        assert "*Alert:* HostOutOfMemory" in reply_text
-        assert "*Target:* host/ip-172-16-52-233.ap-east-1.compute.internal" in reply_text
+        assert "*Alert:* NodeOutOfMemory" in reply_text
+        assert "*Target:* node/ip-172-16-52-233.ap-east-1.compute.internal" in reply_text
         assert "*Check:* get_deployment_status" in reply_text
 
     def test_record_called_after_successful_dispatch(self) -> None:
@@ -523,3 +563,80 @@ class TestHandleMessageRecordAndReply:
             thread_ts="111.000",
             text=ANY,
         )
+
+
+# ---------------------------------------------------------------------------
+# handle_message — multi-alert (FIRING:N)
+# ---------------------------------------------------------------------------
+
+
+class TestHandleMessageMultiAlert:
+    def test_dispatches_each_alert_independently(self) -> None:
+        """[FIRING:2] with two alerts → dispatcher called twice, each with a distinct alert_key."""
+        client = MagicMock()
+        dispatcher = MagicMock()
+        dispatcher.dispatch.return_value = MagicMock(summary="result")
+        config = _make_config()
+        pipeline = _make_pipeline(config)
+
+        handle_message(
+            _make_event(attachments=[{"text": _MULTI_ALERT_TEXT}]),
+            client, config, pipeline, dispatcher,
+        )
+
+        assert dispatcher.dispatch.call_count == 2
+        keys = [c.args[0].alert_key for c in dispatcher.dispatch.call_args_list]
+        assert keys[0] != keys[1]
+
+    def test_replies_once_per_successful_dispatch(self) -> None:
+        """Two successful dispatches → two chat_postMessage calls, both in the same thread."""
+        client = MagicMock()
+        dispatcher = MagicMock()
+        dispatcher.dispatch.return_value = MagicMock(
+            summary="result",
+            result_state="success",
+            actions_attempted=["get_pod_events"],
+        )
+        config = _make_config()
+        pipeline = _make_pipeline(config)
+
+        handle_message(
+            _make_event(attachments=[{"text": _MULTI_ALERT_TEXT}], ts="111.000"),
+            client, config, pipeline, dispatcher,
+        )
+
+        assert client.chat_postMessage.call_count == 2
+        for c in client.chat_postMessage.call_args_list:
+            assert c.kwargs["thread_ts"] == "111.000"
+
+    def test_second_alert_still_dispatched_when_first_dispatch_returns_none(self) -> None:
+        """First alert dispatch returns None (skip); second should still be dispatched."""
+        client = MagicMock()
+        dispatcher = MagicMock()
+        dispatcher.dispatch.side_effect = [None, MagicMock(summary="result")]
+        config = _make_config()
+        pipeline = _make_pipeline(config)
+
+        handle_message(
+            _make_event(attachments=[{"text": _MULTI_ALERT_TEXT}]),
+            client, config, pipeline, dispatcher,
+        )
+
+        assert dispatcher.dispatch.call_count == 2
+        assert client.chat_postMessage.call_count == 1
+
+    def test_second_alert_still_dispatched_when_first_raises(self) -> None:
+        """First alert dispatch raises; second alert should still be attempted."""
+        client = MagicMock()
+        dispatcher = MagicMock()
+        dispatcher.dispatch.side_effect = [ValueError("boom"), MagicMock(summary="result")]
+        config = _make_config()
+        pipeline = _make_pipeline(config)
+
+        handle_message(
+            _make_event(attachments=[{"text": _MULTI_ALERT_TEXT}]),
+            client, config, pipeline, dispatcher,
+        )
+
+        assert dispatcher.dispatch.call_count == 2
+        assert client.chat_postMessage.call_count == 1

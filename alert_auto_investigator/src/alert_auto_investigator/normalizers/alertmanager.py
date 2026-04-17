@@ -1,4 +1,5 @@
 from alert_auto_investigator.models.normalized_alert_event import NormalizedAlertEvent
+from alert_auto_investigator.models.resource_type import NAMESPACE_SCOPED_RESOURCE_TYPES, ResourceType
 
 _STATUS_MAP: dict[str, str] = {
     "firing": "firing",
@@ -9,18 +10,20 @@ _STATUS_MAP: dict[str, str] = {
 def _infer_resource(labels: dict) -> tuple[str, str]:
     """Return (resource_type, resource_name) from Alertmanager alert labels."""
     if "pod" in labels:
-        return "pod", labels["pod"]
+        return ResourceType.POD, labels["pod"]
     if "deployment" in labels:
-        return "deployment", labels["deployment"]
+        return ResourceType.DEPLOYMENT, labels["deployment"]
     if "node" in labels:
-        return "node", labels["node"]
+        return ResourceType.NODE, labels["node"]
     if "instance" in labels:
-        return "node", labels["instance"]
-    return "unknown", "unknown"
+        # In this bot, instance-scoped Alertmanager targets are normalized to node
+        # because the investigation plane is Kubernetes-oriented.
+        return ResourceType.NODE, labels["instance"]
+    return ResourceType.UNKNOWN, ResourceType.UNKNOWN
 
 
 def _build_alert_key(cluster: str, namespace: str, alert_name: str, resource_type: str, resource_name: str) -> str:
-    if resource_type in {"pod", "deployment"}:
+    if resource_type in NAMESPACE_SCOPED_RESOURCE_TYPES:
         return f"alertmanager:{cluster}:{namespace}:{alert_name}:{resource_name}"
     return f"alertmanager:{cluster}:{alert_name}:{resource_name}"
 

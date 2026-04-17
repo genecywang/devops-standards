@@ -1,12 +1,13 @@
 from alert_auto_investigator.models.normalized_alert_event import NormalizedAlertEvent
+from alert_auto_investigator.models.resource_type import ResourceType
 
 # CloudWatch uses AWS-specific Dimension names; normalize them into stable internal
 # resource_type values here so the rest of the pipeline does not depend on source field names.
 _DIMENSION_TO_RESOURCE_TYPE: dict[str, str] = {
-    "DBInstanceIdentifier": "rds_instance",
-    "InstanceId": "ec2_instance",
-    "LoadBalancer": "load_balancer",
-    "ClusterName": "eks_cluster",
+    "DBInstanceIdentifier": ResourceType.RDS_INSTANCE,
+    "InstanceId": ResourceType.EC2_INSTANCE,
+    "LoadBalancer": ResourceType.LOAD_BALANCER,
+    "ClusterName": ResourceType.EKS_CLUSTER,
 }
 
 _STATE_TO_STATUS: dict[str, str] = {

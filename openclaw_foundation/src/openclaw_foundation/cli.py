@@ -14,6 +14,7 @@ from openclaw_foundation.adapters.kubernetes import (
     KubernetesResourceNotFoundError,
     RealKubernetesProviderAdapter,
     build_apps_v1_api,
+    build_batch_v1_api,
     build_core_v1_api,
 )
 from openclaw_foundation.adapters.prometheus import (
@@ -24,6 +25,7 @@ from openclaw_foundation.models.requests import InvestigationRequest
 from openclaw_foundation.runtime.runner import OpenClawRunner
 from openclaw_foundation.tools.fake_investigation import FakeInvestigationTool
 from openclaw_foundation.tools.kubernetes_deployment_status import KubernetesDeploymentStatusTool
+from openclaw_foundation.tools.kubernetes_job_status import KubernetesJobStatusTool
 from openclaw_foundation.tools.kubernetes_pod_events import KubernetesPodEventsTool
 from openclaw_foundation.tools.kubernetes_pod_logs import KubernetesPodLogsTool
 from openclaw_foundation.tools.kubernetes_pod_status import KubernetesPodStatusTool
@@ -46,7 +48,7 @@ def build_provider_adapter(provider: str):
     if provider == "fake":
         return FakeKubernetesProviderAdapter()
     if provider == "real":
-        return RealKubernetesProviderAdapter(build_core_v1_api(), build_apps_v1_api())
+        return RealKubernetesProviderAdapter(build_core_v1_api(), build_apps_v1_api(), build_batch_v1_api())
     raise ValueError(f"unsupported provider mode: {provider}")
 
 
@@ -100,6 +102,13 @@ def main(argv: list[str] | None = None) -> int:
         )
         registry.register(
             KubernetesDeploymentStatusTool(
+                adapter=provider_adapter,
+                allowed_clusters={"staging-main"},
+                allowed_namespaces={"dev"},
+            )
+        )
+        registry.register(
+            KubernetesJobStatusTool(
                 adapter=provider_adapter,
                 allowed_clusters={"staging-main"},
                 allowed_namespaces={"dev"},

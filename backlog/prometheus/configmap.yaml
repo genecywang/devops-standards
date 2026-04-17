@@ -5,10 +5,15 @@ metadata:
   labels:
     name: prometheus-server-conf
     team: backend-devops
-    sla: dev
+    sla: prod
   namespace: monitoring
 data:
   prometheus.rules: |-
+    # Legacy note:
+    # - `ClusterName` annotations below are kept for backward compatibility
+    # - downstream routing / Slack structured alerts should prefer labels from
+    #   Prometheus `external_labels` (`environment`, `cluster`)
+    # - do not add new routing identity in annotations
     groups:
     - name: Reccording_rules
       rules:
@@ -24,7 +29,7 @@ data:
         - record: node:node_group_total:rate10m
           expr: |
             sum(count(container_cpu_usage_seconds_total{id="/",kubernetes_io_hostname!=""})by(spec,role))
-        - record: node:node_group_role:rate10m
+        - record: node:node_group_role:rate2m
           expr: |
             count(container_cpu_usage_seconds_total{id="/",kubernetes_io_hostname!="",node_kubernetes_io_exclude_from_external_load_balancers="",topology_ebs_csi_aws_com_zone!=""})by(karpenter_sh_nodepool)
         - record: cluster:cluster_disk_used_total:rate15m
@@ -77,7 +82,7 @@ data:
             sum(kube_pod_container_resource_requests{resource="cpu"})
         - record: nodegroup:node_mem_used:rate5m
           expr: |
-            sum(container_memory_working_set_bytes{id="/",kubernetes_io_hostname!=""})by(kubernetes_io_hostname)
+            sum((node_memory_MemTotal_bytes{} - node_memory_Cached_bytes{} - node_memory_MemFree_bytes{}))by(instance)
         - record: nodegroup:aws_cni_assigned_ip:rate5m
           expr: |
             sum(awscni_assigned_ip_addresses{})by(instance)
@@ -87,9 +92,12 @@ data:
         - record: cluster:pod_status:rate5m
           expr: |
             sum(kube_pod_status_phase{})by(phase)
-        - record: cluster:pod_3h_restart:rate10m
+        - record: namespace:pod_status:rate5m
           expr: |
-            sum(changes (kube_pod_container_status_restarts_total[3h])) by (container,container_name,endpoint,instance,job,name,namespace, pod, pod_name,service)
+            sum by(namespace)(kube_pod_status_phase{namespace!="kube-system",phase="Running"} == 1)
+        - record: cluster:pod_1h_restart_count
+          expr: |
+            sum by(namespace, pod)(increase(kube_pod_container_status_restarts_total[60m]))
         - record: cluster:deployment_replica:rate5m
           expr: |
             sum(kube_deployment_status_replicas_available{app_kubernetes_io_component=""})by(deployment)
@@ -99,30 +107,174 @@ data:
         - record: cluster:deployment_cpu:rate1m
           expr: |
             sum(rate(container_cpu_usage_seconds_total{image!=""}[1m])) by (pod)
-        - record: cluster:pod_oom_event:rate10m
+        - record: cluster:pod_oom_event:rate5m
           expr: |
-            sum(increase(container_oom_events_total{}[1d])) by (container,namespace,karpenter_sh_nodepool)
-    - name: Prometheus self-monitor for H2-EKS-DEV-STG
+            avg(kube_pod_container_status_last_terminated_reason{reason="OOMKilled"})by(pod)
+        - record: pod:pod_network_tx:rate5m
+          expr: |
+            sum by (pod)(rate(container_network_transmit_bytes_total{}[5m])*60)
+        - record: pod:pod_network_rx:rate5m
+          expr: |
+            sum by (pod)(rate(container_network_receive_bytes_total{}[5m])*60)
+        - record: node:node_network_tx:rate5m
+          expr: |
+            sum by (instance)(rate(node_network_transmit_bytes_total{}[5m])*60)
+        - record: node:node_network_rx:rate5m
+          expr: |
+            sum by (instance)(rate(node_network_receive_bytes_total{}[5m])*60)
+        - record: pod:cpu_core_1m:rate1m
+          expr: |
+            sum(rate(container_cpu_usage_seconds_total{container!=""}[1m])) by (pod)
+        - record: pod:mem_usage:rate1m
+          expr: |
+            sum(container_memory_working_set_bytes{container!="POD",container!=""}) by (pod)
+    - name: Prometheus self-monitor for H2S-EKS-PROD-NORTHEAST-1
       rules:
-      - alert: Recording_rule_node_cpu_high
-        expr: node:node_cpu:rate2m > 3
-        for: 2m
+      - alert: PrometheusJobMissing
+        expr: absent(up{job="prometheus"})
+        for: 0m
         labels:
           severity: warning
         annotations:
-          summary: Recording_rule_test_cpu_high (instance {{ $labels.instance }})
-          description: "Recording_rule_test_cpu_high\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
-          ClusterName: H2-EKS-DEV-STG
-      - alert: HostOutOfMemory
-        expr: node:node_used_mem_percent_perhost:rate5m > 85
-        for: 2m
+          summary: Prometheus job missing (instance {{ $labels.instance }})
+          description: "A Prometheus job has disappeared\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+          ClusterName: H2S-EKS-PROD-NORTHEAST-1
+      - alert: PrometheusConfigurationReloadFailure
+        expr: prometheus_config_last_reload_successful != 1
+        for: 0m
         labels:
           severity: warning
+        annotations:
+          summary: Prometheus configuration reload failure (instance {{ $labels.instance }})
+          description: "Prometheus configuration reload error\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+          ClusterName: H2S-EKS-PROD-NORTHEAST-1
+      - alert: PrometheusTooManyRestarts
+        expr: changes(process_start_time_seconds{job=~"prometheus|pushgateway|alertmanager"}[15m]) > 2
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: Prometheus too many restarts (instance {{ $labels.instance }})
+          description: "Prometheus has restarted more than twice in the last 15 minutes. It might be crashlooping.\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+          ClusterName: H2S-EKS-PROD-NORTHEAST-1
+      - alert: PrometheusAlertmanagerJobMissing
+        expr: absent(up{job="alertmanager"})
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: Prometheus AlertManager job missing (instance {{ $labels.instance }})
+          description: "A Prometheus AlertManager job has disappeared\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+          ClusterName: H2S-EKS-PROD-NORTHEAST-1
+      - alert: PrometheusAlertmanagerConfigurationReloadFailure
+        expr: alertmanager_config_last_reload_successful != 1
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: Prometheus AlertManager configuration reload failure (instance {{ $labels.instance }})
+          description: "AlertManager configuration reload error\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+          ClusterName: H2S-EKS-PROD-NORTHEAST-1
+      - alert: PrometheusRuleEvaluationSlow
+        expr: prometheus_rule_group_last_duration_seconds > prometheus_rule_group_interval_seconds
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: Prometheus rule evaluation slow (instance {{ $labels.instance }})
+          description: "Prometheus rule evaluation took more time than the scheduled interval. It indicates a slower storage backend access or too complex query.\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+          ClusterName: H2S-EKS-PROD-NORTHEAST-1
+      - alert: PrometheusNotificationsBacklog
+        expr: min_over_time(prometheus_notifications_queue_length[10m]) > 0
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: Prometheus notifications backlog (instance {{ $labels.instance }})
+          description: "The Prometheus notification queue has not been empty for 10 minutes\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+          ClusterName: H2S-EKS-PROD-NORTHEAST-1
+      - alert: PrometheusAlertmanagerNotificationFailing
+        expr: rate(alertmanager_notifications_failed_total[1m]) > 0
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: Prometheus AlertManager notification failing (instance {{ $labels.instance }})
+          description: "Alertmanager is failing sending notifications\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+          ClusterName: H2S-EKS-PROD-NORTHEAST-1
+
+      - alert: PrometheusTargetScrapingSlow
+        expr: prometheus_target_interval_length_seconds{quantile="0.9"} / on (interval, instance, job) prometheus_target_interval_length_seconds{quantile="0.5"} > 1.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: Prometheus target scraping slow (instance {{ $labels.instance }})
+          description: "Prometheus is scraping exporters slowly since it exceeded the requested interval time. Your Prometheus server is under-provisioned.\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+          ClusterName: H2S-EKS-PROD-NORTHEAST-1
+      - alert: PrometheusTsdbCheckpointCreationFailures
+        expr: increase(prometheus_tsdb_checkpoint_creations_failed_total[1m]) > 0
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: Prometheus TSDB checkpoint creation failures (instance {{ $labels.instance }})
+          description: "Prometheus encountered {{ $value }} checkpoint creation failures\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+          ClusterName: H2S-EKS-PROD-NORTHEAST-1
+      - alert: PrometheusTsdbCheckpointDeletionFailures
+        expr: increase(prometheus_tsdb_checkpoint_deletions_failed_total[1m]) > 0
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: Prometheus TSDB checkpoint deletion failures (instance {{ $labels.instance }})
+          description: "Prometheus encountered {{ $value }} checkpoint deletion failures\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+          ClusterName: H2S-EKS-PROD-NORTHEAST-1
+      - alert: PrometheusTsdbCompactionsFailed
+        expr: increase(prometheus_tsdb_compactions_failed_total[1m]) > 0
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: Prometheus TSDB compactions failed (instance {{ $labels.instance }})
+          description: "Prometheus encountered {{ $value }} TSDB compactions failures\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+          ClusterName: H2S-EKS-PROD-NORTHEAST-1
+      - alert: PrometheusTsdbHeadTruncationsFailed
+        expr: increase(prometheus_tsdb_head_truncations_failed_total[1m]) > 0
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: Prometheus TSDB head truncations failed (instance {{ $labels.instance }})
+          description: "Prometheus encountered {{ $value }} TSDB head truncation failures\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+          ClusterName: H2S-EKS-PROD-NORTHEAST-1
+      - alert: PrometheusTsdbReloadFailures
+        expr: increase(prometheus_tsdb_reloads_failures_total[1m]) > 0
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: Prometheus TSDB reload failures (instance {{ $labels.instance }})
+          description: "Prometheus encountered {{ $value }} TSDB reload failures\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+          ClusterName: H2S-EKS-PROD-NORTHEAST-1
+      - alert: PrometheusTsdbWalCorruptions
+        expr: increase(prometheus_tsdb_wal_corruptions_total[1m]) > 0
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: Prometheus TSDB WAL corruptions (instance {{ $labels.instance }})
+          description: "Prometheus encountered {{ $value }} TSDB WAL corruptions\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+          ClusterName: H2S-EKS-PROD-NORTHEAST-1
+      - alert: HostOutOfMemory
+        expr: node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes * 100 < 10
+        for: 2m
+        labels:
+          severity: critical
         annotations:
           summary: Host out of memory (instance {{ $labels.instance }})
-          description: "Node memory already used  (> 85% left)\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
-          ClusterName: H2-EKS-DEV-STG
-
+          description: "Node memory is filling up (< 10% left)\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+          ClusterName: H2S-EKS-PROD-NORTHEAST-1
       - alert: HostMemoryUnderMemoryPressure
         expr: rate(node_vmstat_pgmajfault[1m]) > 1000
         for: 2m
@@ -131,8 +283,7 @@ data:
         annotations:
           summary: Host memory under memory pressure  (instance {{ $labels.instance }})
           description: "The node is under heavy memory pressure. High rate of major page faults\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
-          ClusterName: H2-EKS-DEV-STG
-
+          ClusterName: H2S-EKS-PROD-NORTHEAST-1
       - alert: HostUnusualNetworkThroughputIn
         expr: sum by (instance) (rate(node_network_receive_bytes_total[2m])) / 1024 / 1024 > 100
         for: 5m
@@ -141,18 +292,7 @@ data:
         annotations:
           summary: Host unusual network throughput in (instance {{ $labels.instance }})
           description: "Host network interfaces are probably receiving too much data (> 100 MB/s)\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
-          ClusterName: H2-EKS-DEV-STG
-
-      - alert: PodIpReachlimit(awscni_assigned_ip_addresses) 
-        expr: sum(awscni_assigned_ip_addresses{})by(instance) > 50
-        for: 5m
-        labels:
-          severity: warning
-        annotations:
-          summary: "{{ $labels.instance }} : Pod ips is probably reading too much data VALUE = {{ $value }}\n "
-          description: "m5.larage limit = 29 , m5.2xlarge limit = 58"
-          ClusterName: H2-EKS-DEV-STG
-
+          ClusterName: H2S-EKS-PROD-NORTHEAST-1
       - alert: HostUnusualNetworkThroughputOut
         expr: sum by (instance) (rate(node_network_transmit_bytes_total[2m])) / 1024 / 1024 > 100
         for: 5m
@@ -161,38 +301,7 @@ data:
         annotations:
           summary: Host unusual network throughput out (instance {{ $labels.instance }})
           description: "Host network interfaces are probably sending too much data (> 100 MB/s)\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
-          ClusterName: H2-EKS-DEV-STG
-
-      - alert: HttpBlackboxProbeFailed
-        expr: probe_success{job="blackbox-h2s-backend_api"} == 0
-        for: 10m
-        labels:
-          severity: critical
-        annotations:
-          summary: Host unusual network throughput out (instance {{ $labels.instance }})
-          description: "Http Probe down : {{ $labels }}"
-          ClusterName: H2-EKS-DEV-STG
-
-      - alert: HttpBlackboxProbeFailedDebeziumProd
-        expr: (probe_success{job="blackbox-h2s-debezium_health", env=~"prod.*"} == 0) OR (probe_http_content_length{job="blackbox-h2s-debezium_health", env=~"prod.*"} > 500)
-        for: 10m
-        labels:
-          severity: critical
-        annotations:
-          summary: Debezium healthcheck failed (instance {{ $labels.instance }})
-          description: "Debezium Probe down : {{ $labels }}"
-          ClusterName: H2-EKS-DEV-STG
-
-      - alert: HttpBlackboxProbeFailedDebeziumDevStg
-        expr: (probe_success{job="blackbox-h2s-debezium_health", env!~"prod.*"} == 0) OR (probe_http_content_length{job="blackbox-h2s-debezium_health", env!~"prod.*"} > 500)
-        for: 10m
-        labels:
-          severity: notice 
-        annotations:
-          summary: Debezium healthcheck failed (instance {{ $labels.instance }})
-          description: "Debezium Probe down : {{ $labels }}"
-          ClusterName: H2-EKS-DEV-STG
-
+          ClusterName: H2S-EKS-PROD-NORTHEAST-1
       - alert: HostUnusualDiskReadRate
         expr: sum by (instance) (rate(node_disk_read_bytes_total[2m])) / 1024 / 1024 > 50
         for: 5m
@@ -201,8 +310,7 @@ data:
         annotations:
           summary: Host unusual disk read rate (instance {{ $labels.instance }})
           description: "Disk is probably reading too much data (> 50 MB/s)\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
-          ClusterName: H2-EKS-DEV-STG
-
+          ClusterName: H2S-EKS-PROD-NORTHEAST-1
       - alert: HostUnusualDiskWriteRate
         expr: sum by (instance) (rate(node_disk_written_bytes_total[2m])) / 1024 / 1024 > 50
         for: 2m
@@ -211,8 +319,7 @@ data:
         annotations:
           summary: Host unusual disk write rate (instance {{ $labels.instance }})
           description: "Disk is probably writing too much data (> 50 MB/s)\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
-          ClusterName: H2-EKS-DEV-STG
-
+          ClusterName: H2S-EKS-PROD-NORTHEAST-1
       # Please add ignored mountpoints in node_exporter parameters like
       # "--collector.filesystem.ignored-mount-points=^/(sys|proc|dev|run)($|/)".
       # Same rule using "node_filesystem_free_bytes" will fire when disk fills for non-root users.
@@ -221,12 +328,11 @@ data:
         # expr: (node_filesystem_avail_bytes * 100) / node_filesystem_size_bytes <= 10
         for: 2m
         labels:
-          severity: warning
+          severity: critical
         annotations:
           summary: Host out of disk space (instance {{ $labels.instance }})
           description: "Disk is almost full (< 10% left)\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
-          ClusterName: H2-EKS-DEV-STG
-
+          ClusterName: H2S-EKS-PROD-NORTHEAST-1
       # Please add ignored mountpoints in node_exporter parameters like
       # "--collector.filesystem.ignored-mount-points=^/(sys|proc|dev|run)($|/)".
       # Same rule using "node_filesystem_free_bytes" will fire when disk fills for non-root users.
@@ -238,18 +344,16 @@ data:
         annotations:
           summary: Host disk will fill in 24 hours (instance {{ $labels.instance }})
           description: "Filesystem is predicted to run out of space within the next 24 hours at current write rate\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
-          ClusterName: H2-EKS-DEV-STG
-
+          ClusterName: H2S-EKS-PROD-NORTHEAST-1
       - alert: HostOutOfInodes
         expr: node_filesystem_files_free{mountpoint ="/rootfs"} / node_filesystem_files{mountpoint="/rootfs"} * 100 < 10 and ON (instance, device, mountpoint) node_filesystem_readonly{mountpoint="/rootfs"} == 0
         for: 2m
         labels:
-          severity: warning
+          severity: critical
         annotations:
           summary: Host out of inodes (instance {{ $labels.instance }})
           description: "Disk is almost running out of available inodes (< 10% left)\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
-          ClusterName: H2-EKS-DEV-STG
-
+          ClusterName: H2S-EKS-PROD-NORTHEAST-1
       - alert: HostInodesWillFillIn24Hours
         expr: node_filesystem_files_free{mountpoint ="/rootfs"} / node_filesystem_files{mountpoint="/rootfs"} * 100 < 10 and predict_linear(node_filesystem_files_free{mountpoint="/rootfs"}[1h], 24 * 3600) < 0 and ON (instance, device, mountpoint) node_filesystem_readonly{mountpoint="/rootfs"} == 0
         for: 2m
@@ -258,8 +362,7 @@ data:
         annotations:
           summary: Host inodes will fill in 24 hours (instance {{ $labels.instance }})
           description: "Filesystem is predicted to run out of inodes within the next 24 hours at current write rate\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
-          ClusterName: H2-EKS-DEV-STG
-
+          ClusterName: H2S-EKS-PROD-NORTHEAST-1
       - alert: HostUnusualDiskReadLatency
         expr: rate(node_disk_read_time_seconds_total[1m]) / rate(node_disk_reads_completed_total[1m]) > 0.1 and rate(node_disk_reads_completed_total[1m]) > 0
         for: 2m
@@ -268,8 +371,7 @@ data:
         annotations:
           summary: Host unusual disk read latency (instance {{ $labels.instance }})
           description: "Disk latency is growing (read operations > 100ms)\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
-          ClusterName: H2-EKS-DEV-STG
-
+          ClusterName: H2S-EKS-PROD-NORTHEAST-1
       - alert: HostUnusualDiskWriteLatency
         expr: rate(node_disk_write_time_seconds_total[1m]) / rate(node_disk_writes_completed_total[1m]) > 0.1 and rate(node_disk_writes_completed_total[1m]) > 0
         for: 2m
@@ -278,38 +380,34 @@ data:
         annotations:
           summary: Host unusual disk write latency (instance {{ $labels.instance }})
           description: "Disk latency is growing (write operations > 100ms)\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
-          ClusterName: H2-EKS-DEV-STG
-
+          ClusterName: H2S-EKS-PROD-NORTHEAST-1
       - alert: HostHighCpuLoad
         expr: 100 - (avg by(instance) (rate(node_cpu_seconds_total{mode="idle"}[2m])) * 100) > 80
-        for: 0m
+        for: 5m
         labels:
           severity: warning
         annotations:
           summary: Host high CPU load (instance {{ $labels.instance }})
           description: "CPU load is > 80%\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
-          ClusterName: H2-EKS-DEV-STG
-
+          ClusterName: H2S-EKS-PROD-NORTHEAST-1
       - alert: HostCpuStealNoisyNeighbor
         expr: avg by(instance) (rate(node_cpu_seconds_total{mode="steal"}[5m])) * 100 > 10
-        for: 0m
+        for: 5m
         labels:
           severity: warning
         annotations:
           summary: Host CPU steal noisy neighbor (instance {{ $labels.instance }})
           description: "CPU steal is > 10%. A noisy neighbor is killing VM performances or a spot instance may be out of credit.\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
-          ClusterName: H2-EKS-DEV-STG
-
+          ClusterName: H2S-EKS-PROD-NORTHEAST-1
       - alert: HostCpuHighIowait
         expr: avg by (instance) (rate(node_cpu_seconds_total{mode="iowait"}[5m])) * 100 > 5
-        for: 0m
+        for: 5m
         labels:
           severity: warning
         annotations:
           summary: Host CPU high iowait (instance {{ $labels.instance }})
           description: "CPU iowait > 5%. A high iowait means that you are disk or network bound.\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
-          ClusterName: H2-EKS-DEV-STG
-
+          ClusterName: H2S-EKS-PROD-NORTHEAST-1
       - alert: HostSwapIsFillingUp
         expr: (1 - (node_memory_SwapFree_bytes / node_memory_SwapTotal_bytes)) * 100 > 80
         for: 2m
@@ -318,18 +416,16 @@ data:
         annotations:
           summary: Host swap is filling up (instance {{ $labels.instance }})
           description: "Swap is filling up (>80%)\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
-          ClusterName: H2-EKS-DEV-STG
-
+          ClusterName: H2S-EKS-PROD-NORTHEAST-1
       - alert: HostOomKillDetected
         expr: increase(node_vmstat_oom_kill[1m]) > 0
         for: 0m
         labels:
-          severity: warning
+          severity: critical
         annotations:
           summary: Host OOM kill detected (instance {{ $labels.instance }})
           description: "OOM kill detected\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
-          ClusterName: H2-EKS-DEV-STG
-
+          ClusterName: H2S-EKS-PROD-NORTHEAST-1
       - alert: HostNetworkReceiveErrors
         expr: rate(node_network_receive_errs_total[2m]) / rate(node_network_receive_packets_total[2m]) > 0.01
         for: 2m
@@ -338,8 +434,7 @@ data:
         annotations:
           summary: Host Network Receive Errors (instance {{ $labels.instance }})
           description: "Host {{ $labels.instance }} interface {{ $labels.device }} has encountered {{ printf \"%.0f\" $value }} receive errors in the last two minutes.\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
-          ClusterName: H2-EKS-DEV-STG
-
+          ClusterName: H2S-EKS-PROD-NORTHEAST-1
       - alert: HostConntrackLimit
         expr: node_nf_conntrack_entries / node_nf_conntrack_entries_limit > 0.8
         for: 5m
@@ -348,51 +443,43 @@ data:
         annotations:
           summary: Host conntrack limit (instance {{ $labels.instance }})
           description: "The number of conntrack is approaching limit\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
-          ClusterName: H2-EKS-DEV-STG
-
+          ClusterName: H2S-EKS-PROD-NORTHEAST-1
       - alert: KubernetesNodeReady
         expr: kube_node_status_condition{condition="Ready",status="true"} == 0
         for: 10m
         labels:
-          # severity: critical
-          severity: warning
+          severity: critical
         annotations:
           summary: Kubernetes Node ready (instance {{ $labels.instance }})
           description: "Node {{ $labels.node }} has been unready for a long time\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
-          ClusterName: H2-EKS-DEV-STG
-
+          ClusterName: H2S-EKS-PROD-NORTHEAST-1
       - alert: KubernetesContainerOomKiller
         expr: (kube_pod_container_status_restarts_total - kube_pod_container_status_restarts_total offset 10m >= 1) and ignoring (reason) min_over_time(kube_pod_container_status_last_terminated_reason{reason="OOMKilled"}[10m]) == 1
         for: 0m
         labels:
-          severity: warning
+          severity: critical
         annotations:
           summary: Kubernetes container oom killer (instance {{ $labels.instance }})
           description: "Container {{ $labels.container }} in pod {{ $labels.namespace }}/{{ $labels.pod }} has been OOMKilled {{ $value }} times in the last 10 minutes.\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
-          ClusterName: H2-EKS-DEV-STG
-
+          ClusterName: H2S-EKS-PROD-NORTHEAST-1
       - alert: KubernetesMemoryPressure
         expr: kube_node_status_condition{condition="MemoryPressure",status="true"} == 1
         for: 2m
         labels:
-          # severity: critical
-          severity: warning
+          severity: critical
         annotations:
           summary: Kubernetes memory pressure (instance {{ $labels.instance }})
           description: "{{ $labels.node }} has MemoryPressure condition\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
-          ClusterName: H2-EKS-DEV-STG
-
+          ClusterName: H2S-EKS-PROD-NORTHEAST-1
       - alert: KubernetesOutOfDisk
         expr: kube_node_status_condition{condition="OutOfDisk",status="true"} == 1
         for: 2m
         labels:
-          # severity: critical
-          severity: warning
+          severity: critical
         annotations:
           summary: Kubernetes out of disk (instance {{ $labels.instance }})
           description: "{{ $labels.node }} has OutOfDisk condition\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
-          ClusterName: H2-EKS-DEV-STG
-
+          ClusterName: H2S-EKS-PROD-NORTHEAST-1
       # - alert: KubernetesOutOfCapacity
       #   expr: sum by (node) ((kube_pod_status_phase{phase="Running"} == 1) + on(uid) group_left(node) (0 * kube_pod_info{pod_template_hash=""})) / sum by (node) (kube_node_status_allocatable{resource="pods"}) * 100 > 90
       #   for: 2m
@@ -401,8 +488,7 @@ data:
       #   annotations:
       #     summary: Kubernetes out of capacity (instance {{ $labels.instance }})
       #     description: "{{ $labels.node }} is out of capacity\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
-      #     ClusterName: H2-EKS-DEV-STG
-
+      #     ClusterName: H2S-EKS-PROD-NORTHEAST-1
       - alert: KubernetesJobFailed
         expr: kube_job_status_failed > 0
         for: 0m
@@ -411,18 +497,16 @@ data:
         annotations:
           summary: Kubernetes Job failed (instance {{ $labels.instance }})
           description: "Job {{$labels.namespace}}/{{$labels.exported_job}} failed to complete\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
-          ClusterName: H2-EKS-DEV-STG
-
-      - alert: KubernetesCronjobSuspended
-        expr: kube_cronjob_spec_suspend != 0
-        for: 0m
-        labels:
-          severity: warning
-        annotations:
-          summary: Kubernetes CronJob suspended (instance {{ $labels.instance }})
-          description: "CronJob {{ $labels.namespace }}/{{ $labels.cronjob }} is suspended\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
-          ClusterName: H2-EKS-DEV-STG
-
+          ClusterName: H2S-EKS-PROD-NORTHEAST-1
+      # - alert: KubernetesCronjobSuspended
+      #   expr: kube_cronjob_spec_suspend != 0
+      #   for: 0m
+      #   labels:
+      #     severity: warning
+      #   annotations:
+      #     summary: Kubernetes CronJob suspended (instance {{ $labels.instance }})
+      #     description: "CronJob {{ $labels.namespace }}/{{ $labels.cronjob }} is suspended\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+      #     ClusterName: H2S-EKS-PROD-NORTHEAST-1
       - alert: KubernetesPersistentvolumeclaimPending
         expr: kube_persistentvolumeclaim_status_phase{phase="Pending"} == 1
         for: 2m
@@ -431,29 +515,33 @@ data:
         annotations:
           summary: Kubernetes PersistentVolumeClaim pending (instance {{ $labels.instance }})
           description: "PersistentVolumeClaim {{ $labels.namespace }}/{{ $labels.persistentvolumeclaim }} is pending\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
-          ClusterName: H2-EKS-DEV-STG
-
+          ClusterName: H2S-EKS-PROD-NORTHEAST-1
+      # Investigator-ready candidate:
+      # - high value
+      # - clear target (instance/device/mountpoint)
+      # - stable investigation path (disk usage, inode, readonly, mount)
       - alert: KubernetesVolumeOutOfDiskSpace
-        expr: kubelet_volume_stats_available_bytes / kubelet_volume_stats_capacity_bytes * 100 < 10
+        expr: 100 - ((node_filesystem_avail_bytes{mountpoint="/",fstype!="rootfs"} * 100) / node_filesystem_size_bytes{mountpoint="/",fstype!="rootfs"}) > 90 and ON (instance, device, mountpoint) node_filesystem_readonly{mountpoint="/"} == 0
         for: 2m
         labels:
           severity: warning
         annotations:
           summary: Kubernetes Volume out of disk space (instance {{ $labels.instance }})
           description: "Volume is almost full (< 10% left)\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
-          ClusterName: H2-EKS-DEV-STG
-
+          ClusterName: H2S-EKS-PROD-NORTHEAST-1
+      # Investigator-ready candidate:
+      # - high value
+      # - clear target (persistent volume)
+      # - stable investigation path (PV/PVC state, provisioner, attachment)
       - alert: KubernetesPersistentvolumeError
         expr: kube_persistentvolume_status_phase{phase=~"Failed|Pending", job="kube-state-metrics"} > 0
         for: 0m
         labels:
-          # severity: critical
-          severity: warning
+          severity: critical
         annotations:
           summary: Kubernetes PersistentVolume error (instance {{ $labels.instance }})
           description: "Persistent volume is in bad state\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
-          ClusterName: H2-EKS-DEV-STG
-
+          ClusterName: H2S-EKS-PROD-NORTHEAST-1
       - alert: KubernetesStatefulsetDown
         expr: (kube_statefulset_status_replicas_ready / kube_statefulset_status_replicas_current) != 1
         for: 1m
@@ -463,8 +551,7 @@ data:
         annotations:
           summary: Kubernetes StatefulSet down (instance {{ $labels.instance }})
           description: "A StatefulSet went down\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
-          ClusterName: H2-EKS-DEV-STG
-
+          ClusterName: H2S-EKS-PROD-NORTHEAST-1
       - alert: KubernetesHpaScalingAbility
         expr: kube_horizontalpodautoscaler_status_condition{status="false", condition="AbleToScale"} == 1
         for: 2m
@@ -473,51 +560,48 @@ data:
         annotations:
           summary: Kubernetes HPA scaling ability (instance {{ $labels.instance }})
           description: "Pod is unable to scale\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
-          ClusterName: H2-EKS-DEV-STG
-
+          ClusterName: H2S-EKS-PROD-NORTHEAST-1
       - alert: KubernetesHpaMetricAvailability
         expr: kube_horizontalpodautoscaler_status_condition{status="false", condition="ScalingActive"} == 1
-        for: 0m
+        for: 5m
         labels:
           severity: warning
         annotations:
           summary: Kubernetes HPA metric availability (instance {{ $labels.instance }})
           description: "HPA is not able to collect metrics\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
-          ClusterName: H2-EKS-DEV-STG
-
-      - alert: KubernetesHpaScaleCapability
-        expr: kube_horizontalpodautoscaler_status_desired_replicas >= kube_horizontalpodautoscaler_spec_max_replicas
-        for: 2m
+          ClusterName: H2S-EKS-PROD-NORTHEAST-1
+      # - alert: KubernetesHpaScaleCapability
+      #   expr: kube_horizontalpodautoscaler_status_desired_replicas >= kube_horizontalpodautoscaler_spec_max_replicas
+      #   for: 2m
+      #   labels:
+      #     severity: warning
+      #   annotations:
+      #     summary: Kubernetes HPA scale capability (instance {{ $labels.instance }})
+      #     description: "The maximum number of desired Pods has been hit\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+      #     ClusterName: H2S-EKS-PROD-NORTHEAST-1
+      # Symptom-level signal:
+      # - useful for triage
+      # - not first-batch investigator target because root causes vary widely
+      - alert: KubernetesPodNotInRunningStatus
+        expr: min_over_time(sum by (namespace, pod) (kube_pod_status_phase{phase=~"Pending|Unknown|Failed"})[15m:1m]) > 0
+        for: 0m
         labels:
           severity: warning
         annotations:
-          summary: Kubernetes HPA scale capability (instance {{ $labels.instance }})
-          description: "The maximum number of desired Pods has been hit\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
-          ClusterName: H2-EKS-DEV-STG
-
-      - alert: KubernetesPod not in running status
-        # expr: min_over_time(sum by (namespace, pod) (kube_pod_status_phase{phase=~"Pending|Unknown|Failed"})[15m:1m]) > 0
-        expr: rate(kube_pod_status_phase{phase=~"Pending|Unknown|Failed"}[10m]) * 600 > 0
-        for: 5m
-        labels:
-          severity: warning
-        annotations:
-          summary: Kubernetes Pod not healthy (instance {{ $labels.instance }})
-          description: "Pod status not in Running state in the last 15 mins  .\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
-          ClusterName: H2-EKS-DEV-STG
-
+          summary: Kubernetes Pod not in running status ({{ $labels.namespace }}/{{ $labels.pod }})
+          description: "Pod {{ $labels.namespace }}/{{ $labels.pod }} has stayed in Pending, Unknown, or Failed for 15 minutes.\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+          ClusterName: H2S-EKS-PROD-NORTHEAST-1
       - alert: KubernetesPodCrashLooping
-        #expr: increase(kube_pod_container_status_restarts_total[3m]) > 1
-        #expr: rate(kube_pod_container_status_restarts_total[5m]) * 300 > 1
+        # expr: increase(kube_pod_container_status_restarts_total[3m]) > 1
+        # expr: rate(kube_pod_container_status_restarts_total[5m]) * 300 > 1
         expr: rate(kube_pod_container_status_restarts_total{namespace!="monitoring"}[5m]) * 300 > 1
         for: 1m
         labels:
           severity: warning
         annotations:
-          summary: Kubernetes pod crash looping (instance {{ $labels.instance }})
+          summary: Kubernetes pod crash looping ({{ $labels.namespace }}/{{ $labels.pod }})
           description: "Pod {{ $labels.pod }} is crash looping\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
-          ClusterName: H2-EKS-DEV-STG
-
+          ClusterName: H2S-EKS-PROD-NORTHEAST-1
       - alert: KubernetesPodCrashLoopingNamespaceMonitoring
         # expr: increase(kube_pod_container_status_restarts_total[3m]) > 1
         expr: rate(kube_pod_container_status_restarts_total{namespace="monitoring"}[10m]) * 300 > 2
@@ -525,10 +609,9 @@ data:
         labels:
           severity: warning
         annotations:
-          summary: Kubernetes pod crash looping (instance {{ $labels.instance }})
+          summary: Kubernetes pod crash looping ({{ $labels.namespace }}/{{ $labels.pod }})
           description: "Pod {{ $labels.pod }} is crash looping\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
-          ClusterName: H2-EKS-DEV-STG
-
+          ClusterName: H2S-EKS-PROD-NORTHEAST-1
       - alert: KubernetesReplicassetMismatch
         expr: kube_replicaset_spec_replicas != kube_replicaset_status_ready_replicas
         for: 10m
@@ -537,8 +620,11 @@ data:
         annotations:
           summary: Kubernetes ReplicasSet mismatch (instance {{ $labels.instance }})
           description: "Deployment Replicas mismatch\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
-          ClusterName: H2-EKS-DEV-STG
-
+          ClusterName: H2S-EKS-PROD-NORTHEAST-1
+      # Investigator-ready candidate:
+      # - high value
+      # - clear target (deployment)
+      # - stable investigation path (rollout, pending pods, image pull, resources)
       - alert: KubernetesDeploymentReplicasMismatch
         expr: kube_deployment_spec_replicas != kube_deployment_status_replicas_available
         for: 10m
@@ -547,8 +633,11 @@ data:
         annotations:
           summary: Kubernetes Deployment replicas mismatch (instance {{ $labels.instance }})
           description: "Deployment Replicas mismatch\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
-          ClusterName: H2-EKS-DEV-STG
-
+          ClusterName: H2S-EKS-PROD-NORTHEAST-1
+      # Investigator-ready candidate:
+      # - high value
+      # - clear target (statefulset)
+      # - stable investigation path (PVC, scheduling, rollout, readiness)
       - alert: KubernetesStatefulsetReplicasMismatch
         expr: kube_statefulset_status_replicas_ready != kube_statefulset_status_replicas
         for: 10m
@@ -557,8 +646,7 @@ data:
         annotations:
           summary: Kubernetes StatefulSet replicas mismatch (instance {{ $labels.instance }})
           description: "A StatefulSet does not match the expected number of replicas.\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
-          ClusterName: H2-EKS-DEV-STG
-
+          ClusterName: H2S-EKS-PROD-NORTHEAST-1
       - alert: KubernetesDeploymentGenerationMismatch
         expr: kube_deployment_status_observed_generation != kube_deployment_metadata_generation
         for: 10m
@@ -568,8 +656,7 @@ data:
         annotations:
           summary: Kubernetes Deployment generation mismatch (instance {{ $labels.instance }})
           description: "A Deployment has failed but has not been rolled back.\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
-          ClusterName: H2-EKS-DEV-STG
-
+          ClusterName: H2S-EKS-PROD-NORTHEAST-1
       - alert: KubernetesStatefulsetGenerationMismatch
         expr: kube_statefulset_status_observed_generation != kube_statefulset_metadata_generation
         for: 10m
@@ -579,8 +666,7 @@ data:
         annotations:
           summary: Kubernetes StatefulSet generation mismatch (instance {{ $labels.instance }})
           description: "A StatefulSet has failed but has not been rolled back.\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
-          ClusterName: H2-EKS-DEV-STG
-
+          ClusterName: H2S-EKS-PROD-NORTHEAST-1
       - alert: KubernetesStatefulsetUpdateNotRolledOut
         expr: max without (revision) (kube_statefulset_status_current_revision unless kube_statefulset_status_update_revision) * (kube_statefulset_replicas != kube_statefulset_status_replicas_updated)
         for: 10m
@@ -589,8 +675,7 @@ data:
         annotations:
           summary: Kubernetes StatefulSet update not rolled out (instance {{ $labels.instance }})
           description: "StatefulSet update has not been rolled out.\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
-          ClusterName: H2-EKS-DEV-STG
-
+          ClusterName: H2S-EKS-PROD-NORTHEAST-1
       - alert: KubernetesDaemonsetRolloutStuck
         expr: kube_daemonset_status_number_ready / kube_daemonset_status_desired_number_scheduled * 100 < 100 or kube_daemonset_status_desired_number_scheduled - kube_daemonset_status_current_number_scheduled > 0
         for: 10m
@@ -599,8 +684,7 @@ data:
         annotations:
           summary: Kubernetes DaemonSet rollout stuck (instance {{ $labels.instance }})
           description: "Some Pods of DaemonSet are not scheduled or not ready\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
-          ClusterName: H2-EKS-DEV-STG
-
+          ClusterName: H2S-EKS-PROD-NORTHEAST-1
       - alert: KubernetesDaemonsetMisscheduled
         expr: kube_daemonset_status_number_misscheduled > 0
         for: 1m
@@ -609,18 +693,16 @@ data:
         annotations:
           summary: Kubernetes DaemonSet misscheduled (instance {{ $labels.instance }})
           description: "Some DaemonSet Pods are running where they are not supposed to run\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
-          ClusterName: H2-EKS-DEV-STG
-
+          ClusterName: H2S-EKS-PROD-NORTHEAST-1
       - alert: KubernetesCronjobTooLong
         expr: time() - kube_cronjob_next_schedule_time > 3600
-        for: 0m
+        for: 10m
         labels:
           severity: warning
         annotations:
           summary: Kubernetes CronJob too long (instance {{ $labels.instance }})
           description: "CronJob {{ $labels.namespace }}/{{ $labels.cronjob }} is taking more than 1h to complete.\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
-          ClusterName: H2-EKS-DEV-STG
-
+          ClusterName: H2S-EKS-PROD-NORTHEAST-1
       - alert: KubernetesJobSlowCompletion
         expr: kube_job_spec_completions - kube_job_status_succeeded > 0
         for: 12h
@@ -630,8 +712,7 @@ data:
         annotations:
           summary: Kubernetes job slow completion (instance {{ $labels.instance }})
           description: "Kubernetes Job {{ $labels.namespace }}/{{ $labels.job_name }} did not complete in time.\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
-          ClusterName: H2-EKS-DEV-STG
-
+          ClusterName: H2S-EKS-PROD-NORTHEAST-1
       - alert: KubernetesApiServerErrors
         expr: sum(rate(apiserver_request_total{job="kubernetes-apiservers",code=~"^(?:5..)$"}[1m])) / sum(rate(apiserver_request_total{job="kubernetes-apiservers"}[1m])) * 100 > 3
         for: 2m
@@ -641,19 +722,17 @@ data:
         annotations:
           summary: Kubernetes API server errors (instance {{ $labels.instance }})
           description: "Kubernetes API server is experiencing high error rate\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
-          ClusterName: H2-EKS-DEV-STG
-
-      - alert: KubernetesApiClientErrors
-        expr: (sum(rate(rest_client_requests_total{code=~"(4|5).."}[1m])) by (instance, job) / sum(rate(rest_client_requests_total[1m])) by (instance, job)) * 100 > 1
-        for: 2m
-        labels:
-          # severity: critical
-          severity: warning
-        annotations:
-          summary: Kubernetes API client errors (instance {{ $labels.instance }})
-          description: "Kubernetes API client is experiencing high error rate\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
-          ClusterName: H2-EKS-DEV-STG
-
+          ClusterName: H2S-EKS-PROD-NORTHEAST-1
+      # - alert: KubernetesApiClientErrors
+      #   expr: (sum(rate(rest_client_requests_total{code=~"(4|5).."}[1m])) by (instance, job) / sum(rate(rest_client_requests_total[1m])) by (instance, job)) * 100 > 1
+      #   for: 2m
+      #   labels:
+      #     # severity: critical
+      #     severity: warning
+      #   annotations:
+      #     summary: Kubernetes API client errors (instance {{ $labels.instance }})
+      #     description: "Kubernetes API client is experiencing high error rate\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+      #     ClusterName: H2S-EKS-PROD-NORTHEAST-1
       - alert: KubernetesApiServerLatency
         expr: histogram_quantile(0.99, sum(rate(apiserver_request_latencies_bucket{subresource!="log",verb!~"^(?:CONNECT|WATCHLIST|WATCH|PROXY)$"} [10m])) WITHOUT (instance, resource)) / 1e+06 > 1
         for: 2m
@@ -662,103 +741,92 @@ data:
         annotations:
           summary: Kubernetes API server latency (instance {{ $labels.instance }})
           description: "Kubernetes API server has a 99th percentile latency of {{ $value }} seconds for {{ $labels.verb }} {{ $labels.resource }}.\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
-          ClusterName: H2-EKS-DEV-STG
-
-      - alert: Pod memory usage over 2.5GB
-        expr: sum by(pod)(container_memory_usage_bytes{container!="POD",container!="", namespace="dev"}) > 2500000000 
+          ClusterName: H2S-EKS-PROD-NORTHEAST-1
+      - alert: ProdPodMemoryUsageHigh
+        expr: sum by(pod)(container_memory_usage_bytes{container!="POD",container!="", namespace="prod"}) > 7500000000 
         for: 5m
         labels:
           severity: warning
         annotations:
-          summary: "High Memory Usage on POD {{ $labels.pod }}"
-          description: "Pod : {{ $labels.pod }} memory usage : {{ $value }} "
-          ClusterName: H2-EKS-DEV-STG
-
-      - alert: Cluster memory usage over 75%
-        expr: sum (container_memory_working_set_bytes{id="/",kubernetes_io_hostname !=""}) / sum (machine_memory_bytes{kubernetes_io_hostname!=""}) * 100 > 75
-        for: 5m
-        labels:
-          severity: warning
-        annotations:
-          summary: "High Memory Usage on Cluster"
-          description: "Cluster memory usage : {{ $value }} "
-          ClusterName: H2-EKS-DEV-STG
-
-      - alert: Jenkins Cronjob Server CPU Load > 2 Core
-        expr: sum (rate (container_cpu_usage_seconds_total{image!="",pod=~"^jenkins-lts.*"}[1m])) by (pod) > 2
-        for: 5m
-        labels:
-          severity: warning
-        annotations:
-          summary: "Jenkins Cronjob Server CPU Load too High"
-          description: "CPU CORE : {{ $value }} "
-          ClusterName: H2-EKS-DEV-STG
-
-      - alert: Cluster CPU usage over 80%
-        expr: sum (rate (container_cpu_usage_seconds_total{id="/",kubernetes_io_hostname!=""}[2m])) / sum (machine_cpu_cores{kubernetes_io_hostname!=""}) * 100 > 80 
-        for: 5m
-        labels:
-          severity: warning
-        annotations:
-          summary: "High CPU Usage on Cluster"
-          description: "Cluster CPU usage : {{ $value }} "
-          ClusterName: H2-EKS-DEV-STG
-
-      - alert: Cluster-Autoscaler event happened
+          summary: "Prod pod memory usage is high"
+          description: "Pod {{ $labels.pod }} memory usage is {{ $value }} bytes."
+          ClusterName: H2S-EKS-PROD-NORTHEAST-1
+      # - alert: PodIpReachlimit(awscni_assigned_ip_addresses)  
+      #   expr: sum(awscni_assigned_ip_addresses{})by(instance) > 24
+      #   for: 5m
+      #   labels:
+      #     severity: warning
+      #   annotations:
+      #     summary: "{{ $labels.instance }} : Pod ips is probably reading too much data VALUE = {{ $value }}\n "
+      #     description: "m5.larage limit = 29 , m5.2xlarge limit = 58"
+      #     ClusterName: H2S-EKS-PROD-NORTHEAST-1
+      - alert: ClusterAutoscalerEventHappened
         expr: changes(cluster_autoscaler_nodes_count{state!=""}[10m]) > 0
         for: 5m
         labels:
           severity: warning
         annotations:
-          summary: "Cluster-AutoScaler happened in recently 10 min"
-          description: "Cluster-AutoScaler happened Worker node state : {{ $labels.state }}"
-          ClusterName: H2-EKS-DEV-STG
+          summary: "Cluster Autoscaler changed node count recently"
+          description: "Cluster Autoscaler changed worker node count for state {{ $labels.state }} in the last 10 minutes."
+          ClusterName: H2S-EKS-PROD-NORTHEAST-1
 
-      - alert: DockerContainerKillDetected (Dev/Stg)
-        # expr: time() - max(max_over_time(container_last_seen{job="dev-servers-cadvisor",name=~".*-consumer.*|.*-worker.*"}[4h])) by (name,instance) > 300
-        expr: group(present_over_time(container_last_seen{job="dev-servers-cadvisor",name=~".*-consumer.*|.*-worker.*"}[4h]))by (instance,name) unless group(container_last_seen{job="dev-servers-cadvisor",name=~".*-consumer.*|.*-worker.*"}) by (instance,name) 
+      - alert: ClusterMemoryUsageHigh
+        expr: sum (container_memory_working_set_bytes{id="/",kubernetes_io_hostname !=""}) / sum (machine_memory_bytes{kubernetes_io_hostname!=""}) * 100 > 75
         for: 5m
         labels:
           severity: warning
         annotations:
-          summary: "Container killed (instance {{ $labels.instance }})" 
-          description: "A container has disappeared\n  VALUE = {{ $value }}\n  LABELS: {{ $labels }}" 
+          summary: "Cluster memory usage is high"
+          description: "Cluster memory usage is {{ $value }} percent."
+          ClusterName: H2S-EKS-PROD-NORTHEAST-1
 
-      - alert: DockerContainerKillDetected (Prod)
-        # expr: time() - max(max_over_time(container_last_seen{job="prod-servers-cadvisor",name=~".*-consumer.*|.*-worker.*"}[4h])) by (name,instance) > 300
-        expr: group(present_over_time(container_last_seen{job="prod-servers-cadvisor",name=~".*-consumer.*|.*-worker.*",instance!="52.193.214.156:8888"}[4h]))by (instance,name) unless group(container_last_seen{job="prod-servers-cadvisor",name=~".*-consumer.*|.*-worker.*",instance!="52.193.214.156:8888"}) by (instance,name) 
-        for: 5m
-        labels:
-          severity: critical
-        annotations:
-          summary: "Container killed (instance {{ $labels.instance }})" 
-          description: "A container has disappeared\n  VALUE = {{ $value }}\n  LABELS: {{ $labels }}" 
-
-      - alert: LinuxServerShaFile-Changed
-        expr: Health2Sync_sha_result{app_kubernetes_io_instance="",TZ="Taiwan+8"} > 0
+      - alert: ClusterCpuUsageHigh
+        expr: sum (rate (container_cpu_usage_seconds_total{id="/",kubernetes_io_hostname!=""}[2m])) / sum (machine_cpu_cores{kubernetes_io_hostname!=""}) * 100 > 80 
         for: 5m
         labels:
           severity: warning
         annotations:
-          summary: "LinuxServerShaFile-Changed"
-          description: "Linux Server {{ $labels.hostname }} - {{ $labels.ip }} , shaFile Change detected : {{ $labels.file }}"
-          
-      - alert: LinuxServerLoginFailed
-        expr: Health2Sync_loginfailed_chk{app_kubernetes_io_instance="",TZ="Taiwan+8"} > 0
+          summary: "Cluster CPU usage is high"
+          description: "Cluster CPU usage is {{ $value }} percent."
+          ClusterName: H2S-EKS-PROD-NORTHEAST-1
+
+      # Service health signal:
+      # - keep for deploy/post-deploy observation
+      # - useful for human triage
+      # - not first-batch investigator target because restart alone is not root cause
+      - alert: ProdPodRestartHigh
+        expr: sum by (namespace, pod) (increase(kube_pod_container_status_restarts_total{namespace="prod"}[1h])) > 5
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Prod pod restart count is high"
+          description: "Pod {{ $labels.namespace }}/{{ $labels.pod }} restarted {{ $value }} times in the last hour."
+          ClusterName: H2S-EKS-PROD-NORTHEAST-1
+
+      # Notify-only / dashboard signal:
+      # - useful to know something failed recently
+      # - not first-batch investigator target because Failed phase is too generic
+      - alert: ProdPodFailedRecently
+        expr: sum by (namespace, pod) (max_over_time(kube_pod_status_phase{namespace="prod",phase="Failed"}[15m])) > 0
         for: 5m
         labels:
           severity: warning
         annotations:
-          summary: "LinuxServerLogin-Failed"
-          description: "Linux Server {{ $labels.hostname }} - {{ $labels.ip }} , login failed detected : {{ $labels.msg }}"
+          summary: "Prod pod entered Failed phase"
+          description: "Pod {{ $labels.namespace }}/{{ $labels.pod }} entered Failed phase in the last 15 minutes."
+          ClusterName: H2S-EKS-PROD-NORTHEAST-1
 
   prometheus.yml: |-
     global:
       scrape_interval: 5s
       evaluation_interval: 5s
+      # Canonical source labels for downstream routing / Slack structured alerts:
+      # - environment: deployment environment identifier, e.g. prod-jp
+      # - cluster: stable monitoring source / cluster identifier
       external_labels:
-        environment: dev-stg
-        cluster: H2-EKS-DEV-STG
+        environment: prod-jp
+        cluster: H2S-EKS-PROD-NORTHEAST-1
     rule_files:
       - /etc/prometheus/prometheus.rules
     alerting:
@@ -767,16 +835,7 @@ data:
         static_configs:
         - targets:
           - "alertmanager.monitoring.svc:9093"
-
-    # remote_write:
-    #   - url: http://thanos-receive.mimir-test.svc.cluster.local:19291/api/v1/receive
-    #   # - url: http://mimir-t-nginx.mimir-test.svc:80/api/v1/push
-
     scrape_configs:
-      - job_name: prometheus-milier
-        honor_labels: true
-        static_configs:
-          - targets: ["localhost:9090"]
       - job_name: 'kubernetes-apiservers'
         kubernetes_sd_configs:
         - role: endpoints
@@ -788,7 +847,6 @@ data:
         - source_labels: [__meta_kubernetes_namespace, __meta_kubernetes_service_name, __meta_kubernetes_endpoint_port_name]
           action: keep
           regex: default;kubernetes;https
-
       - job_name: 'kubernetes-nodes'
         scheme: https
         tls_config:
@@ -805,7 +863,6 @@ data:
           regex: (.+)
           target_label: __metrics_path__
           replacement: /api/v1/nodes/${1}/proxy/metrics
-
       - job_name: 'cni-metrics-helper'
         scrape_interval: 300s
         scrape_timeout: 120s
@@ -820,7 +877,6 @@ data:
             regex: ([^:]+):.*
             replacement: $1:61678 ### the port u specific
             target_label: __address__
-
       - job_name: 'kubernetes-pods'
         kubernetes_sd_configs:
         - role: pod
@@ -848,26 +904,19 @@ data:
       # - job_name: 'fox-discovery-testing'
       #   static_configs:
       #     - targets: ['flask-for-prome.monitoring.svc.cluster.local:5000']
-
       - job_name: 'kube-state-metrics'
         static_configs:
           - targets: ['kube-state-metrics.kube-system.svc.cluster.local:8080']
       - job_name: 'prom-pushgateway'
-        honor_labels: true
         static_configs:
           - targets: ['prom-pushgw.monitoring.svc.cluster.local:9091']
+            labels:
+              instance: pushgateway
       - job_name: 'alertmanager'
         static_configs:
           - targets: ['alertmanager.monitoring.svc.cluster.local:9093']
             labels:
               instance: pushgateway
-      # - job_name: "otel-collector-metrics"
-      #   static_configs:
-      #     - targets: ["my-release-clickhouse-operator-metrics.platform.svc.cluster.local:8888"]
-      #     # - targets: ["otel-collector.opentelemetry-operator-system.svc.cluster.local:8889"]
-      - job_name: "npd-metrics"
-        static_configs:
-          - targets: ["npd-svc.monitoring.svc.cluster.local:20257"]
       - job_name: 'kubernetes-cadvisor'
         scheme: https
         tls_config:
@@ -920,7 +969,6 @@ data:
       # - job_name: 'prometheus-node-exporter-agent'
       #   static_configs:
       #   - targets: ['10.102.4.225:9100']
-
       # - job_name: 'node-exporter'
       #   kubernetes_sd_configs:
       #     - role: endpoints
@@ -956,7 +1004,7 @@ data:
         - source_labels: [__meta_kubernetes_node_label_role]
           target_label: role
 
-      #### Scrap Dev/Prod H2 Server cAdvisor metrics #####
+      ############ Prometheus Scrap Jobs ################
       - job_name: prometheus
         honor_timestamps: true
         scrape_interval: 15s
@@ -966,145 +1014,44 @@ data:
         static_configs:
         - targets:
           - localhost:9090
-      - job_name: blackbox-h2s-backend_api
-        metrics_path: /probe
-        params:
-          module: [http_2xx]
-        static_configs:
-          - targets:
-            - https://www.health2sync.com
-            - https://api.health2sync.com/ok
-            - https://api-stg.health2sync.com/ok
-            # - https://api-dev.health2sync.com/ok
-            - https://blog.health2sync.com/
-            - https://www.health2sync.com/en/blog/
-            - https://www.health2sync.com/ar/blog/
-        relabel_configs:
-          - source_labels: [__address__]
-            target_label: __param_target
-          - source_labels: [__param_target]
-            target_label: instance
-          - target_label: __address__
-            replacement: prometheus-blackbox-exporter.monitoring.svc:9115
-      - job_name: blackbox-h2s-debezium_health
-        metrics_path: /probe
-        params:
-          module: [http_2xx]
-        static_configs:
-          # - targets:
-          #     - "https://debezium-dev.health2sync.com/connectors/h2-connector/status"
-          #   labels:
-          #     env: dev
-          - targets:
-              - "https://debezium-stg.health2sync.com/connectors/h2-connector/status"
-            labels:
-              env: stg
-          - targets:
-              - "https://debezium-au.health2sync.com/connectors/h2-connector/status"
-            labels:
-              env: prod-au
-          - targets:
-              - "https://debezium.health2sync.com/connectors/h2-connector/status"
-            labels:
-              env: prod-jp
-        relabel_configs:
-          - source_labels: [__address__]
-            target_label: __param_target
-          - source_labels: [__param_target]
-            target_label: instance
-          - target_label: __address__
-            replacement: prometheus-blackbox-exporter.monitoring.svc:9115
-      # - job_name: blackbox-tcp
-      #   metrics_path: /probe
-      #   params:
-      #     module: [tcp_connect]
-      #   static_configs:
-      #     - targets:
-      #       - 18.180.194.201:8888
-      #       - 52.199.97.68:8888
-      #       - 52.194.162.38:8888
-      #       - 54.248.181.134:8888
-      #       - 35.74.73.107:8888
-      #       - 54.199.219.224:8888
-      #       - 3.114.95.181:8888
-      #       - 35.74.229.178:8888
-      #   relabel_configs:
-      #     - source_labels: [__address__]
-      #       target_label: __param_target
-      #     - source_labels: [__param_target]
-      #       target_label: instance
-      #     - target_label: __address__
-      #       replacement: prometheus-blackbox-exporter.monitoring.svc:9115
-      - job_name: redis_exporter
-        static_configs:
-        - targets: ['redis-exporter-prometheus-redis-exporter.monitoring.svc:9121']
+
+      ############ Celery Monitoring Scrap Jobs ################
       - job_name: celery_exporter
         metrics_path: /metrics
         static_configs:
-        - targets: ['dev-celery-exporter.monitoring.svc:9808']
+        - targets: ['prod-celery-exporter.monitoring.svc:9808']
           labels:
-            env: 'dev'
-        - targets: ['stg-celery-exporter.monitoring.svc:9808']
+            env: 'prod'
+        - targets: ['prod-pm-celery-exporter.monitoring.svc:9808']
           labels:
-            env: 'stg'
-        # - targets: ['svc-celery-exporter.fox.svc:9540']
+            env: 'prod'
+        - targets: ['prod-st-celery-exporter.monitoring.svc:9808']
+          labels:
+            env: 'prod'
+
       - job_name: celery_flower
         metrics_path: /metrics
         static_configs:
-        - targets: ['dev-celery-flower.monitoring.svc:5566']
+        - targets: ['prod-celery-flower.monitoring.svc:5566']
           labels:
-            env: 'dev'
-        - targets: ['stg-celery-flower.monitoring.svc:5566']
-          labels:
-            env: 'stg'
-      # - job_name: keda-kafka-exporter
-      #   scrape_interval: 60s
-      #   metrics_path: /metrics
-      #   static_configs:
-      #   - targets: ['keda-test-kafka-exporter-prometheus-kafka-exporter.devops.svc:9308']
+            env: 'prod'
+      # ### CW Exporter #####
       # - job_name: cloudwatch
       #   scrape_interval: 30s
       #   metrics_path: /metrics
       #   static_configs:
       #   - targets: ['cw-2-prometheus-exporter-prometheus-cloudwatch-exporter.monitoring.svc:9106']
-      # - job_name: blackbox-h2s-callback-backend_api
-      #   metrics_path: /probe
-      #   params:
-      #     module: [http_callback]
-      #   static_configs:
-      #     - targets:
-      #       - https://www.health2sync.com/social_connect/fitbit
-      #       - https://www.health2sync.com/libreview_connect/callback
-      #       - https://www.health2sync.com/fitbit_connect/callback?state=123456
-      #   relabel_configs:
-      #     - source_labels: [__address__]
-      #       target_label: __param_target
-      #     - source_labels: [__param_target]
-      #       target_label: instance
-      #     - target_label: __address__
-      #       replacement: prometheus-blackbox-exporter.monitoring.svc:9115
-      - job_name: "retina-pods"
-        kubernetes_sd_configs:
-          - role: pod
-        relabel_configs:
-          - source_labels: [__meta_kubernetes_pod_container_name]
-            action: keep
-            regex: retina(.*)
-          - source_labels:
-              [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
-            separator: ":"
-            regex: ([^:]+)(?::\d+)?
-            target_label: __address__
-            replacement: ${1}:${2}
-            action: replace
-          - source_labels: [__meta_kubernetes_pod_node_name]
-            action: replace
-            target_label: instance
-        metric_relabel_configs:
-          - source_labels: [__name__]
-            action: keep
-            regex: (.*)
-      - job_name: karpenter        
+      #     labels:
+      #       env: 'prod'
+      ### GPU-metrics-Exporter #####
+      - job_name: dcgm-exporter
+        scrape_interval: 30s
+        metrics_path: /metrics
+        static_configs:
+        - targets: ['dcgm-exporter.monitoring.svc:9400']
+          labels:
+            env: 'prod-gpu'
+      - job_name: karpenter
         kubernetes_sd_configs:
         - role: endpoints
           namespaces:

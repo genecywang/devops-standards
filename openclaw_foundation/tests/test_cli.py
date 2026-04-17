@@ -35,10 +35,12 @@ def test_build_provider_adapter_returns_fake_provider() -> None:
 def test_build_provider_adapter_returns_real_provider(monkeypatch: pytest.MonkeyPatch) -> None:
     fake_core_factory = Mock(return_value="core-v1")
     fake_apps_factory = Mock(return_value="apps-v1")
+    fake_batch_factory = Mock(return_value="batch-v1")
     fake_adapter = Mock(return_value="real-adapter")
 
     monkeypatch.setattr("openclaw_foundation.cli.build_core_v1_api", fake_core_factory)
     monkeypatch.setattr("openclaw_foundation.cli.build_apps_v1_api", fake_apps_factory)
+    monkeypatch.setattr("openclaw_foundation.cli.build_batch_v1_api", fake_batch_factory)
     monkeypatch.setattr("openclaw_foundation.cli.RealKubernetesProviderAdapter", fake_adapter)
 
     result = build_provider_adapter("real")
@@ -46,7 +48,8 @@ def test_build_provider_adapter_returns_real_provider(monkeypatch: pytest.Monkey
     assert result == "real-adapter"
     fake_core_factory.assert_called_once_with()
     fake_apps_factory.assert_called_once_with()
-    fake_adapter.assert_called_once_with("core-v1", "apps-v1")
+    fake_batch_factory.assert_called_once_with()
+    fake_adapter.assert_called_once_with("core-v1", "apps-v1", "batch-v1")
 
 
 def test_main_renders_config_error_message(

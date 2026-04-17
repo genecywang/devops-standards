@@ -75,3 +75,4 @@ def test_build_registry_registers_expected_tools() -> None:
     assert registry.get("get_pod_status").tool_name == "get_pod_status"
     assert registry.get("get_pod_events").tool_name == "get_pod_events"
     assert registry.get("get_deployment_status").tool_name == "get_deployment_status"
+    assert registry.get("get_job_status").tool_name == "get_job_status"

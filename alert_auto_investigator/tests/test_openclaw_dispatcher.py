@@ -123,6 +123,13 @@ def test_dispatch_routes_deployment_to_get_deployment_status() -> None:
     assert runner.last_request.tool_name == "get_deployment_status"
 
 
+def test_dispatch_routes_job_to_get_job_status() -> None:
+    dispatcher, runner = make_dispatcher()
+    dispatcher.dispatch(make_event(resource_type="job", resource_name="nightly-backfill-12345"))
+
+    assert runner.last_request.tool_name == "get_job_status"
+
+
 def test_dispatch_returns_none_for_node_resource_type_by_default() -> None:
     dispatcher, runner = make_dispatcher()
     result = dispatcher.dispatch(make_event(resource_type="node", namespace=""))

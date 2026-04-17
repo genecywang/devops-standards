@@ -240,6 +240,35 @@ def test_fake_adapter_get_deployment_status_contains_redactable_condition_messag
     assert "Bearer" in all_messages
 
 
+def test_fake_adapter_get_job_status_returns_bounded_payload() -> None:
+    adapter = FakeKubernetesProviderAdapter()
+
+    result = adapter.get_job_status(
+        cluster="staging-main",
+        namespace="dev",
+        job_name="nightly-backfill-12345",
+    )
+
+    assert result["job_name"] == "nightly-backfill-12345"
+    assert result["namespace"] == "dev"
+    assert result["active"] == 0
+    assert result["succeeded"] == 1
+    assert isinstance(result["conditions"], list)
+
+
+def test_fake_adapter_get_job_status_contains_redactable_condition_message() -> None:
+    adapter = FakeKubernetesProviderAdapter()
+
+    result = adapter.get_job_status(
+        cluster="staging-main",
+        namespace="dev",
+        job_name="nightly-backfill-12345",
+    )
+
+    all_messages = " ".join(str(c["message"]) for c in result["conditions"])
+    assert "Bearer" in all_messages
+
+
 # --- get_pod_events: Fake adapter ---
 
 

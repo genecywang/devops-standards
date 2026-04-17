@@ -46,6 +46,7 @@ class KubernetesProviderAdapter(Protocol):
     def get_deployment_status(
         self, cluster: str, namespace: str, deployment_name: str
     ) -> dict[str, object]: ...
+    def get_job_status(self, cluster: str, namespace: str, job_name: str) -> dict[str, object]: ...
 
 
 def build_core_v1_api() -> Any:
@@ -76,6 +77,21 @@ def build_apps_v1_api() -> Any:
             raise KubernetesConfigError("unable to load kubernetes config") from kubeconfig_error
 
     return client.AppsV1Api()
+
+
+def build_batch_v1_api() -> Any:
+    if client is None or kube_config is None:
+        raise KubernetesConfigError("kubernetes client dependency is not installed")
+
+    try:
+        kube_config.load_incluster_config()
+    except Exception:
+        try:
+            kube_config.load_kube_config()
+        except Exception as kubeconfig_error:
+            raise KubernetesConfigError("unable to load kubernetes config") from kubeconfig_error
+
+    return client.BatchV1Api()
 
 
 class FakeKubernetesProviderAdapter:
@@ -146,11 +162,40 @@ class FakeKubernetesProviderAdapter:
             ],
         }
 
+    def get_job_status(
+        self,
+        cluster: str,
+        namespace: str,
+        job_name: str,
+    ) -> dict[str, object]:
+        return {
+            "job_name": job_name,
+            "namespace": namespace,
+            "active": 0,
+            "succeeded": 1,
+            "failed": 0,
+            "completion_time": "2026-04-18T01:23:45Z",
+            "conditions": [
+                {
+                    "type": "Complete",
+                    "status": "True",
+                    "reason": "Completed",
+                    "message": "Job completed successfully. Bearer secret-job-token",
+                }
+            ],
+        }
+
 
 class RealKubernetesProviderAdapter:
-    def __init__(self, core_v1_api: Any, apps_v1_api: Any | None = None) -> None:
+    def __init__(
+        self,
+        core_v1_api: Any,
+        apps_v1_api: Any | None = None,
+        batch_v1_api: Any | None = None,
+    ) -> None:
         self._core_v1_api = core_v1_api
         self._apps_v1_api = apps_v1_api
+        self._batch_v1_api = batch_v1_api
 
     def get_pod_status(self, cluster: str, namespace: str, pod_name: str) -> dict[str, object]:
         try:
@@ -282,5 +327,52 @@ class RealKubernetesProviderAdapter:
             "ready_replicas": getattr(deployment.status, "ready_replicas", 0) or 0,
             "available_replicas": getattr(deployment.status, "available_replicas", 0) or 0,
             "updated_replicas": getattr(deployment.status, "updated_replicas", 0) or 0,
+            "conditions": conditions,
+        }
+
+    def get_job_status(
+        self,
+        cluster: str,
+        namespace: str,
+        job_name: str,
+    ) -> dict[str, object]:
+        if self._batch_v1_api is None:
+            raise KubernetesApiError("failed to read job status")
+
+        try:
+            job = self._batch_v1_api.read_namespaced_job_status(
+                name=job_name,
+                namespace=namespace,
+            )
+        except ApiException as error:
+            if error.status in (401, 403):
+                raise KubernetesAccessDeniedError("kubernetes access denied") from error
+            if error.status == 404:
+                raise KubernetesResourceNotFoundError("job not found") from error
+            raise KubernetesApiError("failed to read job status") from error
+        except (NameResolutionError, ConnectTimeoutError, MaxRetryError) as error:
+            raise KubernetesEndpointUnreachableError("cluster endpoint unreachable") from error
+        except Exception as error:
+            raise KubernetesApiError("failed to read job status") from error
+
+        conditions = []
+        for condition in getattr(job.status, "conditions", []) or []:
+            conditions.append(
+                {
+                    "type": getattr(condition, "type", None),
+                    "status": getattr(condition, "status", None),
+                    "reason": getattr(condition, "reason", None),
+                    "message": getattr(condition, "message", None),
+                }
+            )
+
+        completion_time = getattr(job.status, "completion_time", None)
+        return {
+            "job_name": job.metadata.name,
+            "namespace": namespace,
+            "active": getattr(job.status, "active", 0) or 0,
+            "succeeded": getattr(job.status, "succeeded", 0) or 0,
+            "failed": getattr(job.status, "failed", 0) or 0,
+            "completion_time": completion_time.isoformat() if completion_time is not None else None,
             "conditions": conditions,
         }
