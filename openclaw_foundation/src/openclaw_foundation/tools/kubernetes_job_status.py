@@ -41,6 +41,8 @@ class KubernetesJobStatusTool:
         active = redacted.get("active", 0)
         succeeded = redacted.get("succeeded", 0)
         failed = redacted.get("failed", 0)
+        owner_kind = redacted.get("owner_kind")
+        owner_name = redacted.get("owner_name")
         if failed:
             health = "failed"
         elif active:
@@ -50,7 +52,14 @@ class KubernetesJobStatusTool:
         else:
             health = "pending"
 
+        owner_suffix = ""
+        if isinstance(owner_kind, str) and isinstance(owner_name, str) and owner_kind and owner_name:
+            owner_suffix = f", owned by {owner_kind.lower()} {owner_name}"
+
         return ToolResult(
-            summary=f"job {job_name} is {health}: active={active}, succeeded={succeeded}, failed={failed}",
+            summary=(
+                f"job {job_name} is {health}: active={active}, succeeded={succeeded}, failed={failed}"
+                f"{owner_suffix}"
+            ),
             evidence=[redacted],
         )

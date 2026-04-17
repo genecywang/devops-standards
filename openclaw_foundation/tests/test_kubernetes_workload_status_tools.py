@@ -100,8 +100,11 @@ def test_get_job_status_tool_uses_adapter_and_returns_summary() -> None:
 
     assert "nightly-backfill-12345" in result.summary
     assert "succeeded" in result.summary
+    assert "owned by cronjob nightly-backfill" in result.summary
     assert len(result.evidence) == 1
     assert result.evidence[0]["succeeded"] == 1
+    assert result.evidence[0]["owner_kind"] == "CronJob"
+    assert result.evidence[0]["owner_name"] == "nightly-backfill"
 
 
 def test_get_job_status_tool_denies_cluster_outside_allowlist() -> None:

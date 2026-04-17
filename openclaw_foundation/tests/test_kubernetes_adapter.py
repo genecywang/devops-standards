@@ -253,6 +253,8 @@ def test_fake_adapter_get_job_status_returns_bounded_payload() -> None:
     assert result["namespace"] == "dev"
     assert result["active"] == 0
     assert result["succeeded"] == 1
+    assert result["owner_kind"] == "CronJob"
+    assert result["owner_name"] == "nightly-backfill"
     assert isinstance(result["conditions"], list)
 
 
@@ -366,6 +368,43 @@ def test_real_adapter_get_deployment_status_maps_minimal_fields() -> None:
     assert result["desired_replicas"] == 3
     assert result["ready_replicas"] == 2
     assert result["conditions"][0]["type"] == "Available"
+
+
+def test_real_adapter_get_job_status_maps_owner_reference() -> None:
+    job = SimpleNamespace(
+        metadata=SimpleNamespace(
+            name="nightly-backfill-12345",
+            owner_references=[
+                SimpleNamespace(
+                    kind="CronJob",
+                    name="nightly-backfill",
+                    controller=True,
+                )
+            ],
+        ),
+        status=SimpleNamespace(
+            active=0,
+            succeeded=1,
+            failed=0,
+            completion_time=None,
+            conditions=[
+                SimpleNamespace(
+                    type="Complete",
+                    status="True",
+                    reason="Completed",
+                    message="Job has completed successfully.",
+                )
+            ],
+        ),
+    )
+    batch_api = SimpleNamespace(read_namespaced_job_status=lambda name, namespace: job)
+    adapter = RealKubernetesProviderAdapter(core_v1_api=None, batch_v1_api=batch_api)
+
+    result = adapter.get_job_status("staging-main", "dev", "nightly-backfill-12345")
+
+    assert result["job_name"] == "nightly-backfill-12345"
+    assert result["owner_kind"] == "CronJob"
+    assert result["owner_name"] == "nightly-backfill"
 
 
 def test_real_adapter_get_pod_events_maps_403_to_access_denied() -> None:

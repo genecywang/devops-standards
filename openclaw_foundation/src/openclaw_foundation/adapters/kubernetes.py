@@ -174,6 +174,8 @@ class FakeKubernetesProviderAdapter:
             "active": 0,
             "succeeded": 1,
             "failed": 0,
+            "owner_kind": "CronJob",
+            "owner_name": "nightly-backfill",
             "completion_time": "2026-04-18T01:23:45Z",
             "conditions": [
                 {
@@ -366,6 +368,18 @@ class RealKubernetesProviderAdapter:
                 }
             )
 
+        owner_kind = None
+        owner_name = None
+        owner_references = getattr(job.metadata, "owner_references", []) or []
+        for owner_reference in owner_references:
+            if getattr(owner_reference, "controller", False):
+                owner_kind = getattr(owner_reference, "kind", None)
+                owner_name = getattr(owner_reference, "name", None)
+                break
+        if owner_kind is None and owner_references:
+            owner_kind = getattr(owner_references[0], "kind", None)
+            owner_name = getattr(owner_references[0], "name", None)
+
         completion_time = getattr(job.status, "completion_time", None)
         return {
             "job_name": job.metadata.name,
@@ -373,6 +387,8 @@ class RealKubernetesProviderAdapter:
             "active": getattr(job.status, "active", 0) or 0,
             "succeeded": getattr(job.status, "succeeded", 0) or 0,
             "failed": getattr(job.status, "failed", 0) or 0,
+            "owner_kind": owner_kind,
+            "owner_name": owner_name,
             "completion_time": completion_time.isoformat() if completion_time is not None else None,
             "conditions": conditions,
         }
