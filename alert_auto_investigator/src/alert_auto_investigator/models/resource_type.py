@@ -35,6 +35,8 @@ class ResourceType:
 NAMESPACE_SCOPED_RESOURCE_TYPES: frozenset[str] = frozenset({
     ResourceType.POD,
     ResourceType.DEPLOYMENT,
+    ResourceType.JOB,
+    ResourceType.CRONJOB,
     ResourceType.SERVICE,
 })
 

@@ -209,7 +209,7 @@ def test_parse_alertmanager_message_job_name_maps_to_job() -> None:
     assert event is not None
     assert event.resource_type == "job"
     assert event.resource_name == "nightly-backfill-12345"
-    assert event.alert_key == "alertmanager:H2-EKS-DEV-STG:KubernetesJobSlowCompletion:nightly-backfill-12345"
+    assert event.alert_key == "alertmanager:H2-EKS-DEV-STG:batch:KubernetesJobSlowCompletion:nightly-backfill-12345"
 
 
 def test_parse_alertmanager_message_exported_job_maps_to_job() -> None:
@@ -246,7 +246,7 @@ RawLabels:
     assert event is not None
     assert event.resource_type == "job"
     assert event.resource_name == "nightly-backfill-12345"
-    assert event.alert_key == "alertmanager:H2-EKS-DEV-STG:KubernetesJobFailed:nightly-backfill-12345"
+    assert event.alert_key == "alertmanager:H2-EKS-DEV-STG:batch:KubernetesJobFailed:nightly-backfill-12345"
 
 
 def test_parse_alertmanager_message_cronjob_maps_to_cronjob() -> None:
@@ -266,7 +266,7 @@ def test_parse_alertmanager_message_cronjob_maps_to_cronjob() -> None:
     assert event is not None
     assert event.resource_type == "cronjob"
     assert event.resource_name == "nightly-backfill"
-    assert event.alert_key == "alertmanager:H2-EKS-DEV-STG:KubernetesCronjobTooLong:nightly-backfill"
+    assert event.alert_key == "alertmanager:H2-EKS-DEV-STG:batch:KubernetesCronjobTooLong:nightly-backfill"
 
 
 def test_parse_alertmanager_message_does_not_infer_job_from_scrape_job_label() -> None:
