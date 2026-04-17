@@ -128,3 +128,10 @@ def handle_message(
             thread_ts=reply_ts,
             text=format_investigation_reply(alert, response),
         )
+        logger.info(
+            "investigation_replied alert_key=%s resource_type=%s channel=%s thread_ts=%s",
+            alert.alert_key,
+            alert.resource_type,
+            event["channel"],
+            reply_ts,
+        )

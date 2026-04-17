@@ -130,6 +130,17 @@ def test_dispatch_routes_job_to_get_job_status() -> None:
     assert runner.last_request.tool_name == "get_job_status"
 
 
+def test_dispatch_logs_supported_but_unrouted_for_investigate_type(caplog) -> None:
+    dispatcher, runner = make_dispatcher(make_config(tool_routing={}))
+
+    with caplog.at_level("WARNING"):
+        result = dispatcher.dispatch(make_event(resource_type="job", resource_name="nightly-backfill-12345"))
+
+    assert result is None
+    assert runner.last_request is None
+    assert "supported_but_unrouted resource_type=job" in caplog.text
+
+
 def test_dispatch_returns_none_for_node_resource_type_by_default() -> None:
     dispatcher, runner = make_dispatcher()
     result = dispatcher.dispatch(make_event(resource_type="node", namespace=""))
@@ -231,3 +242,12 @@ def test_dispatch_passes_budget_config_to_runner() -> None:
     assert budget.max_tool_calls == 3
     assert budget.max_duration_seconds == 60
     assert budget.max_output_tokens == 2048
+
+
+def test_dispatch_logs_successful_dispatch(caplog) -> None:
+    dispatcher, _ = make_dispatcher()
+
+    with caplog.at_level("INFO"):
+        dispatcher.dispatch(make_event(resource_type="job", resource_name="nightly-backfill-12345"))
+
+    assert "dispatching_investigation resource_type=job tool_name=get_job_status" in caplog.text

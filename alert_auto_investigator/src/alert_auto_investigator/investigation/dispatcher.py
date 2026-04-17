@@ -75,6 +75,12 @@ class OpenClawDispatcher:
                     event.resource_type,
                     event.alert_key,
                 )
+            elif policy is InvestigationPolicy.INVESTIGATE:
+                logger.warning(
+                    "supported_but_unrouted resource_type=%s alert_key=%s",
+                    event.resource_type,
+                    event.alert_key,
+                )
             else:
                 logger.warning(
                     "unknown_resource_type resource_type=%s alert_key=%s — not in support matrix",
@@ -86,6 +92,12 @@ class OpenClawDispatcher:
         if request_id is None:
             request_id = str(uuid.uuid4())
 
+        logger.info(
+            "dispatching_investigation resource_type=%s tool_name=%s alert_key=%s",
+            event.resource_type,
+            tool_name,
+            event.alert_key,
+        )
         request = self._build_request(event, tool_name, request_id)
         return self._runner.run(request)
 

@@ -1,6 +1,8 @@
 from unittest.mock import MagicMock, patch
 
 from alert_auto_investigator import __main__
+from alert_auto_investigator.investigation.dispatcher import DEFAULT_TOOL_ROUTING
+from alert_auto_investigator.models.resource_type import InvestigationPolicy, SUPPORT_MATRIX
 
 
 def _set_required_env(monkeypatch) -> None:
@@ -73,3 +75,40 @@ def test_main_uses_socket_mode_app_token(monkeypatch) -> None:
         __main__.main()
 
     socket_mode_handler_mock.assert_called_once_with(fake_app, "xapp-test")
+
+
+def test_main_passes_default_tool_routing_to_dispatcher(monkeypatch) -> None:
+    _set_required_env(monkeypatch)
+
+    fake_client = MagicMock()
+    fake_client.auth_test.return_value = {
+        "bot_id": "B_SELF",
+        "user_id": "U_SELF",
+    }
+
+    fake_app = MagicMock()
+    fake_app.client = fake_client
+    fake_app.event.side_effect = lambda _: (lambda func: func)
+
+    fake_socket_handler = MagicMock()
+
+    with (
+        patch.object(__main__, "_load_slack_bolt", return_value=(MagicMock(return_value=fake_app), MagicMock(return_value=fake_socket_handler))),
+        patch.object(__main__, "build_runner", return_value=MagicMock()),
+        patch.object(__main__, "OpenClawDispatcher") as dispatcher_cls,
+        patch.object(__main__, "handle_message"),
+    ):
+        __main__.main()
+
+    _, investigation_config = dispatcher_cls.call_args.args
+    assert investigation_config.tool_routing == DEFAULT_TOOL_ROUTING
+
+
+def test_all_investigate_resource_types_have_default_tool_routing() -> None:
+    investigate_resource_types = {
+        resource_type
+        for resource_type, policy in SUPPORT_MATRIX.items()
+        if policy is InvestigationPolicy.INVESTIGATE
+    }
+
+    assert investigate_resource_types <= set(DEFAULT_TOOL_ROUTING)

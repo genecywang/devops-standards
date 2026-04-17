@@ -23,7 +23,11 @@ import logging
 from alert_auto_investigator.config import InvestigatorConfig
 from alert_auto_investigator.control.pipeline import ControlPipeline
 from alert_auto_investigator.control.store import InMemoryAlertStateStore
-from alert_auto_investigator.investigation.dispatcher import InvestigationConfig, OpenClawDispatcher
+from alert_auto_investigator.investigation.dispatcher import (
+    DEFAULT_TOOL_ROUTING,
+    InvestigationConfig,
+    OpenClawDispatcher,
+)
 from alert_auto_investigator.models.control_policy import ControlPolicy
 from alert_auto_investigator.service.handler import handle_message
 from alert_auto_investigator.service.runner_factory import build_runner
@@ -57,10 +61,7 @@ def main() -> None:
     pipeline = ControlPipeline(policy, InMemoryAlertStateStore())
 
     investigation_config = InvestigationConfig(
-        tool_routing={
-            "pod": "get_pod_events",
-            "deployment": "get_deployment_status",
-        }
+        tool_routing=dict(DEFAULT_TOOL_ROUTING)
     )
     dispatcher = OpenClawDispatcher(build_runner(config), investigation_config)
 

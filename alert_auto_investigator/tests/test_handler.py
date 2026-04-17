@@ -498,6 +498,25 @@ class TestHandleMessageRecordAndReply:
 
         client.chat_postMessage.assert_not_called()
 
+    def test_successful_reply_is_logged(self, caplog) -> None:
+        client = MagicMock()
+        dispatcher = MagicMock()
+        dispatcher.dispatch.return_value = MagicMock(
+            summary="pod worker-pod is healthy",
+            result_state="success",
+            actions_attempted=["get_pod_events"],
+        )
+        config = _make_config()
+        pipeline = _make_pipeline(config)
+
+        with caplog.at_level("INFO"):
+            handle_message(
+                _make_event(attachments=[{"text": _ALERTMANAGER_TEXT}], ts="111.000"),
+                client, config, pipeline, dispatcher,
+            )
+
+        assert "investigation_replied alert_key=" in caplog.text
+
     def test_dispatch_exception_is_logged_and_does_not_reply(self) -> None:
         client = MagicMock()
         dispatcher = MagicMock()
