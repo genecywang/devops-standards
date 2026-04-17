@@ -33,6 +33,38 @@ class KubernetesPodEventsTool:
         truncated = truncate_pod_events(events)
         redacted = [redact_output(event) for event in truncated]
         return ToolResult(
-            summary=f"pod {pod_name} has {len(redacted)} recent events",
+            summary=_summarize_pod_events(pod_name, redacted),
             evidence=redacted,
         )
+
+
+def _summarize_pod_events(pod_name: str, events: list[dict[str, object]]) -> str:
+    if not events:
+        return f"pod {pod_name} has no recent events"
+
+    warning_events = [event for event in events if event.get("type") == "Warning"]
+    if warning_events:
+        reason_counts: dict[str, int] = {}
+        for event in warning_events:
+            reason = str(event.get("reason") or "Unknown")
+            count = event.get("count", 1)
+            reason_counts[reason] = reason_counts.get(reason, 0) + (count if isinstance(count, int) else 1)
+
+        ordered_reasons = sorted(reason_counts.items(), key=lambda item: (-item[1], item[0]))
+        top_reasons = ", ".join(f"{reason} x{count}" for reason, count in ordered_reasons[:3])
+        latest_warning = warning_events[0]
+        latest_reason = str(latest_warning.get("reason") or "Unknown")
+        latest_message = str(latest_warning.get("message") or "-")
+        return (
+            f"pod {pod_name} has recent Warning events: {top_reasons}; "
+            f"latest reason={latest_reason}; message={latest_message}"
+        )
+
+    latest_event = events[0]
+    latest_type = str(latest_event.get("type") or "Unknown")
+    latest_reason = str(latest_event.get("reason") or "Unknown")
+    latest_message = str(latest_event.get("message") or "-")
+    return (
+        f"pod {pod_name} has {len(events)} recent events; "
+        f"latest event={latest_type}/{latest_reason}; message={latest_message}"
+    )

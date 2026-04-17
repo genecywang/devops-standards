@@ -5,6 +5,7 @@ from openclaw_foundation.models.enums import RequestType
 from openclaw_foundation.models.requests import ExecutionBudget, InvestigationRequest
 from openclaw_foundation.tools.kubernetes_deployment_status import KubernetesDeploymentStatusTool
 from openclaw_foundation.tools.kubernetes_job_status import KubernetesJobStatusTool
+from openclaw_foundation.tools.kubernetes_pod_events import KubernetesPodEventsTool
 
 
 def make_request(namespace: str = "dev") -> InvestigationRequest:
@@ -27,6 +28,43 @@ def make_request(namespace: str = "dev") -> InvestigationRequest:
             "resource_name": "dev-api",
         },
     )
+
+
+def make_pod_request(namespace: str = "dev") -> InvestigationRequest:
+    return InvestigationRequest(
+        request_type=RequestType.INVESTIGATION,
+        request_id="req-pod-events-001",
+        source_product="alert_auto_investigator",
+        scope={"environment": "staging", "cluster": "staging-main"},
+        input_ref="fixture:pod-events",
+        budget=ExecutionBudget(
+            max_steps=2,
+            max_tool_calls=1,
+            max_duration_seconds=30,
+            max_output_tokens=256,
+        ),
+        tool_name="get_pod_events",
+        target={
+            "cluster": "staging-main",
+            "namespace": namespace,
+            "resource_name": "dev-api-123",
+        },
+    )
+
+
+def test_get_pod_events_tool_returns_actionable_warning_summary() -> None:
+    tool = KubernetesPodEventsTool(
+        adapter=FakeKubernetesProviderAdapter(),
+        allowed_clusters={"staging-main"},
+        allowed_namespaces={"dev"},
+    )
+
+    result = tool.invoke(make_pod_request())
+
+    assert "Warning events" in result.summary
+    assert "BackOff x3" in result.summary
+    assert "latest reason=BackOff" in result.summary
+    assert len(result.evidence) == 2
 
 
 def test_get_deployment_status_tool_uses_adapter_and_returns_summary() -> None:
