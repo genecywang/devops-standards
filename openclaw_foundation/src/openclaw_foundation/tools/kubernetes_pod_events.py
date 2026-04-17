@@ -1,7 +1,12 @@
 from openclaw_foundation.adapters.kubernetes import KubernetesProviderAdapter
 from openclaw_foundation.models.requests import InvestigationRequest
 from openclaw_foundation.models.responses import ToolResult
-from openclaw_foundation.runtime.guards import redact_output, truncate_pod_events, validate_scope
+from openclaw_foundation.runtime.guards import (
+    redact_output,
+    truncate_pod_events,
+    truncate_pod_status,
+    validate_scope,
+)
 
 
 class KubernetesPodEventsTool:
@@ -29,18 +34,26 @@ class KubernetesPodEventsTool:
             raise ValueError("resource_name or pod_name is required for get_pod_events")
         validate_scope(cluster, namespace, self._allowed_clusters, self._allowed_namespaces)
 
+        pod_status = self._adapter.get_pod_status(cluster, namespace, pod_name)
+        truncated_status = truncate_pod_status(pod_status)
+        redacted_status = redact_output(truncated_status)
         events = self._adapter.get_pod_events(cluster, namespace, pod_name)
         truncated = truncate_pod_events(events)
         redacted = [redact_output(event) for event in truncated]
         return ToolResult(
-            summary=_summarize_pod_events(pod_name, redacted),
+            summary=_summarize_pod_events(pod_name, redacted_status, redacted),
             evidence=redacted,
         )
 
 
-def _summarize_pod_events(pod_name: str, events: list[dict[str, object]]) -> str:
+def _summarize_pod_events(
+    pod_name: str,
+    pod_status: dict[str, object],
+    events: list[dict[str, object]],
+) -> str:
+    status_summary = _summarize_pod_status(pod_name, pod_status)
     if not events:
-        return f"pod {pod_name} has no recent events"
+        return f"{status_summary}; no recent events"
 
     warning_events = [event for event in events if event.get("type") == "Warning"]
     if warning_events:
@@ -56,7 +69,7 @@ def _summarize_pod_events(pod_name: str, events: list[dict[str, object]]) -> str
         latest_reason = str(latest_warning.get("reason") or "Unknown")
         latest_message = str(latest_warning.get("message") or "-")
         return (
-            f"pod {pod_name} has recent Warning events: {top_reasons}; "
+            f"{status_summary}; Warning events: {top_reasons}; "
             f"latest reason={latest_reason}; message={latest_message}"
         )
 
@@ -65,6 +78,35 @@ def _summarize_pod_events(pod_name: str, events: list[dict[str, object]]) -> str
     latest_reason = str(latest_event.get("reason") or "Unknown")
     latest_message = str(latest_event.get("message") or "-")
     return (
-        f"pod {pod_name} has {len(events)} recent events; "
+        f"{status_summary}; "
         f"latest event={latest_type}/{latest_reason}; message={latest_message}"
     )
+
+
+def _summarize_pod_status(pod_name: str, pod_status: dict[str, object]) -> str:
+    phase = str(pod_status.get("phase") or "Unknown")
+    parts = [f"pod {pod_name} is {phase}"]
+
+    container_summaries: list[str] = []
+    for container in pod_status.get("container_statuses", []):
+        if not isinstance(container, dict):
+            continue
+
+        name = str(container.get("name") or "unknown")
+        state = container.get("state", {})
+        restart_count = container.get("restart_count")
+
+        if isinstance(state, dict) and state.get("waiting_reason"):
+            container_summaries.append(f"container {name} waiting reason={state['waiting_reason']}")
+        elif isinstance(state, dict) and state.get("terminated_reason"):
+            summary = f"container {name} last terminated reason={state['terminated_reason']}"
+            if state.get("terminated_exit_code") is not None:
+                summary += f" exit_code={state['terminated_exit_code']}"
+            container_summaries.append(summary)
+        elif restart_count:
+            container_summaries.append(f"container {name} restart_count={restart_count}")
+
+    if container_summaries:
+        parts.append("; ".join(container_summaries[:2]))
+
+    return "; ".join(parts)

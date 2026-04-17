@@ -105,6 +105,8 @@ class FakeKubernetesProviderAdapter:
                     "name": "app",
                     "ready": True,
                     "annotation": "Bearer secret-token",
+                    "restart_count": 0,
+                    "state": {},
                 }
             ],
             "node_name": "node-a",
@@ -215,11 +217,29 @@ class RealKubernetesProviderAdapter:
 
         statuses = []
         for container_status in getattr(pod.status, "container_statuses", []) or []:
+            state = getattr(container_status, "state", None)
+            waiting = getattr(state, "waiting", None) if state is not None else None
+            terminated = getattr(state, "terminated", None) if state is not None else None
+
+            normalized_state: dict[str, object] = {}
+            if waiting is not None and getattr(waiting, "reason", None):
+                normalized_state["waiting_reason"] = waiting.reason
+            if waiting is not None and getattr(waiting, "message", None):
+                normalized_state["waiting_message"] = waiting.message
+            if terminated is not None and getattr(terminated, "reason", None):
+                normalized_state["terminated_reason"] = terminated.reason
+            if terminated is not None and getattr(terminated, "message", None):
+                normalized_state["terminated_message"] = terminated.message
+            if terminated is not None and getattr(terminated, "exit_code", None) is not None:
+                normalized_state["terminated_exit_code"] = terminated.exit_code
+
             statuses.append(
                 {
                     "name": container_status.name,
                     "ready": container_status.ready,
                     "image": getattr(container_status, "image", None),
+                    "restart_count": getattr(container_status, "restart_count", 0),
+                    "state": normalized_state,
                 }
             )
 

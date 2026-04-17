@@ -28,6 +28,38 @@ def make_events_request(namespace: str = "dev") -> InvestigationRequest:
     )
 
 
+class PendingPodAdapter(FakeKubernetesProviderAdapter):
+    def get_pod_status(self, cluster: str, namespace: str, pod_name: str) -> dict[str, object]:
+        return {
+            "pod_name": pod_name,
+            "namespace": namespace,
+            "phase": "Pending",
+            "container_statuses": [
+                {
+                    "name": "app",
+                    "ready": False,
+                    "image": "example:v1",
+                    "restart_count": 0,
+                    "state": {
+                        "waiting_reason": "ContainerCreating",
+                    },
+                }
+            ],
+            "node_name": "node-a",
+        }
+
+    def get_pod_events(self, cluster: str, namespace: str, pod_name: str) -> list[dict[str, object]]:
+        return [
+            {
+                "type": "Normal",
+                "reason": "Scheduled",
+                "message": f"Successfully assigned {namespace}/{pod_name} to node-a",
+                "count": 1,
+                "last_timestamp": "2026-04-18T03:00:00Z",
+            }
+        ]
+
+
 def test_get_pod_events_tool_returns_event_list_via_adapter() -> None:
     tool = KubernetesPodEventsTool(
         adapter=FakeKubernetesProviderAdapter(),
@@ -41,6 +73,21 @@ def test_get_pod_events_tool_returns_event_list_via_adapter() -> None:
     assert len(result.evidence) >= 1
     first = result.evidence[0]
     assert set(first.keys()) == {"type", "reason", "message", "count", "last_timestamp"}
+
+
+def test_get_pod_events_tool_prioritizes_pod_status_in_summary() -> None:
+    tool = KubernetesPodEventsTool(
+        adapter=PendingPodAdapter(),
+        allowed_clusters={"staging-main"},
+        allowed_namespaces={"dev"},
+    )
+
+    result = tool.invoke(make_events_request())
+
+    assert "pod dev-api-123 is Pending" in result.summary
+    assert "waiting reason=ContainerCreating" in result.summary
+    assert "latest event=Normal/Scheduled" in result.summary
+    assert "has 1 recent events" not in result.summary
 
 
 def test_get_pod_events_tool_denies_cluster_outside_allowlist() -> None:

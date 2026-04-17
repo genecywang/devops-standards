@@ -129,6 +129,11 @@ def test_real_adapter_maps_pod_status_payload() -> None:
                     name="app",
                     ready=True,
                     image="example:v1",
+                    restart_count=2,
+                    state=SimpleNamespace(
+                        waiting=None,
+                        terminated=SimpleNamespace(reason="OOMKilled", exit_code=137),
+                    ),
                 )
             ],
         ),
@@ -147,7 +152,18 @@ def test_real_adapter_maps_pod_status_payload() -> None:
         "pod_name": "dev-api-123",
         "namespace": "dev",
         "phase": "Running",
-        "container_statuses": [{"name": "app", "ready": True, "image": "example:v1"}],
+        "container_statuses": [
+            {
+                "name": "app",
+                "ready": True,
+                "image": "example:v1",
+                "restart_count": 2,
+                "state": {
+                    "terminated_reason": "OOMKilled",
+                    "terminated_exit_code": 137,
+                },
+            }
+        ],
         "node_name": "node-a",
     }
 
