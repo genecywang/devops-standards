@@ -6,6 +6,32 @@ and what it does with each. The same policy is enforced in code at
 
 ---
 
+## Runtime Behavior Quick Reference
+
+Use this section when reading live Slack alerts. "No reply" is not always a bug.
+
+| Alert shape | Expected bot behavior | Why |
+|-------------|-----------------------|-----|
+| `pod` in allowed namespace | Replies in thread | `pod` is actively supported |
+| short-lived `pod` already deleted before investigation | Replies in thread with `pod <name> no longer exists` | graceful fallback for ephemeral pods |
+| `deployment` in allowed namespace | Replies in thread | `deployment` is actively supported |
+| `job` in allowed namespace | Replies in thread | `job` is actively supported |
+| `job` outside `ALLOWED_NAMESPACES` or `ALLOWED_CLUSTERS` | No Slack reply | blocked by runtime scope guard |
+| `cronjob` | No Slack reply | `NEXT_CANDIDATE`, not implemented yet |
+| `namespace` | No Slack reply | `SKIP` by design |
+| `node` | No Slack reply | `SKIP` by design |
+| `unknown` | No Slack reply | parser could not map to a supported investigation target |
+
+Operational notes:
+
+- `pod no longer exists` usually means the alert targeted an ephemeral workload and the pod was already gone when investigation started.
+- `job` and `cronjob` alert keys include namespace; cooldown and dedupe are namespace-scoped.
+- If a supported alert does not reply, check logs for either:
+  - `dispatch_blocked_by_scope`
+  - `dispatch failed`
+
+---
+
 ## Actively Supported (`INVESTIGATE`)
 
 These resource types trigger a real investigation via an OpenClaw tool.
