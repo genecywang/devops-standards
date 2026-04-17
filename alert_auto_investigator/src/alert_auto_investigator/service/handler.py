@@ -108,6 +108,15 @@ def handle_message(
 
         try:
             response = dispatcher.dispatch(alert)
+        except PermissionError as exc:
+            logger.info(
+                "dispatch_blocked_by_scope alert_key=%s resource_type=%s resource_name=%s reason=%s",
+                alert.alert_key,
+                alert.resource_type,
+                alert.resource_name,
+                str(exc),
+            )
+            continue
         except Exception:
             logger.exception(
                 "dispatch failed alert_key=%s resource_type=%s resource_name=%s",

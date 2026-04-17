@@ -543,6 +543,25 @@ class TestHandleMessageRecordAndReply:
         assert dispatcher.dispatch.call_count == 2
         client.chat_postMessage.assert_not_called()
 
+    def test_permission_error_is_logged_as_scope_policy_and_does_not_reply(self, caplog) -> None:
+        client = MagicMock()
+        dispatcher = MagicMock()
+        dispatcher.dispatch.side_effect = PermissionError("namespace is not allowed")
+        config = _make_config(cooldown_seconds=300.0)
+        pipeline = _make_pipeline(config)
+
+        with caplog.at_level("INFO"):
+            handle_message(
+                _make_event(attachments=[{"text": _ALERTMANAGER_TEXT}], ts="100.000"),
+                client, config, pipeline, dispatcher,
+            )
+
+        client.chat_postMessage.assert_not_called()
+        assert "dispatch_blocked_by_scope" in caplog.text
+        assert "resource_type=node" in caplog.text
+        assert "resource_name=ip-172-16-52-233.ap-east-1.compute.internal" in caplog.text
+        assert "dispatch failed" not in caplog.text
+
     def test_replies_to_thread_ts_when_in_thread(self) -> None:
         client = MagicMock()
         dispatcher = MagicMock()
