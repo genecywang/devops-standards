@@ -1,4 +1,7 @@
-from openclaw_foundation.adapters.kubernetes import KubernetesProviderAdapter
+from openclaw_foundation.adapters.kubernetes import (
+    KubernetesProviderAdapter,
+    KubernetesResourceNotFoundError,
+)
 from openclaw_foundation.models.requests import InvestigationRequest
 from openclaw_foundation.models.responses import ToolResult
 from openclaw_foundation.runtime.guards import (
@@ -34,24 +37,31 @@ class KubernetesPodEventsTool:
             raise ValueError("resource_name or pod_name is required for get_pod_events")
         validate_scope(cluster, namespace, self._allowed_clusters, self._allowed_namespaces)
 
-        pod_status = self._adapter.get_pod_status(cluster, namespace, pod_name)
-        truncated_status = truncate_pod_status(pod_status)
-        redacted_status = redact_output(truncated_status)
+        pod_status_summary: str | None = None
+        try:
+            pod_status = self._adapter.get_pod_status(cluster, namespace, pod_name)
+        except KubernetesResourceNotFoundError:
+            pod_status = None
+            pod_status_summary = f"pod {pod_name} no longer exists"
+        else:
+            truncated_status = truncate_pod_status(pod_status)
+            redacted_status = redact_output(truncated_status)
+            pod_status_summary = _summarize_pod_status(pod_name, redacted_status)
         events = self._adapter.get_pod_events(cluster, namespace, pod_name)
         truncated = truncate_pod_events(events)
         redacted = [redact_output(event) for event in truncated]
         return ToolResult(
-            summary=_summarize_pod_events(pod_name, redacted_status, redacted),
+            summary=_summarize_pod_events(pod_name, pod_status_summary, redacted),
             evidence=redacted,
         )
 
 
 def _summarize_pod_events(
     pod_name: str,
-    pod_status: dict[str, object],
+    pod_status_summary: str | None,
     events: list[dict[str, object]],
 ) -> str:
-    status_summary = _summarize_pod_status(pod_name, pod_status)
+    status_summary = pod_status_summary or f"pod {pod_name} status unavailable"
     if not events:
         return f"{status_summary}; no recent events"
 

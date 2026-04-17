@@ -1,6 +1,9 @@
 import pytest
 
-from openclaw_foundation.adapters.kubernetes import FakeKubernetesProviderAdapter
+from openclaw_foundation.adapters.kubernetes import (
+    FakeKubernetesProviderAdapter,
+    KubernetesResourceNotFoundError,
+)
 from openclaw_foundation.models.enums import RequestType
 from openclaw_foundation.models.requests import ExecutionBudget, InvestigationRequest
 from openclaw_foundation.tools.kubernetes_pod_events import KubernetesPodEventsTool
@@ -60,6 +63,22 @@ class PendingPodAdapter(FakeKubernetesProviderAdapter):
         ]
 
 
+class DeletedPodAdapter(FakeKubernetesProviderAdapter):
+    def get_pod_status(self, cluster: str, namespace: str, pod_name: str) -> dict[str, object]:
+        raise KubernetesResourceNotFoundError("pod not found")
+
+    def get_pod_events(self, cluster: str, namespace: str, pod_name: str) -> list[dict[str, object]]:
+        return [
+            {
+                "type": "Normal",
+                "reason": "Scheduled",
+                "message": f"Successfully assigned {namespace}/{pod_name} to node-a",
+                "count": 1,
+                "last_timestamp": "2026-04-18T03:00:00Z",
+            }
+        ]
+
+
 def test_get_pod_events_tool_returns_event_list_via_adapter() -> None:
     tool = KubernetesPodEventsTool(
         adapter=FakeKubernetesProviderAdapter(),
@@ -88,6 +107,20 @@ def test_get_pod_events_tool_prioritizes_pod_status_in_summary() -> None:
     assert "waiting reason=ContainerCreating" in result.summary
     assert "latest event=Normal/Scheduled" in result.summary
     assert "has 1 recent events" not in result.summary
+
+
+def test_get_pod_events_tool_degrades_gracefully_when_pod_is_already_deleted() -> None:
+    tool = KubernetesPodEventsTool(
+        adapter=DeletedPodAdapter(),
+        allowed_clusters={"staging-main"},
+        allowed_namespaces={"dev"},
+    )
+
+    result = tool.invoke(make_events_request())
+
+    assert "pod dev-api-123 no longer exists" in result.summary
+    assert "latest event=Normal/Scheduled" in result.summary
+    assert len(result.evidence) == 1
 
 
 def test_get_pod_events_tool_denies_cluster_outside_allowlist() -> None:
