@@ -106,7 +106,14 @@ def test_get_pod_events_tool_prioritizes_pod_status_in_summary() -> None:
     assert "pod dev-api-123 is Pending" in result.summary
     assert "waiting reason=ContainerCreating" in result.summary
     assert "latest event=Normal/Scheduled" in result.summary
+    assert "needs attention" in result.summary
     assert "has 1 recent events" not in result.summary
+    assert result.metadata == {
+        "health_state": "degraded",
+        "attention_required": True,
+        "resource_exists": True,
+        "primary_reason": "ContainerCreating",
+    }
 
 
 def test_get_pod_events_tool_degrades_gracefully_when_pod_is_already_deleted() -> None:
@@ -121,6 +128,106 @@ def test_get_pod_events_tool_degrades_gracefully_when_pod_is_already_deleted() -
     assert "pod dev-api-123 no longer exists" in result.summary
     assert "latest event=Normal/Scheduled" in result.summary
     assert len(result.evidence) == 1
+    assert result.metadata == {
+        "health_state": "gone",
+        "attention_required": False,
+        "resource_exists": False,
+        "primary_reason": "Deleted",
+    }
+
+
+class RunningPodAdapter(FakeKubernetesProviderAdapter):
+    def get_pod_status(self, cluster: str, namespace: str, pod_name: str) -> dict[str, object]:
+        return {
+            "pod_name": pod_name,
+            "namespace": namespace,
+            "phase": "Running",
+            "container_statuses": [
+                {
+                    "name": "app",
+                    "ready": True,
+                    "image": "example:v1",
+                    "restart_count": 0,
+                    "state": {},
+                }
+            ],
+            "node_name": "node-a",
+        }
+
+    def get_pod_events(self, cluster: str, namespace: str, pod_name: str) -> list[dict[str, object]]:
+        return [
+            {
+                "type": "Normal",
+                "reason": "Scheduled",
+                "message": f"Successfully assigned {namespace}/{pod_name} to node-a",
+                "count": 1,
+                "last_timestamp": "2026-04-18T03:00:00Z",
+            }
+        ]
+
+
+class RestartingPodAdapter(FakeKubernetesProviderAdapter):
+    def get_pod_status(self, cluster: str, namespace: str, pod_name: str) -> dict[str, object]:
+        return {
+            "pod_name": pod_name,
+            "namespace": namespace,
+            "phase": "Running",
+            "container_statuses": [
+                {
+                    "name": "app",
+                    "ready": True,
+                    "image": "example:v1",
+                    "restart_count": 4,
+                    "state": {
+                        "terminated_reason": "OOMKilled",
+                        "terminated_exit_code": 137,
+                    },
+                }
+            ],
+            "node_name": "node-a",
+        }
+
+    def get_pod_events(self, cluster: str, namespace: str, pod_name: str) -> list[dict[str, object]]:
+        return []
+
+
+def test_get_pod_events_tool_suppresses_normal_only_event_noise_for_healthy_pod() -> None:
+    tool = KubernetesPodEventsTool(
+        adapter=RunningPodAdapter(),
+        allowed_clusters={"staging-main"},
+        allowed_namespaces={"dev"},
+    )
+
+    result = tool.invoke(make_events_request())
+
+    assert result.summary == "pod dev-api-123 is Running; no recent Warning events"
+    assert result.metadata == {
+        "health_state": "healthy",
+        "attention_required": False,
+        "resource_exists": True,
+        "primary_reason": "Running",
+    }
+
+
+def test_get_pod_events_tool_surfaces_restarts_as_actionable_signal() -> None:
+    tool = KubernetesPodEventsTool(
+        adapter=RestartingPodAdapter(),
+        allowed_clusters={"staging-main"},
+        allowed_namespaces={"dev"},
+    )
+
+    result = tool.invoke(make_events_request())
+
+    assert "pod dev-api-123 is Running but needs attention" in result.summary
+    assert "last terminated reason=OOMKilled exit_code=137" in result.summary
+    assert "restart_count=4" in result.summary
+    assert "no recent events" in result.summary
+    assert result.metadata == {
+        "health_state": "degraded",
+        "attention_required": True,
+        "resource_exists": True,
+        "primary_reason": "OOMKilled",
+    }
 
 
 def test_get_pod_events_tool_denies_cluster_outside_allowlist() -> None:

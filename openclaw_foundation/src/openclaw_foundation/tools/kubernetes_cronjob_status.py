@@ -6,6 +6,9 @@ from openclaw_foundation.runtime.guards import (
     truncate_job_status,
     validate_scope,
 )
+from openclaw_foundation.tools.investigation_metadata import make_investigation_metadata
+from openclaw_foundation.tools.kubernetes_job_status import _build_job_summary
+from openclaw_foundation.tools.kubernetes_job_status import _build_job_metadata
 
 
 class KubernetesCronJobStatusTool:
@@ -38,33 +41,25 @@ class KubernetesCronJobStatusTool:
         truncated = truncate_job_status(payload)
         redacted = redact_output(truncated)
         cronjob_prefix = _build_cronjob_prefix(cronjob_name, redacted)
+        suspended = bool(redacted.get("suspend", False))
 
         latest_job_name = redacted.get("latest_job_name")
         if not isinstance(latest_job_name, str) or not latest_job_name:
+            if suspended:
+                summary = f"{cronjob_prefix} is suspended; no recent jobs"
+            else:
+                summary = f"{cronjob_prefix} has no recent jobs"
             return ToolResult(
-                summary=f"{cronjob_prefix} has no recent jobs",
+                summary=summary,
                 evidence=[redacted],
+                metadata=_build_cronjob_idle_metadata(suspended),
             )
 
-        active = redacted.get("active", 0)
-        succeeded = redacted.get("succeeded", 0)
-        failed = redacted.get("failed", 0)
-        if failed:
-            health = "failed"
-        elif active:
-            health = "running"
-        elif succeeded:
-            health = "succeeded"
-        else:
-            health = "pending"
-
-        detail_suffix = _build_job_summary_detail(redacted)
+        job_summary = _build_job_summary(latest_job_name, redacted)
         return ToolResult(
-            summary=(
-                f"{cronjob_prefix}; latest job {latest_job_name} is {health}: "
-                f"active={active}, succeeded={succeeded}, failed={failed}{detail_suffix}"
-            ),
+            summary=f"{cronjob_prefix}; latest {job_summary}",
             evidence=[redacted],
+            metadata=_build_job_metadata(redacted),
         )
 
 
@@ -86,27 +81,18 @@ def _build_cronjob_prefix(cronjob_name: str, payload: dict[str, object]) -> str:
     return " ".join(parts)
 
 
-def _build_job_summary_detail(payload: dict[str, object]) -> str:
-    conditions = payload.get("conditions", [])
-    if not isinstance(conditions, list):
-        return ""
+def _build_cronjob_idle_metadata(suspended: bool) -> dict[str, object]:
+    if suspended:
+        return make_investigation_metadata(
+            health_state="suspended",
+            attention_required=False,
+            resource_exists=True,
+            primary_reason="Suspended",
+        )
 
-    for condition in conditions:
-        if not isinstance(condition, dict):
-            continue
-        if str(condition.get("status") or "").lower() != "true":
-            continue
-
-        reason = str(condition.get("reason") or "").strip()
-        message = str(condition.get("message") or "").strip()
-        if not reason and not message:
-            continue
-
-        parts = []
-        if reason:
-            parts.append(f"reason={reason}")
-        if message:
-            parts.append(f"message={message}")
-        return ", " + ", ".join(parts)
-
-    return ""
+    return make_investigation_metadata(
+        health_state="idle",
+        attention_required=False,
+        resource_exists=True,
+        primary_reason="NoRecentJobs",
+    )

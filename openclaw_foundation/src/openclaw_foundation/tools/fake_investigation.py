@@ -10,4 +10,5 @@ class FakeInvestigationTool:
         return ToolResult(
             summary=f"fake investigation completed for {request.request_id}",
             evidence=[{"input_ref": request.input_ref}],
+            metadata={"kind": "fake"},
         )

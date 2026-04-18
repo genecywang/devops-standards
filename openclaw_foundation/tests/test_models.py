@@ -43,9 +43,11 @@ def test_canonical_response_uses_result_state() -> None:
         summary="ok",
         actions_attempted=["fake_investigation"],
         redaction_applied=True,
+        metadata={"health_state": "healthy"},
     )
 
     assert response.result_state == ResultState.SUCCESS
+    assert response.metadata == {"health_state": "healthy"}
 
 
 def test_investigation_request_accepts_optional_requested_by() -> None:

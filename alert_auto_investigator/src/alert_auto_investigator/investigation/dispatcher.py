@@ -66,25 +66,25 @@ class OpenClawDispatcher:
             policy = SUPPORT_MATRIX.get(event.resource_type)
             if policy is InvestigationPolicy.SKIP:
                 logger.debug(
-                    "skip_by_design resource_type=%s alert_key=%s",
+                    "dispatch_skipped_no_tool resource_type=%s policy=skip_by_design alert_key=%s",
                     event.resource_type,
                     event.alert_key,
                 )
             elif policy is InvestigationPolicy.NEXT_CANDIDATE:
                 logger.info(
-                    "next_candidate_not_yet_implemented resource_type=%s alert_key=%s",
+                    "dispatch_skipped_no_tool resource_type=%s policy=next_candidate_not_yet_implemented alert_key=%s",
                     event.resource_type,
                     event.alert_key,
                 )
             elif policy is InvestigationPolicy.INVESTIGATE:
                 logger.warning(
-                    "supported_but_unrouted resource_type=%s alert_key=%s",
+                    "dispatch_skipped_no_tool resource_type=%s policy=supported_but_unrouted alert_key=%s",
                     event.resource_type,
                     event.alert_key,
                 )
             else:
                 logger.warning(
-                    "unknown_resource_type resource_type=%s alert_key=%s — not in support matrix",
+                    "dispatch_skipped_no_tool resource_type=%s policy=unknown_resource_type alert_key=%s",
                     event.resource_type,
                     event.alert_key,
                 )
@@ -94,7 +94,7 @@ class OpenClawDispatcher:
             request_id = str(uuid.uuid4())
 
         logger.info(
-            "dispatching_investigation resource_type=%s tool_name=%s alert_key=%s",
+            "dispatch_started resource_type=%s tool_name=%s alert_key=%s",
             event.resource_type,
             tool_name,
             event.alert_key,

@@ -40,6 +40,7 @@ def test_fake_tool_returns_summary_and_evidence() -> None:
 
     assert "req-001" in result.summary
     assert result.evidence == [{"input_ref": "fixture:demo"}]
+    assert result.metadata == {"kind": "fake"}
 
 
 def test_runner_success_path() -> None:
@@ -53,6 +54,7 @@ def test_runner_success_path() -> None:
     assert response.result_state == "success"
     assert response.actions_attempted == ["fake_investigation"]
     assert response.redaction_applied is True
+    assert response.metadata == {"kind": "fake"}
     assert runner.state_history == [
         RuntimeState.RECEIVED,
         RuntimeState.VALIDATED,

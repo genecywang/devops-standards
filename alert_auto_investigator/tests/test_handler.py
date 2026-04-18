@@ -505,6 +505,12 @@ class TestHandleMessageRecordAndReply:
             summary="pod worker-pod is healthy",
             result_state="success",
             actions_attempted=["get_pod_events"],
+            metadata={
+                "health_state": "healthy",
+                "attention_required": False,
+                "resource_exists": True,
+                "primary_reason": "Running",
+            },
         )
         config = _make_config()
         pipeline = _make_pipeline(config)
@@ -515,7 +521,13 @@ class TestHandleMessageRecordAndReply:
                 client, config, pipeline, dispatcher,
             )
 
+        assert "alerts_detected count=1" in caplog.text
+        assert "control_decision action=investigate reason_code=passed" in caplog.text
         assert "investigation_replied alert_key=" in caplog.text
+        assert "health_state=healthy" in caplog.text
+        assert "attention_required=false" in caplog.text
+        assert "resource_exists=true" in caplog.text
+        assert "primary_reason=Running" in caplog.text
 
     def test_dispatch_exception_is_logged_and_does_not_reply(self) -> None:
         client = MagicMock()
@@ -557,10 +569,30 @@ class TestHandleMessageRecordAndReply:
             )
 
         client.chat_postMessage.assert_not_called()
-        assert "dispatch_blocked_by_scope" in caplog.text
+        assert "dispatch_scope_denied" in caplog.text
         assert "resource_type=node" in caplog.text
         assert "resource_name=ip-172-16-52-233.ap-east-1.compute.internal" in caplog.text
         assert "dispatch failed" not in caplog.text
+
+    def test_control_skip_is_logged_with_reason_code(self, caplog) -> None:
+        client = MagicMock()
+        dispatcher = MagicMock()
+        config = _make_config(cooldown_seconds=300.0)
+        pipeline = _make_pipeline(config)
+
+        event = _make_event(attachments=[{"text": _ALERTMANAGER_TEXT}], ts="100.000")
+
+        with caplog.at_level("INFO"):
+            handle_message(event, client, config, pipeline, dispatcher)
+            handle_message(
+                _make_event(attachments=[{"text": _ALERTMANAGER_TEXT}], ts="200.000"),
+                client,
+                config,
+                pipeline,
+                dispatcher,
+            )
+
+        assert "control_decision action=skip reason_code=cooldown" in caplog.text
 
     def test_replies_to_thread_ts_when_in_thread(self) -> None:
         client = MagicMock()

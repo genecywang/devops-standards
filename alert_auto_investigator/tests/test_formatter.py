@@ -38,7 +38,17 @@ def make_response(**overrides) -> CanonicalResponse:
 
 
 def test_format_investigation_reply_for_success() -> None:
-    text = format_investigation_reply(make_event(), make_response())
+    text = format_investigation_reply(
+        make_event(),
+        make_response(
+            metadata={
+                "health_state": "healthy",
+                "attention_required": False,
+                "resource_exists": True,
+                "primary_reason": "Completed",
+            },
+        ),
+    )
 
     assert "*Investigation Result*" in text
     assert "*Alert:* DeploymentReplicasMismatch" in text
@@ -46,6 +56,10 @@ def test_format_investigation_reply_for_success() -> None:
     assert "*Environment:* dev" in text
     assert "*Check:* get_deployment_status" in text
     assert "*Result:* success" in text
+    assert "*Health:* healthy" in text
+    assert "*Attention:* no" in text
+    assert "*Exists:* yes" in text
+    assert "*Reason:* Completed" in text
     assert "*Summary:* deployment medication-service is healthy: 2/2 ready, 2 available" in text
 
 
@@ -62,3 +76,12 @@ def test_format_investigation_reply_for_failed_result() -> None:
     assert "*Result:* failed" in text
     assert "*Check:* none" in text
     assert "*Summary:* no registered tool available for get_deployment_status" in text
+
+
+def test_format_investigation_reply_omits_metadata_lines_when_unavailable() -> None:
+    text = format_investigation_reply(make_event(), make_response())
+
+    assert "*Health:*" not in text
+    assert "*Attention:*" not in text
+    assert "*Exists:*" not in text
+    assert "*Reason:*" not in text

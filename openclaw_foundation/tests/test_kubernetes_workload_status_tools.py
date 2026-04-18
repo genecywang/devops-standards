@@ -207,12 +207,19 @@ def test_get_job_status_tool_uses_adapter_and_returns_summary() -> None:
     result = tool.invoke(make_job_request())
 
     assert "nightly-backfill-12345" in result.summary
-    assert "succeeded" in result.summary
+    assert "completed successfully" in result.summary
+    assert "completion_time=2026-04-18T01:23:45Z" in result.summary
     assert "owned by cronjob nightly-backfill" in result.summary
     assert len(result.evidence) == 1
     assert result.evidence[0]["succeeded"] == 1
     assert result.evidence[0]["owner_kind"] == "CronJob"
     assert result.evidence[0]["owner_name"] == "nightly-backfill"
+    assert result.metadata == {
+        "health_state": "healthy",
+        "attention_required": False,
+        "resource_exists": True,
+        "primary_reason": "Completed",
+    }
 
 
 def test_get_job_status_tool_surfaces_failure_reason_in_summary() -> None:
@@ -224,10 +231,53 @@ def test_get_job_status_tool_surfaces_failure_reason_in_summary() -> None:
 
     result = tool.invoke(make_job_request())
 
-    assert "job nightly-backfill-12345 is failed" in result.summary
+    assert "job nightly-backfill-12345 failed" in result.summary
     assert "reason=BackoffLimitExceeded" in result.summary
     assert "message=Job has reached the specified backoff limit." in result.summary
     assert "owned by cronjob nightly-backfill" in result.summary
+    assert result.metadata == {
+        "health_state": "failed",
+        "attention_required": True,
+        "resource_exists": True,
+        "primary_reason": "BackoffLimitExceeded",
+    }
+
+
+class RunningJobAdapter(FakeKubernetesProviderAdapter):
+    def get_job_status(
+        self,
+        cluster: str,
+        namespace: str,
+        job_name: str,
+    ) -> dict[str, object]:
+        return {
+            "job_name": job_name,
+            "namespace": namespace,
+            "active": 1,
+            "succeeded": 0,
+            "failed": 0,
+            "owner_kind": None,
+            "owner_name": None,
+            "conditions": [],
+        }
+
+
+def test_get_job_status_tool_describes_running_job_as_in_progress() -> None:
+    tool = KubernetesJobStatusTool(
+        adapter=RunningJobAdapter(),
+        allowed_clusters={"staging-main"},
+        allowed_namespaces={"dev"},
+    )
+
+    result = tool.invoke(make_job_request())
+
+    assert result.summary == "job nightly-backfill-12345 is still running: active=1"
+    assert result.metadata == {
+        "health_state": "in_progress",
+        "attention_required": False,
+        "resource_exists": True,
+        "primary_reason": "Running",
+    }
 
 
 def test_get_job_status_tool_denies_cluster_outside_allowlist() -> None:
@@ -268,9 +318,15 @@ def test_get_cronjob_status_tool_uses_adapter_and_returns_summary() -> None:
     assert "suspend=false" in result.summary
     assert "last_schedule=2026-04-18T02:30:00Z" in result.summary
     assert "latest job nightly-backfill-12345" in result.summary
-    assert "succeeded" in result.summary
+    assert "completed successfully" in result.summary
     assert len(result.evidence) == 1
     assert result.evidence[0]["latest_job_name"] == "nightly-backfill-12345"
+    assert result.metadata == {
+        "health_state": "healthy",
+        "attention_required": False,
+        "resource_exists": True,
+        "primary_reason": "Completed",
+    }
 
 
 def test_get_cronjob_status_tool_handles_no_recent_jobs() -> None:
@@ -286,3 +342,51 @@ def test_get_cronjob_status_tool_handles_no_recent_jobs() -> None:
         'cronjob nightly-backfill schedule="*/30 * * * *" suspend=false '
         "last_schedule=2026-04-18T02:30:00Z has no recent jobs"
     )
+    assert result.metadata == {
+        "health_state": "idle",
+        "attention_required": False,
+        "resource_exists": True,
+        "primary_reason": "NoRecentJobs",
+    }
+
+
+class SuspendedCronJobAdapter(FakeKubernetesProviderAdapter):
+    def get_cronjob_status(
+        self,
+        cluster: str,
+        namespace: str,
+        cronjob_name: str,
+    ) -> dict[str, object]:
+        return {
+            "cronjob_name": cronjob_name,
+            "namespace": namespace,
+            "schedule": "*/30 * * * *",
+            "suspend": True,
+            "last_schedule_time": "2026-04-18T02:30:00Z",
+            "latest_job_name": None,
+            "active": 0,
+            "succeeded": 0,
+            "failed": 0,
+            "conditions": [],
+        }
+
+
+def test_get_cronjob_status_tool_calls_out_suspended_cronjob() -> None:
+    tool = KubernetesCronJobStatusTool(
+        adapter=SuspendedCronJobAdapter(),
+        allowed_clusters={"staging-main"},
+        allowed_namespaces={"dev"},
+    )
+
+    result = tool.invoke(make_cronjob_request())
+
+    assert result.summary == (
+        'cronjob nightly-backfill schedule="*/30 * * * *" suspend=true '
+        "last_schedule=2026-04-18T02:30:00Z is suspended; no recent jobs"
+    )
+    assert result.metadata == {
+        "health_state": "suspended",
+        "attention_required": False,
+        "resource_exists": True,
+        "primary_reason": "Suspended",
+    }

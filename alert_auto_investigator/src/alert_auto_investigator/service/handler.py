@@ -10,6 +10,7 @@ from alert_auto_investigator.ingress import (
 from alert_auto_investigator.models.control_decision import ControlAction
 from alert_auto_investigator.models.normalized_alert_event import NormalizedAlertEvent
 from alert_auto_investigator.service.formatter import format_investigation_reply
+from alert_auto_investigator.service.logging_utils import control_reason_code
 
 if TYPE_CHECKING:
     from alert_auto_investigator.config import InvestigatorConfig
@@ -47,6 +48,15 @@ def _reply_ts(event: dict) -> str:
     original message.
     """
     return event.get("thread_ts") or event["ts"]
+
+
+def _metadata_log_fields(response: object) -> tuple[str, bool, bool, str]:
+    metadata = getattr(response, "metadata", {}) or {}
+    health_state = str(metadata.get("health_state") or "unknown")
+    attention_required = bool(metadata.get("attention_required", False))
+    resource_exists = bool(metadata.get("resource_exists", True))
+    primary_reason = str(metadata.get("primary_reason") or "unknown")
+    return health_state, attention_required, resource_exists, primary_reason
 
 
 def _detect_alerts(
@@ -97,20 +107,35 @@ def handle_message(
     alerts = _detect_alerts(texts, config.region_code, config.fallback_environment)
     if not alerts:
         return  # not a structured alert — silent skip, do not reply
+    logger.info(
+        "alerts_detected count=%s channel=%s reply_ts=%s",
+        len(alerts),
+        event.get("channel", ""),
+        _reply_ts(event),
+    )
 
     reply_ts = _reply_ts(event)
 
     for alert in alerts:
         decision = pipeline.evaluate(alert)
+        reason_code = control_reason_code(decision.reason)
+        logger.info(
+            "control_decision action=%s reason_code=%s alert_key=%s resource_type=%s resource_name=%s reason=%s",
+            decision.action.value,
+            reason_code,
+            alert.alert_key,
+            alert.resource_type,
+            alert.resource_name,
+            decision.reason,
+        )
         if decision.action != ControlAction.INVESTIGATE:
-            logger.info("skip alert_key=%s reason=%s", alert.alert_key, decision.reason)
             continue
 
         try:
             response = dispatcher.dispatch(alert)
         except PermissionError as exc:
             logger.info(
-                "dispatch_blocked_by_scope alert_key=%s resource_type=%s resource_name=%s reason=%s",
+                "dispatch_scope_denied alert_key=%s resource_type=%s resource_name=%s reason=%s",
                 alert.alert_key,
                 alert.resource_type,
                 alert.resource_name,
@@ -119,7 +144,7 @@ def handle_message(
             continue
         except Exception:
             logger.exception(
-                "dispatch failed alert_key=%s resource_type=%s resource_name=%s",
+                "dispatch_failed alert_key=%s resource_type=%s resource_name=%s",
                 alert.alert_key,
                 alert.resource_type,
                 alert.resource_name,
@@ -137,10 +162,18 @@ def handle_message(
             thread_ts=reply_ts,
             text=format_investigation_reply(alert, response),
         )
+        health_state, attention_required, resource_exists, primary_reason = _metadata_log_fields(
+            response
+        )
         logger.info(
-            "investigation_replied alert_key=%s resource_type=%s channel=%s thread_ts=%s",
+            "investigation_replied alert_key=%s resource_type=%s channel=%s thread_ts=%s "
+            "health_state=%s attention_required=%s resource_exists=%s primary_reason=%s",
             alert.alert_key,
             alert.resource_type,
             event["channel"],
             reply_ts,
+            health_state,
+            str(attention_required).lower(),
+            str(resource_exists).lower(),
+            primary_reason,
         )

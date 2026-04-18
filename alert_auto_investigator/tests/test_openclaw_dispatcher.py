@@ -145,7 +145,7 @@ def test_dispatch_logs_supported_but_unrouted_for_investigate_type(caplog) -> No
 
     assert result is None
     assert runner.last_request is None
-    assert "supported_but_unrouted resource_type=job" in caplog.text
+    assert "dispatch_skipped_no_tool resource_type=job policy=supported_but_unrouted" in caplog.text
 
 
 def test_dispatch_returns_none_for_node_resource_type_by_default() -> None:
@@ -257,4 +257,4 @@ def test_dispatch_logs_successful_dispatch(caplog) -> None:
     with caplog.at_level("INFO"):
         dispatcher.dispatch(make_event(resource_type="job", resource_name="nightly-backfill-12345"))
 
-    assert "dispatching_investigation resource_type=job tool_name=get_job_status" in caplog.text
+    assert "dispatch_started resource_type=job tool_name=get_job_status" in caplog.text

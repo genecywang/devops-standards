@@ -19,6 +19,7 @@ class OpenClawRunner:
         result_state: ResultState,
         summary: str,
         actions_attempted: list[str],
+        metadata: dict[str, object] | None = None,
     ) -> CanonicalResponse:
         return CanonicalResponse(
             request_id=request.request_id,
@@ -26,6 +27,7 @@ class OpenClawRunner:
             summary=summary,
             actions_attempted=actions_attempted,
             redaction_applied=True,
+            metadata=metadata or {},
         )
 
     def run(self, request: InvestigationRequest) -> CanonicalResponse:
@@ -58,4 +60,5 @@ class OpenClawRunner:
             ResultState.SUCCESS,
             tool_result.summary,
             [tool.tool_name],
+            tool_result.metadata,
         )
