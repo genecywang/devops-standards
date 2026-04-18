@@ -47,6 +47,7 @@ class KubernetesProviderAdapter(Protocol):
         self, cluster: str, namespace: str, deployment_name: str
     ) -> dict[str, object]: ...
     def get_job_status(self, cluster: str, namespace: str, job_name: str) -> dict[str, object]: ...
+    def get_cronjob_status(self, cluster: str, namespace: str, cronjob_name: str) -> dict[str, object]: ...
 
 
 def build_core_v1_api() -> Any:
@@ -185,6 +186,29 @@ class FakeKubernetesProviderAdapter:
                     "status": "True",
                     "reason": "Completed",
                     "message": "Job completed successfully. Bearer secret-job-token",
+                }
+            ],
+        }
+
+    def get_cronjob_status(
+        self,
+        cluster: str,
+        namespace: str,
+        cronjob_name: str,
+    ) -> dict[str, object]:
+        return {
+            "cronjob_name": cronjob_name,
+            "namespace": namespace,
+            "latest_job_name": f"{cronjob_name}-12345",
+            "active": 0,
+            "succeeded": 1,
+            "failed": 0,
+            "conditions": [
+                {
+                    "type": "Complete",
+                    "status": "True",
+                    "reason": "Completed",
+                    "message": "Job completed successfully. Bearer secret-cronjob-token",
                 }
             ],
         }
@@ -412,3 +436,73 @@ class RealKubernetesProviderAdapter:
             "completion_time": completion_time.isoformat() if completion_time is not None else None,
             "conditions": conditions,
         }
+
+    def get_cronjob_status(
+        self,
+        cluster: str,
+        namespace: str,
+        cronjob_name: str,
+    ) -> dict[str, object]:
+        if self._batch_v1_api is None:
+            raise KubernetesApiError("failed to read cronjob status")
+
+        try:
+            job_list = self._batch_v1_api.list_namespaced_job(namespace=namespace)
+        except ApiException as error:
+            if error.status in (401, 403):
+                raise KubernetesAccessDeniedError("kubernetes access denied") from error
+            if error.status == 404:
+                raise KubernetesResourceNotFoundError("namespace not found") from error
+            raise KubernetesApiError("failed to read cronjob status") from error
+        except (NameResolutionError, ConnectTimeoutError, MaxRetryError) as error:
+            raise KubernetesEndpointUnreachableError("cluster endpoint unreachable") from error
+        except Exception as error:
+            raise KubernetesApiError("failed to read cronjob status") from error
+
+        owned_jobs = []
+        for job in getattr(job_list, "items", []) or []:
+            owner_references = getattr(job.metadata, "owner_references", []) or []
+            for owner_reference in owner_references:
+                if (
+                    getattr(owner_reference, "kind", None) == "CronJob"
+                    and getattr(owner_reference, "name", None) == cronjob_name
+                ):
+                    owned_jobs.append(job)
+                    break
+
+        if not owned_jobs:
+            return {
+                "cronjob_name": cronjob_name,
+                "namespace": namespace,
+                "latest_job_name": None,
+                "active": 0,
+                "succeeded": 0,
+                "failed": 0,
+                "conditions": [],
+            }
+
+        latest_job = max(owned_jobs, key=_job_sort_key)
+        latest_payload = self.get_job_status(cluster, namespace, latest_job.metadata.name)
+        return {
+            "cronjob_name": cronjob_name,
+            "namespace": namespace,
+            "latest_job_name": latest_payload["job_name"],
+            "active": latest_payload["active"],
+            "succeeded": latest_payload["succeeded"],
+            "failed": latest_payload["failed"],
+            "conditions": latest_payload["conditions"],
+        }
+
+
+def _job_sort_key(job: Any) -> tuple[str, str]:
+    status = getattr(job, "status", None)
+    metadata = getattr(job, "metadata", None)
+
+    start_time = getattr(status, "start_time", None)
+    completion_time = getattr(status, "completion_time", None)
+    creation_timestamp = getattr(metadata, "creation_timestamp", None)
+
+    start_value = start_time.isoformat() if start_time is not None else ""
+    completion_value = completion_time.isoformat() if completion_time is not None else ""
+    creation_value = creation_timestamp.isoformat() if creation_timestamp is not None else ""
+    return (start_value or completion_value or creation_value, creation_value)

@@ -130,6 +130,13 @@ def test_dispatch_routes_job_to_get_job_status() -> None:
     assert runner.last_request.tool_name == "get_job_status"
 
 
+def test_dispatch_routes_cronjob_to_get_cronjob_status() -> None:
+    dispatcher, runner = make_dispatcher()
+    dispatcher.dispatch(make_event(resource_type="cronjob", resource_name="nightly-backfill"))
+
+    assert runner.last_request.tool_name == "get_cronjob_status"
+
+
 def test_dispatch_logs_supported_but_unrouted_for_investigate_type(caplog) -> None:
     dispatcher, runner = make_dispatcher(make_config(tool_routing={}))
 

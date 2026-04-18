@@ -4,6 +4,7 @@ from openclaw_foundation.adapters.kubernetes import FakeKubernetesProviderAdapte
 from openclaw_foundation.models.enums import RequestType
 from openclaw_foundation.models.requests import ExecutionBudget, InvestigationRequest
 from openclaw_foundation.tools.kubernetes_deployment_status import KubernetesDeploymentStatusTool
+from openclaw_foundation.tools.kubernetes_cronjob_status import KubernetesCronJobStatusTool
 from openclaw_foundation.tools.kubernetes_job_status import KubernetesJobStatusTool
 from openclaw_foundation.tools.kubernetes_pod_events import KubernetesPodEventsTool
 
@@ -127,6 +128,28 @@ def make_job_request(namespace: str = "dev") -> InvestigationRequest:
     )
 
 
+def make_cronjob_request(namespace: str = "dev") -> InvestigationRequest:
+    return InvestigationRequest(
+        request_type=RequestType.INVESTIGATION,
+        request_id="req-cronjob-001",
+        source_product="alert_auto_investigator",
+        scope={"environment": "staging", "cluster": "staging-main"},
+        input_ref="fixture:cronjob-status",
+        budget=ExecutionBudget(
+            max_steps=2,
+            max_tool_calls=1,
+            max_duration_seconds=30,
+            max_output_tokens=256,
+        ),
+        tool_name="get_cronjob_status",
+        target={
+            "cluster": "staging-main",
+            "namespace": namespace,
+            "resource_name": "nightly-backfill",
+        },
+    )
+
+
 class FailedJobAdapter(FakeKubernetesProviderAdapter):
     def get_job_status(
         self,
@@ -150,6 +173,24 @@ class FailedJobAdapter(FakeKubernetesProviderAdapter):
                     "message": "Job has reached the specified backoff limit.",
                 }
             ],
+        }
+
+
+class EmptyCronJobAdapter(FakeKubernetesProviderAdapter):
+    def get_cronjob_status(
+        self,
+        cluster: str,
+        namespace: str,
+        cronjob_name: str,
+    ) -> dict[str, object]:
+        return {
+            "cronjob_name": cronjob_name,
+            "namespace": namespace,
+            "latest_job_name": None,
+            "active": 0,
+            "succeeded": 0,
+            "failed": 0,
+            "conditions": [],
         }
 
 
@@ -208,3 +249,31 @@ def test_get_job_status_tool_redacts_condition_messages() -> None:
 
     all_messages = " ".join(str(c["message"]) for c in result.evidence[0]["conditions"])
     assert "secret-job-token" not in all_messages
+
+
+def test_get_cronjob_status_tool_uses_adapter_and_returns_summary() -> None:
+    tool = KubernetesCronJobStatusTool(
+        adapter=FakeKubernetesProviderAdapter(),
+        allowed_clusters={"staging-main"},
+        allowed_namespaces={"dev"},
+    )
+
+    result = tool.invoke(make_cronjob_request())
+
+    assert "cronjob nightly-backfill" in result.summary
+    assert "latest job nightly-backfill-12345" in result.summary
+    assert "succeeded" in result.summary
+    assert len(result.evidence) == 1
+    assert result.evidence[0]["latest_job_name"] == "nightly-backfill-12345"
+
+
+def test_get_cronjob_status_tool_handles_no_recent_jobs() -> None:
+    tool = KubernetesCronJobStatusTool(
+        adapter=EmptyCronJobAdapter(),
+        allowed_clusters={"staging-main"},
+        allowed_namespaces={"dev"},
+    )
+
+    result = tool.invoke(make_cronjob_request())
+
+    assert result.summary == "cronjob nightly-backfill has no recent jobs"

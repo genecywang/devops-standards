@@ -287,6 +287,21 @@ def test_fake_adapter_get_job_status_contains_redactable_condition_message() -> 
     assert "Bearer" in all_messages
 
 
+def test_fake_adapter_get_cronjob_status_returns_latest_job_payload() -> None:
+    adapter = FakeKubernetesProviderAdapter()
+
+    result = adapter.get_cronjob_status(
+        cluster="staging-main",
+        namespace="dev",
+        cronjob_name="nightly-backfill",
+    )
+
+    assert result["cronjob_name"] == "nightly-backfill"
+    assert result["latest_job_name"] == "nightly-backfill-12345"
+    assert result["succeeded"] == 1
+    assert isinstance(result["conditions"], list)
+
+
 # --- get_pod_events: Fake adapter ---
 
 
@@ -421,6 +436,74 @@ def test_real_adapter_get_job_status_maps_owner_reference() -> None:
     assert result["job_name"] == "nightly-backfill-12345"
     assert result["owner_kind"] == "CronJob"
     assert result["owner_name"] == "nightly-backfill"
+
+
+def test_real_adapter_get_cronjob_status_maps_latest_owned_job() -> None:
+    ts_old = datetime.datetime(2026, 4, 18, 1, 0, 0, tzinfo=datetime.timezone.utc)
+    ts_new = datetime.datetime(2026, 4, 18, 2, 0, 0, tzinfo=datetime.timezone.utc)
+    older_job = SimpleNamespace(
+        metadata=SimpleNamespace(
+            name="nightly-backfill-12344",
+            creation_timestamp=ts_old,
+            owner_references=[SimpleNamespace(kind="CronJob", name="nightly-backfill", controller=True)],
+        ),
+        status=SimpleNamespace(start_time=ts_old, completion_time=ts_old),
+    )
+    latest_job = SimpleNamespace(
+        metadata=SimpleNamespace(
+            name="nightly-backfill-12345",
+            creation_timestamp=ts_new,
+            owner_references=[SimpleNamespace(kind="CronJob", name="nightly-backfill", controller=True)],
+        ),
+        status=SimpleNamespace(start_time=ts_new, completion_time=None),
+    )
+    unrelated_job = SimpleNamespace(
+        metadata=SimpleNamespace(
+            name="other-job-1",
+            creation_timestamp=ts_new,
+            owner_references=[SimpleNamespace(kind="CronJob", name="other-cronjob", controller=True)],
+        ),
+        status=SimpleNamespace(start_time=ts_new, completion_time=None),
+    )
+    batch_api = Mock()
+    batch_api.list_namespaced_job.return_value = SimpleNamespace(items=[older_job, latest_job, unrelated_job])
+    batch_api.read_namespaced_job_status.return_value = SimpleNamespace(
+        metadata=SimpleNamespace(name="nightly-backfill-12345", owner_references=[]),
+        status=SimpleNamespace(
+            active=1,
+            succeeded=0,
+            failed=0,
+            completion_time=None,
+            conditions=[],
+        ),
+    )
+    adapter = RealKubernetesProviderAdapter(core_v1_api=None, batch_v1_api=batch_api)
+
+    result = adapter.get_cronjob_status("staging-main", "dev", "nightly-backfill")
+
+    batch_api.list_namespaced_job.assert_called_once_with(namespace="dev")
+    batch_api.read_namespaced_job_status.assert_called_once_with(name="nightly-backfill-12345", namespace="dev")
+    assert result["cronjob_name"] == "nightly-backfill"
+    assert result["latest_job_name"] == "nightly-backfill-12345"
+    assert result["active"] == 1
+
+
+def test_real_adapter_get_cronjob_status_handles_no_owned_jobs() -> None:
+    batch_api = Mock()
+    batch_api.list_namespaced_job.return_value = SimpleNamespace(items=[])
+    adapter = RealKubernetesProviderAdapter(core_v1_api=None, batch_v1_api=batch_api)
+
+    result = adapter.get_cronjob_status("staging-main", "dev", "nightly-backfill")
+
+    assert result == {
+        "cronjob_name": "nightly-backfill",
+        "namespace": "dev",
+        "latest_job_name": None,
+        "active": 0,
+        "succeeded": 0,
+        "failed": 0,
+        "conditions": [],
+    }
 
 
 def test_real_adapter_get_pod_events_maps_403_to_access_denied() -> None:

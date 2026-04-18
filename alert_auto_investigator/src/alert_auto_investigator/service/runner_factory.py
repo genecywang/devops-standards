@@ -12,6 +12,7 @@ from openclaw_foundation.adapters.prometheus import (
     RealPrometheusProviderAdapter,
 )
 from openclaw_foundation.runtime.runner import OpenClawRunner
+from openclaw_foundation.tools.kubernetes_cronjob_status import KubernetesCronJobStatusTool
 from openclaw_foundation.tools.kubernetes_deployment_status import KubernetesDeploymentStatusTool
 from openclaw_foundation.tools.kubernetes_job_status import KubernetesJobStatusTool
 from openclaw_foundation.tools.kubernetes_pod_events import KubernetesPodEventsTool
@@ -73,6 +74,13 @@ def build_registry(config: InvestigatorConfig) -> ToolRegistry:
     )
     registry.register(
         KubernetesJobStatusTool(
+            adapter=kubernetes_adapter,
+            allowed_clusters=allowed_clusters,
+            allowed_namespaces=allowed_namespaces,
+        )
+    )
+    registry.register(
+        KubernetesCronJobStatusTool(
             adapter=kubernetes_adapter,
             allowed_clusters=allowed_clusters,
             allowed_namespaces=allowed_namespaces,

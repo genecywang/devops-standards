@@ -53,10 +53,10 @@ SUPPORT_MATRIX: dict[str, InvestigationPolicy] = {
     # --- Actively supported ---
     ResourceType.POD: InvestigationPolicy.INVESTIGATE,
     ResourceType.DEPLOYMENT: InvestigationPolicy.INVESTIGATE,
+    ResourceType.CRONJOB: InvestigationPolicy.INVESTIGATE,
 
     # --- Next candidates (planned, not yet implemented) ---
     ResourceType.JOB: InvestigationPolicy.INVESTIGATE,
-    ResourceType.CRONJOB: InvestigationPolicy.NEXT_CANDIDATE,
     ResourceType.STATEFULSET: InvestigationPolicy.NEXT_CANDIDATE,
     ResourceType.DAEMONSET: InvestigationPolicy.NEXT_CANDIDATE,
 

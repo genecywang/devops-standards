@@ -12,6 +12,7 @@ DEFAULT_TOOL_ROUTING: dict[str, str] = {
     ResourceType.POD: "get_pod_events",
     ResourceType.DEPLOYMENT: "get_deployment_status",
     ResourceType.JOB: "get_job_status",
+    ResourceType.CRONJOB: "get_cronjob_status",
 }
 
 

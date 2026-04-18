@@ -16,8 +16,9 @@ Use this section when reading live Slack alerts. "No reply" is not always a bug.
 | short-lived `pod` already deleted before investigation | Replies in thread with `pod <name> no longer exists` | graceful fallback for ephemeral pods |
 | `deployment` in allowed namespace | Replies in thread | `deployment` is actively supported |
 | `job` in allowed namespace | Replies in thread | `job` is actively supported |
+| `cronjob` in allowed namespace | Replies in thread | latest owned Job is investigated and summarized |
 | `job` outside `ALLOWED_NAMESPACES` or `ALLOWED_CLUSTERS` | No Slack reply | blocked by runtime scope guard |
-| `cronjob` | No Slack reply | `NEXT_CANDIDATE`, not implemented yet |
+| `cronjob` outside `ALLOWED_NAMESPACES` or `ALLOWED_CLUSTERS` | No Slack reply | blocked by runtime scope guard |
 | `namespace` | No Slack reply | `SKIP` by design |
 | `node` | No Slack reply | `SKIP` by design |
 | `unknown` | No Slack reply | parser could not map to a supported investigation target |
@@ -41,6 +42,7 @@ These resource types trigger a real investigation via an OpenClaw tool.
 | `pod` | `get_pod_events` | Alertmanager (label: `pod`) |
 | `deployment` | `get_deployment_status` | Alertmanager (label: `deployment`) |
 | `job` | `get_job_status` | Alertmanager (label: `job_name` or `exported_job`) |
+| `cronjob` | `get_cronjob_status` | Alertmanager (label: `cronjob`) |
 
 ### Runtime Scope Guard
 
@@ -76,7 +78,6 @@ gaps are visible without being noisy.
 
 | resource_type | Prerequisite before implementing |
 |---------------|----------------------------------|
-| `cronjob` | Alertmanager template must map `cronjob` to `resource_type=cronjob`; decide whether to investigate CronJob directly or notify-only |
 | `statefulset` | Alertmanager label: `statefulset`; build `get_statefulset_status` tool |
 | `daemonset` | Alertmanager label: `daemonset`; build `get_daemonset_status` tool |
 
