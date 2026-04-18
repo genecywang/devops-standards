@@ -186,6 +186,9 @@ class EmptyCronJobAdapter(FakeKubernetesProviderAdapter):
         return {
             "cronjob_name": cronjob_name,
             "namespace": namespace,
+            "schedule": "*/30 * * * *",
+            "suspend": False,
+            "last_schedule_time": "2026-04-18T02:30:00Z",
             "latest_job_name": None,
             "active": 0,
             "succeeded": 0,
@@ -261,6 +264,9 @@ def test_get_cronjob_status_tool_uses_adapter_and_returns_summary() -> None:
     result = tool.invoke(make_cronjob_request())
 
     assert "cronjob nightly-backfill" in result.summary
+    assert 'schedule="*/30 * * * *"' in result.summary
+    assert "suspend=false" in result.summary
+    assert "last_schedule=2026-04-18T02:30:00Z" in result.summary
     assert "latest job nightly-backfill-12345" in result.summary
     assert "succeeded" in result.summary
     assert len(result.evidence) == 1
@@ -276,4 +282,7 @@ def test_get_cronjob_status_tool_handles_no_recent_jobs() -> None:
 
     result = tool.invoke(make_cronjob_request())
 
-    assert result.summary == "cronjob nightly-backfill has no recent jobs"
+    assert result.summary == (
+        'cronjob nightly-backfill schedule="*/30 * * * *" suspend=false '
+        "last_schedule=2026-04-18T02:30:00Z has no recent jobs"
+    )

@@ -37,11 +37,12 @@ class KubernetesCronJobStatusTool:
         payload = self._adapter.get_cronjob_status(cluster, namespace, cronjob_name)
         truncated = truncate_job_status(payload)
         redacted = redact_output(truncated)
+        cronjob_prefix = _build_cronjob_prefix(cronjob_name, redacted)
 
         latest_job_name = redacted.get("latest_job_name")
         if not isinstance(latest_job_name, str) or not latest_job_name:
             return ToolResult(
-                summary=f"cronjob {cronjob_name} has no recent jobs",
+                summary=f"{cronjob_prefix} has no recent jobs",
                 evidence=[redacted],
             )
 
@@ -60,11 +61,29 @@ class KubernetesCronJobStatusTool:
         detail_suffix = _build_job_summary_detail(redacted)
         return ToolResult(
             summary=(
-                f"cronjob {cronjob_name} latest job {latest_job_name} is {health}: "
+                f"{cronjob_prefix}; latest job {latest_job_name} is {health}: "
                 f"active={active}, succeeded={succeeded}, failed={failed}{detail_suffix}"
             ),
             evidence=[redacted],
         )
+
+
+def _build_cronjob_prefix(cronjob_name: str, payload: dict[str, object]) -> str:
+    parts = [f"cronjob {cronjob_name}"]
+
+    schedule = payload.get("schedule")
+    if isinstance(schedule, str) and schedule:
+        parts.append(f'schedule="{schedule}"')
+
+    suspend = payload.get("suspend")
+    if isinstance(suspend, bool):
+        parts.append(f"suspend={'true' if suspend else 'false'}")
+
+    last_schedule = payload.get("last_schedule_time")
+    if isinstance(last_schedule, str) and last_schedule:
+        parts.append(f"last_schedule={last_schedule}")
+
+    return " ".join(parts)
 
 
 def _build_job_summary_detail(payload: dict[str, object]) -> str:

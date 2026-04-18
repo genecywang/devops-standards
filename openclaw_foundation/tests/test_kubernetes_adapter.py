@@ -297,6 +297,9 @@ def test_fake_adapter_get_cronjob_status_returns_latest_job_payload() -> None:
     )
 
     assert result["cronjob_name"] == "nightly-backfill"
+    assert result["schedule"] == "*/30 * * * *"
+    assert result["suspend"] is False
+    assert result["last_schedule_time"] == "2026-04-18T02:30:00Z"
     assert result["latest_job_name"] == "nightly-backfill-12345"
     assert result["succeeded"] == 1
     assert isinstance(result["conditions"], list)
@@ -441,6 +444,7 @@ def test_real_adapter_get_job_status_maps_owner_reference() -> None:
 def test_real_adapter_get_cronjob_status_maps_latest_owned_job() -> None:
     ts_old = datetime.datetime(2026, 4, 18, 1, 0, 0, tzinfo=datetime.timezone.utc)
     ts_new = datetime.datetime(2026, 4, 18, 2, 0, 0, tzinfo=datetime.timezone.utc)
+    last_schedule = datetime.datetime(2026, 4, 18, 2, 30, 0, tzinfo=datetime.timezone.utc)
     older_job = SimpleNamespace(
         metadata=SimpleNamespace(
             name="nightly-backfill-12344",
@@ -466,6 +470,10 @@ def test_real_adapter_get_cronjob_status_maps_latest_owned_job() -> None:
         status=SimpleNamespace(start_time=ts_new, completion_time=None),
     )
     batch_api = Mock()
+    batch_api.read_namespaced_cron_job_status.return_value = SimpleNamespace(
+        spec=SimpleNamespace(schedule="*/30 * * * *", suspend=False),
+        status=SimpleNamespace(last_schedule_time=last_schedule),
+    )
     batch_api.list_namespaced_job.return_value = SimpleNamespace(items=[older_job, latest_job, unrelated_job])
     batch_api.read_namespaced_job_status.return_value = SimpleNamespace(
         metadata=SimpleNamespace(name="nightly-backfill-12345", owner_references=[]),
@@ -481,15 +489,23 @@ def test_real_adapter_get_cronjob_status_maps_latest_owned_job() -> None:
 
     result = adapter.get_cronjob_status("staging-main", "dev", "nightly-backfill")
 
+    batch_api.read_namespaced_cron_job_status.assert_called_once_with(name="nightly-backfill", namespace="dev")
     batch_api.list_namespaced_job.assert_called_once_with(namespace="dev")
     batch_api.read_namespaced_job_status.assert_called_once_with(name="nightly-backfill-12345", namespace="dev")
     assert result["cronjob_name"] == "nightly-backfill"
+    assert result["schedule"] == "*/30 * * * *"
+    assert result["suspend"] is False
+    assert result["last_schedule_time"] == "2026-04-18T02:30:00+00:00"
     assert result["latest_job_name"] == "nightly-backfill-12345"
     assert result["active"] == 1
 
 
 def test_real_adapter_get_cronjob_status_handles_no_owned_jobs() -> None:
     batch_api = Mock()
+    batch_api.read_namespaced_cron_job_status.return_value = SimpleNamespace(
+        spec=SimpleNamespace(schedule="*/30 * * * *", suspend=True),
+        status=SimpleNamespace(last_schedule_time=None),
+    )
     batch_api.list_namespaced_job.return_value = SimpleNamespace(items=[])
     adapter = RealKubernetesProviderAdapter(core_v1_api=None, batch_v1_api=batch_api)
 
@@ -498,6 +514,9 @@ def test_real_adapter_get_cronjob_status_handles_no_owned_jobs() -> None:
     assert result == {
         "cronjob_name": "nightly-backfill",
         "namespace": "dev",
+        "schedule": "*/30 * * * *",
+        "suspend": True,
+        "last_schedule_time": None,
         "latest_job_name": None,
         "active": 0,
         "succeeded": 0,

@@ -199,6 +199,9 @@ class FakeKubernetesProviderAdapter:
         return {
             "cronjob_name": cronjob_name,
             "namespace": namespace,
+            "schedule": "*/30 * * * *",
+            "suspend": False,
+            "last_schedule_time": "2026-04-18T02:30:00Z",
             "latest_job_name": f"{cronjob_name}-12345",
             "active": 0,
             "succeeded": 1,
@@ -447,6 +450,10 @@ class RealKubernetesProviderAdapter:
             raise KubernetesApiError("failed to read cronjob status")
 
         try:
+            cronjob = self._batch_v1_api.read_namespaced_cron_job_status(
+                name=cronjob_name,
+                namespace=namespace,
+            )
             job_list = self._batch_v1_api.list_namespaced_job(namespace=namespace)
         except ApiException as error:
             if error.status in (401, 403):
@@ -474,6 +481,13 @@ class RealKubernetesProviderAdapter:
             return {
                 "cronjob_name": cronjob_name,
                 "namespace": namespace,
+                "schedule": getattr(cronjob.spec, "schedule", None),
+                "suspend": bool(getattr(cronjob.spec, "suspend", False)),
+                "last_schedule_time": (
+                    cronjob.status.last_schedule_time.isoformat()
+                    if getattr(cronjob.status, "last_schedule_time", None) is not None
+                    else None
+                ),
                 "latest_job_name": None,
                 "active": 0,
                 "succeeded": 0,
@@ -486,6 +500,13 @@ class RealKubernetesProviderAdapter:
         return {
             "cronjob_name": cronjob_name,
             "namespace": namespace,
+            "schedule": getattr(cronjob.spec, "schedule", None),
+            "suspend": bool(getattr(cronjob.spec, "suspend", False)),
+            "last_schedule_time": (
+                cronjob.status.last_schedule_time.isoformat()
+                if getattr(cronjob.status, "last_schedule_time", None) is not None
+                else None
+            ),
             "latest_job_name": latest_payload["job_name"],
             "active": latest_payload["active"],
             "succeeded": latest_payload["succeeded"],
