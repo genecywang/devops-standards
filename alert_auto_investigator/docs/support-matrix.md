@@ -82,6 +82,31 @@ Interpretation rules:
 - `resource_exists=false` means the target disappeared before or during investigation; this is not automatically a failure
 - `primary_reason` should describe the strongest current signal, not restate the alert name
 
+### Golden Coverage Matrix
+
+This section tracks which support boundaries are pinned by fixture-based
+regression tests today. It is intentionally narrower than full runtime support:
+if a path is supported in production code but absent here, that means "not yet
+golden-covered", not "unsupported".
+
+| resource_type | Scenario | Fixture / test coverage | Covered layers |
+|---------------|----------|-------------------------|----------------|
+| `job` | failed Job (`BackoffLimitExceeded`) | `alertmanager_job_failed.txt`, `test_golden_parser_job_failed_replay`, `test_golden_formatter_keeps_full_metadata_for_failed_job_reply`, `test_golden_metadata_failed_job_contract` | parser, formatter, tool metadata |
+| `job` | slow-completion alert converging to current failed Job state | `alertmanager_job_slow_completion.txt`, `test_golden_parser_job_slow_completion_replay` | parser |
+| `pod` | healthy / stable running pod | `alertmanager_pod_healthy.txt`, `test_golden_formatter_compacts_healthy_pod_reply`, `test_golden_metadata_healthy_pod_contract` | formatter, tool metadata |
+| `pod` | pod already deleted before investigation | `alertmanager_pod_gone.txt`, `test_golden_formatter_compacts_gone_pod_reply`, `test_golden_metadata_deleted_pod_contract` | formatter, tool metadata |
+| `pod` | degraded pod with OOMKilled signal | `alertmanager_pod_oomkilled.txt`, `test_golden_formatter_keeps_full_metadata_for_degraded_pod_reply`, `test_golden_metadata_degraded_pod_contract` | formatter, tool metadata |
+| `cronjob` | suspended cronjob with no recent jobs | `alertmanager_cronjob_suspended.txt`, `test_golden_formatter_compacts_suspended_cronjob_reply`, `test_golden_metadata_suspended_cronjob_contract` | formatter, tool metadata |
+| `cronjob` | idle cronjob with no recent jobs | `alertmanager_cronjob_idle.txt`, `test_golden_formatter_keeps_full_metadata_for_idle_cronjob_reply`, `test_golden_metadata_idle_cronjob_contract` | formatter, tool metadata |
+| `namespace` | skip-by-design dispatcher miss | `alertmanager_namespace_skip.txt`, `test_golden_skip_by_design_namespace_replay` | parser, dispatcher skip |
+
+Current known gaps:
+
+- `deployment` is actively supported at runtime but does not yet have a golden fixture
+- `job` does not yet have a fixture asserting formatter output for the slow-completion alert shape
+- `cronjob` does not yet have a parser-focused golden replay fixture; current coverage starts at formatter / metadata contract
+- multi-alert grouped Slack replay is covered by ordinary tests, but not yet represented as a named golden fixture set here
+
 ---
 
 ## Actively Supported (`INVESTIGATE`)
