@@ -8,6 +8,7 @@ Covers:
   multi-alert (FIRING:N) dispatch
 """
 
+from pathlib import Path
 from unittest.mock import ANY, MagicMock, call
 
 from alert_auto_investigator.config import InvestigatorConfig
@@ -99,6 +100,12 @@ Summary: OOMKilled
 RawLabels:
 - alertname=KubernetesContainerOomKiller
 """
+
+_FIXTURE_DIR = Path(__file__).parent / "fixtures"
+
+
+def _load_fixture(name: str) -> str:
+    return (_FIXTURE_DIR / name).read_text(encoding="utf-8")
 
 
 def _make_config(
@@ -694,6 +701,30 @@ class TestHandleMessageMultiAlert:
 
         assert dispatcher.dispatch.call_count == 2
         assert client.chat_postMessage.call_count == 1
+
+    def test_golden_grouped_message_replies_once_per_alert_in_same_thread(self) -> None:
+        client = MagicMock()
+        dispatcher = MagicMock()
+        dispatcher.dispatch.side_effect = [
+            MagicMock(summary="result-a", result_state="success", actions_attempted=["get_pod_events"]),
+            MagicMock(summary="result-b", result_state="success", actions_attempted=["get_pod_events"]),
+        ]
+        config = _make_config()
+        config.owned_environments = ["prod-jp"]
+        pipeline = _make_pipeline(config)
+
+        handle_message(
+            _make_event(attachments=[{"text": _load_fixture("alertmanager_multi_pod_oom.txt")}], ts="222.000"),
+            client,
+            config,
+            pipeline,
+            dispatcher,
+        )
+
+        assert dispatcher.dispatch.call_count == 2
+        assert client.chat_postMessage.call_count == 2
+        for c in client.chat_postMessage.call_args_list:
+            assert c.kwargs["thread_ts"] == "222.000"
 
     def test_second_alert_still_dispatched_when_first_raises(self) -> None:
         """First alert dispatch raises; second alert should still be attempted."""

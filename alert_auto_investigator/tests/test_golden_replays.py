@@ -5,7 +5,10 @@ from pathlib import Path
 from openclaw_foundation.models.enums import ResultState
 from openclaw_foundation.models.responses import CanonicalResponse
 
-from alert_auto_investigator.ingress.slack_message_parser import parse_alertmanager_slack_message
+from alert_auto_investigator.ingress.slack_message_parser import (
+    parse_alertmanager_slack_message,
+    parse_alertmanager_slack_messages,
+)
 from alert_auto_investigator.investigation.dispatcher import (
     DEFAULT_TOOL_ROUTING,
     InvestigationConfig,
@@ -31,6 +34,14 @@ def _parse_fixture(name: str) -> NormalizedAlertEvent:
     )
     assert event is not None
     return event
+
+
+def _parse_multi_fixture(name: str) -> list[NormalizedAlertEvent]:
+    return parse_alertmanager_slack_messages(
+        text=_load_fixture(name),
+        region_code=_REGION,
+        fallback_environment=_FALLBACK_ENV,
+    )
 
 
 def _make_response(summary: str, metadata: dict[str, object], check: str) -> CanonicalResponse:
@@ -92,6 +103,30 @@ def test_golden_parser_deployment_replay() -> None:
     )
 
 
+def test_golden_parser_cronjob_replay() -> None:
+    event = _parse_fixture("alertmanager_cronjob_parser.txt")
+
+    assert event.alert_name == "KubernetesCronjobSuspended"
+    assert event.resource_type == "cronjob"
+    assert event.resource_name == "nightly-backfill"
+    assert event.namespace == "dev"
+    assert (
+        event.alert_key
+        == "alertmanager:H2S-EKS-DEV-STG-EAST-2:dev:KubernetesCronjobSuspended:nightly-backfill"
+    )
+
+
+def test_golden_parser_multi_alert_replay_returns_all_alerts() -> None:
+    events = _parse_multi_fixture("alertmanager_multi_pod_oom.txt")
+
+    assert len(events) == 2
+    assert events[0].resource_type == "pod"
+    assert events[1].resource_type == "pod"
+    assert events[0].resource_name == "prod-h2-lab-worker-6dfcbbbff4-55w6b"
+    assert events[1].resource_name == "prod-h2-server-go-567589445c-n8b9s"
+    assert events[0].alert_key != events[1].alert_key
+
+
 def test_golden_skip_by_design_namespace_replay(caplog) -> None:
     event = _parse_fixture("alertmanager_namespace_skip.txt")
     dispatcher = OpenClawDispatcher(
@@ -146,6 +181,31 @@ def test_golden_formatter_keeps_full_metadata_for_failed_job_reply() -> None:
 
     text = format_investigation_reply(event, response)
 
+    assert "*Health:* failed" in text
+    assert "*Attention:* yes" in text
+    assert "*Exists:* yes" in text
+    assert "*Reason:* BackoffLimitExceeded" in text
+
+
+def test_golden_formatter_keeps_full_metadata_for_job_slow_completion_reply() -> None:
+    event = _parse_fixture("alertmanager_job_slow_completion.txt")
+    response = _make_response(
+        summary=(
+            "job cronjob-iam-user-keyscan-manual-86x failed: active=0, succeeded=0, failed=3, "
+            "reason=BackoffLimitExceeded, message=Job has reached the specified backoff limit"
+        ),
+        check="get_job_status",
+        metadata={
+            "health_state": "failed",
+            "attention_required": True,
+            "resource_exists": True,
+            "primary_reason": "BackoffLimitExceeded",
+        },
+    )
+
+    text = format_investigation_reply(event, response)
+
+    assert "*Alert:* KubernetesJobSlowCompletion" in text
     assert "*Health:* failed" in text
     assert "*Attention:* yes" in text
     assert "*Exists:* yes" in text

@@ -92,20 +92,20 @@ golden-covered", not "unsupported".
 | resource_type | Scenario | Fixture / test coverage | Covered layers |
 |---------------|----------|-------------------------|----------------|
 | `job` | failed Job (`BackoffLimitExceeded`) | `alertmanager_job_failed.txt`, `test_golden_parser_job_failed_replay`, `test_golden_formatter_keeps_full_metadata_for_failed_job_reply`, `test_golden_metadata_failed_job_contract` | parser, formatter, tool metadata |
-| `job` | slow-completion alert converging to current failed Job state | `alertmanager_job_slow_completion.txt`, `test_golden_parser_job_slow_completion_replay` | parser |
+| `job` | slow-completion alert converging to current failed Job state | `alertmanager_job_slow_completion.txt`, `test_golden_parser_job_slow_completion_replay`, `test_golden_formatter_keeps_full_metadata_for_job_slow_completion_reply` | parser, formatter |
 | `deployment` | healthy deployment with all replicas available | `alertmanager_deployment_healthy.txt`, `test_golden_parser_deployment_replay`, `test_golden_formatter_compacts_healthy_deployment_reply`, `test_golden_metadata_healthy_deployment_contract` | parser, formatter, tool metadata |
 | `pod` | healthy / stable running pod | `alertmanager_pod_healthy.txt`, `test_golden_formatter_compacts_healthy_pod_reply`, `test_golden_metadata_healthy_pod_contract` | formatter, tool metadata |
 | `pod` | pod already deleted before investigation | `alertmanager_pod_gone.txt`, `test_golden_formatter_compacts_gone_pod_reply`, `test_golden_metadata_deleted_pod_contract` | formatter, tool metadata |
 | `pod` | degraded pod with OOMKilled signal | `alertmanager_pod_oomkilled.txt`, `test_golden_formatter_keeps_full_metadata_for_degraded_pod_reply`, `test_golden_metadata_degraded_pod_contract` | formatter, tool metadata |
-| `cronjob` | suspended cronjob with no recent jobs | `alertmanager_cronjob_suspended.txt`, `test_golden_formatter_compacts_suspended_cronjob_reply`, `test_golden_metadata_suspended_cronjob_contract` | formatter, tool metadata |
+| `cronjob` | suspended cronjob with no recent jobs | `alertmanager_cronjob_suspended.txt`, `alertmanager_cronjob_parser.txt`, `test_golden_parser_cronjob_replay`, `test_golden_formatter_compacts_suspended_cronjob_reply`, `test_golden_metadata_suspended_cronjob_contract` | parser, formatter, tool metadata |
 | `cronjob` | idle cronjob with no recent jobs | `alertmanager_cronjob_idle.txt`, `test_golden_formatter_keeps_full_metadata_for_idle_cronjob_reply`, `test_golden_metadata_idle_cronjob_contract` | formatter, tool metadata |
+| `multi-alert` | grouped Slack message with two structured pod alerts | `alertmanager_multi_pod_oom.txt`, `test_golden_parser_multi_alert_replay_returns_all_alerts`, `test_golden_grouped_message_replies_once_per_alert_in_same_thread` | parser, handler thread reply |
 | `namespace` | skip-by-design dispatcher miss | `alertmanager_namespace_skip.txt`, `test_golden_skip_by_design_namespace_replay` | parser, dispatcher skip |
 
 Current known gaps:
 
-- `job` does not yet have a fixture asserting formatter output for the slow-completion alert shape
-- `cronjob` does not yet have a parser-focused golden replay fixture; current coverage starts at formatter / metadata contract
-- multi-alert grouped Slack replay is covered by ordinary tests, but not yet represented as a named golden fixture set here
+- `cronjob` idle currently starts at formatter / metadata contract; it does not yet have a parser-focused golden replay
+- `pod` healthy / gone / degraded currently start at formatter / metadata contract; parser-focused golden replays are still selective rather than exhaustive
 
 ---
 

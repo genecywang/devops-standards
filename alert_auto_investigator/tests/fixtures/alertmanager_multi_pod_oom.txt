@@ -1,0 +1,58 @@
+[FIRING:2] KubernetesContainerOomKiller | prod-jp | H2S-EKS-PROD-NORTHEAST-1
+Alert: KubernetesContainerOomKiller
+Resource: prod-h2-lab-worker-6dfcbbbff4-55w6b
+Environment: prod-jp
+Cluster: H2S-EKS-PROD-NORTHEAST-1
+Severity: critical
+Summary: Kubernetes container oom killer (instance 172.31.52.135:8080)
+
+--- Structured Alert ---
+AlertSource: prometheus
+Environment: prod-jp
+Cluster: H2S-EKS-PROD-NORTHEAST-1
+Severity: critical
+Status: firing
+AlertName: KubernetesContainerOomKiller
+ResourceType: pod
+ResourceName: prod-h2-lab-worker-6dfcbbbff4-55w6b
+Namespace: prod
+Summary: Kubernetes container oom killer (instance 172.31.52.135:8080)
+Description: Container prod-h2-lab-worker in pod prod/prod-h2-lab-worker-6dfcbbbff4-55w6b has been OOMKilled 1 times in the last 10 minutes.
+
+RawLabels:
+- alertname=KubernetesContainerOomKiller
+- cluster=H2S-EKS-PROD-NORTHEAST-1
+- container=prod-h2-lab-worker
+- environment=prod-jp
+- namespace=prod
+- pod=prod-h2-lab-worker-6dfcbbbff4-55w6b
+- severity=critical
+
+Alert: KubernetesContainerOomKiller
+Resource: prod-h2-server-go-567589445c-n8b9s
+Environment: prod-jp
+Cluster: H2S-EKS-PROD-NORTHEAST-1
+Severity: critical
+Summary: Kubernetes container oom killer (instance 172.31.52.135:8080)
+
+--- Structured Alert ---
+AlertSource: prometheus
+Environment: prod-jp
+Cluster: H2S-EKS-PROD-NORTHEAST-1
+Severity: critical
+Status: firing
+AlertName: KubernetesContainerOomKiller
+ResourceType: pod
+ResourceName: prod-h2-server-go-567589445c-n8b9s
+Namespace: prod
+Summary: Kubernetes container oom killer (instance 172.31.52.135:8080)
+Description: Container prod-h2-server-go in pod prod/prod-h2-server-go-567589445c-n8b9s has been OOMKilled 1 times in the last 10 minutes.
+
+RawLabels:
+- alertname=KubernetesContainerOomKiller
+- cluster=H2S-EKS-PROD-NORTHEAST-1
+- container=prod-h2-server-go
+- environment=prod-jp
+- namespace=prod
+- pod=prod-h2-server-go-567589445c-n8b9s
+- severity=critical
