@@ -1,0 +1,27 @@
+[FIRING:1] KubernetesHpaMetricAvailability | dev-tw | H2S-EKS-DEV-STG-EAST-2
+Alert: KubernetesHpaMetricAvailability
+Resource: dev
+Environment: dev-tw
+Cluster: H2S-EKS-DEV-STG-EAST-2
+Severity: warning
+Summary: Kubernetes HPA metric availability (instance 172.16.59.212:8080)
+
+--- Structured Alert ---
+AlertSource: prometheus
+Environment: dev-tw
+Cluster: H2S-EKS-DEV-STG-EAST-2
+Severity: warning
+Status: firing
+AlertName: KubernetesHpaMetricAvailability
+ResourceType: namespace
+ResourceName: dev
+Namespace: dev
+Summary: Kubernetes HPA metric availability (instance 172.16.59.212:8080)
+Description: HPA is not able to collect metrics.
+
+RawLabels:
+- alertname=KubernetesHpaMetricAvailability
+- cluster=H2S-EKS-DEV-STG-EAST-2
+- environment=dev-tw
+- namespace=dev
+- severity=warning

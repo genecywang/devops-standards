@@ -1,0 +1,27 @@
+[FIRING:1] KubernetesJobFailed | dev-tw | H2S-EKS-DEV-STG-EAST-2
+Alert: KubernetesJobFailed
+Resource: cronjob-iam-user-keyscan-manual-86x
+Environment: dev-tw
+Cluster: H2S-EKS-DEV-STG-EAST-2
+Severity: warning
+Summary: Kubernetes Job failed (instance 172.16.59.212:8080)
+
+--- Structured Alert ---
+AlertSource: prometheus
+Environment: dev-tw
+Cluster: H2S-EKS-DEV-STG-EAST-2
+Severity: warning
+Status: firing
+AlertName: KubernetesJobFailed
+ResourceType: job
+ResourceName: cronjob-iam-user-keyscan-manual-86x
+Namespace: monitoring
+Summary: Kubernetes Job failed (instance 172.16.59.212:8080)
+Description: Job monitoring/cronjob-iam-user-keyscan-manual-86x failed to complete.
+
+RawLabels:
+- alertname=KubernetesJobFailed
+- cluster=H2S-EKS-DEV-STG-EAST-2
+- environment=dev-tw
+- namespace=monitoring
+- severity=warning

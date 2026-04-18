@@ -1,0 +1,27 @@
+[FIRING:1] KubernetesContainerOomKiller | dev-tw | H2S-EKS-DEV-STG-EAST-2
+Alert: KubernetesContainerOomKiller
+Resource: prod-h2-server-go-567589445c-n8b9s
+Environment: dev-tw
+Cluster: H2S-EKS-DEV-STG-EAST-2
+Severity: critical
+Summary: Kubernetes container oom killer (instance 172.31.52.135:8080)
+
+--- Structured Alert ---
+AlertSource: prometheus
+Environment: dev-tw
+Cluster: H2S-EKS-DEV-STG-EAST-2
+Severity: critical
+Status: firing
+AlertName: KubernetesContainerOomKiller
+ResourceType: pod
+ResourceName: prod-h2-server-go-567589445c-n8b9s
+Namespace: prod
+Summary: Kubernetes container oom killer (instance 172.31.52.135:8080)
+Description: Container prod-h2-server-go in pod prod/prod-h2-server-go-567589445c-n8b9s has been OOMKilled 1 times in the last 10 minutes.
+
+RawLabels:
+- alertname=KubernetesContainerOomKiller
+- cluster=H2S-EKS-DEV-STG-EAST-2
+- environment=dev-tw
+- namespace=prod
+- severity=critical

@@ -1,0 +1,28 @@
+[FIRING:1] KubernetesCronjobIdle | dev-tw | H2S-EKS-DEV-STG-EAST-2
+Alert: KubernetesCronjobIdle
+Resource: nightly-backfill
+Environment: dev-tw
+Cluster: H2S-EKS-DEV-STG-EAST-2
+Severity: warning
+Summary: Kubernetes CronJob has no recent jobs
+
+--- Structured Alert ---
+AlertSource: prometheus
+Environment: dev-tw
+Cluster: H2S-EKS-DEV-STG-EAST-2
+Severity: warning
+Status: firing
+AlertName: KubernetesCronjobIdle
+ResourceType: cronjob
+ResourceName: nightly-backfill
+Namespace: dev
+Summary: Kubernetes CronJob has no recent jobs
+Description: CronJob dev/nightly-backfill has no recent jobs.
+
+RawLabels:
+- alertname=KubernetesCronjobIdle
+- cluster=H2S-EKS-DEV-STG-EAST-2
+- cronjob=nightly-backfill
+- environment=dev-tw
+- namespace=dev
+- severity=warning

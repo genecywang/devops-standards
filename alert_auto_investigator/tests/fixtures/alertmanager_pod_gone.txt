@@ -1,0 +1,27 @@
+[FIRING:1] KubernetesPod not in running status | dev-tw | H2S-EKS-DEV-STG-EAST-2
+Alert: KubernetesPod not in running status
+Resource: worker-pod-gone
+Environment: dev-tw
+Cluster: H2S-EKS-DEV-STG-EAST-2
+Severity: warning
+Summary: KubernetesPod not in running status
+
+--- Structured Alert ---
+AlertSource: prometheus
+Environment: dev-tw
+Cluster: H2S-EKS-DEV-STG-EAST-2
+Severity: warning
+Status: firing
+AlertName: KubernetesPod not in running status
+ResourceType: pod
+ResourceName: worker-pod-gone
+Namespace: dev
+Summary: KubernetesPod not in running status
+Description: Pod dev/worker-pod-gone is not running.
+
+RawLabels:
+- alertname=KubernetesPod not in running status
+- cluster=H2S-EKS-DEV-STG-EAST-2
+- environment=dev-tw
+- namespace=dev
+- severity=warning

@@ -1,0 +1,28 @@
+[FIRING:1] KubernetesCronjobSuspended | dev-tw | H2S-EKS-DEV-STG-EAST-2
+Alert: KubernetesCronjobSuspended
+Resource: nightly-backfill
+Environment: dev-tw
+Cluster: H2S-EKS-DEV-STG-EAST-2
+Severity: warning
+Summary: Kubernetes CronJob suspended
+
+--- Structured Alert ---
+AlertSource: prometheus
+Environment: dev-tw
+Cluster: H2S-EKS-DEV-STG-EAST-2
+Severity: warning
+Status: firing
+AlertName: KubernetesCronjobSuspended
+ResourceType: cronjob
+ResourceName: nightly-backfill
+Namespace: dev
+Summary: Kubernetes CronJob suspended
+Description: CronJob dev/nightly-backfill is suspended.
+
+RawLabels:
+- alertname=KubernetesCronjobSuspended
+- cluster=H2S-EKS-DEV-STG-EAST-2
+- cronjob=nightly-backfill
+- environment=dev-tw
+- namespace=dev
+- severity=warning
