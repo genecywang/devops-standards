@@ -28,8 +28,31 @@ Operational notes:
 - `pod no longer exists` usually means the alert targeted an ephemeral workload and the pod was already gone when investigation started.
 - `job` and `cronjob` alert keys include namespace; cooldown and dedupe are namespace-scoped.
 - If a supported alert does not reply, check logs for either:
-  - `dispatch_blocked_by_scope`
-  - `dispatch failed`
+  - `dispatch_scope_denied`
+  - `dispatch_failed`
+
+### Alert Identity vs Investigation Outcome
+
+Slack `Alert:` and investigation output are intentionally **not** a 1:1 semantic
+mapping.
+
+- The alert name tells you **which upstream rule fired**
+- The investigation tells you **the resource's current state when the bot checked it**
+
+That means different alert names may legitimately converge to the same
+investigation result.
+
+Examples:
+
+- `KubernetesJobSlowCompletion` and `KubernetesJobFailed` may both investigate to
+  the same current Job state, such as `failed` with
+  `primary_reason=BackoffLimitExceeded`
+- multiple pod alerts (`NotReady`, `OOMKilled`, `NotInRunningStatus`) may all
+  converge to the same current pod outcome, such as `degraded`,
+  `primary_reason=OOMKilled`, or `resource_exists=false`
+
+This is expected. The bot is reporting **current resource state**, not replaying
+the exact semantics of the original alert rule at firing time.
 
 ---
 
@@ -57,14 +80,14 @@ Actual execution is still constrained by runner scope:
 If the alert is supported but outside the configured scope, dispatch is blocked by
 policy and no Slack investigation reply is posted. The handler logs:
 
-- `dispatch_blocked_by_scope ... reason=cluster is not allowed`
-- `dispatch_blocked_by_scope ... reason=namespace is not allowed`
+- `dispatch_scope_denied ... reason=cluster is not allowed`
+- `dispatch_scope_denied ... reason=namespace is not allowed`
 
 Example:
 
 - `job` alerts in namespace `monitoring` are fully supported by the code path
 - but if `ALLOWED_NAMESPACES` only contains `dev`, the alert is expected to stop
-  at scope guard with `dispatch_blocked_by_scope`
+  at scope guard with `dispatch_scope_denied`
 
 This is a policy decision, not a parser failure and not a missing tool mapping.
 
