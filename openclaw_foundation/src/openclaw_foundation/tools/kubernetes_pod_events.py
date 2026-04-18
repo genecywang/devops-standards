@@ -10,7 +10,12 @@ from openclaw_foundation.runtime.guards import (
     truncate_pod_status,
     validate_scope,
 )
-from openclaw_foundation.tools.investigation_metadata import make_investigation_metadata
+from openclaw_foundation.tools.investigation_metadata import (
+    HEALTH_STATE_DEGRADED,
+    HEALTH_STATE_GONE,
+    HEALTH_STATE_HEALTHY,
+    make_investigation_metadata,
+)
 
 
 class KubernetesPodEventsTool:
@@ -153,7 +158,7 @@ def _status_is_healthy_without_recent_warnings(status_summary: str) -> bool:
 def _build_pod_metadata(pod_status: dict[str, object] | None) -> dict[str, object]:
     if pod_status is None:
         return make_investigation_metadata(
-            health_state="gone",
+            health_state=HEALTH_STATE_GONE,
             attention_required=False,
             resource_exists=False,
             primary_reason="Deleted",
@@ -163,7 +168,7 @@ def _build_pod_metadata(pod_status: dict[str, object] | None) -> dict[str, objec
     container_statuses = pod_status.get("container_statuses", [])
     primary_reason = phase
     attention_required = phase not in {"Running", "Succeeded"}
-    health_state = "healthy" if phase in {"Running", "Succeeded"} else "degraded"
+    health_state = HEALTH_STATE_HEALTHY if phase in {"Running", "Succeeded"} else HEALTH_STATE_DEGRADED
 
     if isinstance(container_statuses, list):
         for container in container_statuses:
@@ -173,18 +178,18 @@ def _build_pod_metadata(pod_status: dict[str, object] | None) -> dict[str, objec
             if isinstance(state, dict) and state.get("waiting_reason"):
                 primary_reason = str(state["waiting_reason"])
                 attention_required = True
-                health_state = "degraded"
+                health_state = HEALTH_STATE_DEGRADED
                 break
             if isinstance(state, dict) and state.get("terminated_reason"):
                 primary_reason = str(state["terminated_reason"])
                 attention_required = True
-                health_state = "degraded"
+                health_state = HEALTH_STATE_DEGRADED
                 break
             restart_count = int(container.get("restart_count", 0) or 0)
             if restart_count > 0:
                 primary_reason = "Restarting"
                 attention_required = True
-                health_state = "degraded"
+                health_state = HEALTH_STATE_DEGRADED
                 break
 
     return make_investigation_metadata(

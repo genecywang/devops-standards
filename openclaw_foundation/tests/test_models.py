@@ -1,6 +1,11 @@
 from openclaw_foundation.models.enums import RequestType, ResultState
 from openclaw_foundation.models.requests import ExecutionBudget, InvestigationRequest
 from openclaw_foundation.models.responses import CanonicalResponse
+from openclaw_foundation.tools.investigation_metadata import (
+    HEALTH_STATE_HEALTHY,
+    VALID_HEALTH_STATES,
+    make_investigation_metadata,
+)
 
 
 def test_budget_fields_round_trip() -> None:
@@ -75,3 +80,29 @@ def test_investigation_request_requested_by_defaults_to_none() -> None:
     )
 
     assert request.requested_by is None
+
+
+def test_make_investigation_metadata_accepts_known_health_state() -> None:
+    metadata = make_investigation_metadata(
+        health_state=HEALTH_STATE_HEALTHY,
+        attention_required=False,
+        resource_exists=True,
+        primary_reason="Running",
+    )
+
+    assert metadata["health_state"] == HEALTH_STATE_HEALTHY
+    assert HEALTH_STATE_HEALTHY in VALID_HEALTH_STATES
+
+
+def test_make_investigation_metadata_rejects_unknown_health_state() -> None:
+    try:
+        make_investigation_metadata(
+            health_state="unknown",
+            attention_required=False,
+            resource_exists=True,
+            primary_reason="Running",
+        )
+    except ValueError as exc:
+        assert "unsupported health_state" in str(exc)
+    else:
+        raise AssertionError("expected ValueError for unsupported health_state")

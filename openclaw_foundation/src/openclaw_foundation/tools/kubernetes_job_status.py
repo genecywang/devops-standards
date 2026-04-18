@@ -6,7 +6,13 @@ from openclaw_foundation.runtime.guards import (
     truncate_job_status,
     validate_scope,
 )
-from openclaw_foundation.tools.investigation_metadata import make_investigation_metadata
+from openclaw_foundation.tools.investigation_metadata import (
+    HEALTH_STATE_FAILED,
+    HEALTH_STATE_HEALTHY,
+    HEALTH_STATE_IN_PROGRESS,
+    HEALTH_STATE_PENDING,
+    make_investigation_metadata,
+)
 
 
 class KubernetesJobStatusTool:
@@ -119,7 +125,7 @@ def _build_job_metadata(payload: dict[str, object]) -> dict[str, object]:
 
     if failed:
         return make_investigation_metadata(
-            health_state="failed",
+            health_state=HEALTH_STATE_FAILED,
             attention_required=True,
             resource_exists=True,
             primary_reason=primary_reason,
@@ -127,7 +133,7 @@ def _build_job_metadata(payload: dict[str, object]) -> dict[str, object]:
 
     if active:
         return make_investigation_metadata(
-            health_state="in_progress",
+            health_state=HEALTH_STATE_IN_PROGRESS,
             attention_required=False,
             resource_exists=True,
             primary_reason=primary_reason or "Running",
@@ -135,14 +141,14 @@ def _build_job_metadata(payload: dict[str, object]) -> dict[str, object]:
 
     if succeeded:
         return make_investigation_metadata(
-            health_state="healthy",
+            health_state=HEALTH_STATE_HEALTHY,
             attention_required=False,
             resource_exists=True,
             primary_reason=primary_reason,
         )
 
     return make_investigation_metadata(
-        health_state="pending",
+        health_state=HEALTH_STATE_PENDING,
         attention_required=False,
         resource_exists=True,
         primary_reason=primary_reason or "Pending",

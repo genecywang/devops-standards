@@ -6,7 +6,11 @@ from openclaw_foundation.runtime.guards import (
     truncate_job_status,
     validate_scope,
 )
-from openclaw_foundation.tools.investigation_metadata import make_investigation_metadata
+from openclaw_foundation.tools.investigation_metadata import (
+    HEALTH_STATE_IDLE,
+    HEALTH_STATE_SUSPENDED,
+    make_investigation_metadata,
+)
 from openclaw_foundation.tools.kubernetes_job_status import _build_job_summary
 from openclaw_foundation.tools.kubernetes_job_status import _build_job_metadata
 
@@ -84,14 +88,14 @@ def _build_cronjob_prefix(cronjob_name: str, payload: dict[str, object]) -> str:
 def _build_cronjob_idle_metadata(suspended: bool) -> dict[str, object]:
     if suspended:
         return make_investigation_metadata(
-            health_state="suspended",
+            health_state=HEALTH_STATE_SUSPENDED,
             attention_required=False,
             resource_exists=True,
             primary_reason="Suspended",
         )
 
     return make_investigation_metadata(
-        health_state="idle",
+        health_state=HEALTH_STATE_IDLE,
         attention_required=False,
         resource_exists=True,
         primary_reason="NoRecentJobs",

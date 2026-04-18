@@ -27,6 +27,10 @@ def _format_metadata_lines(metadata: dict[str, object]) -> list[str]:
     if not metadata:
         return []
 
+    compact_lines = _format_compact_metadata_lines(metadata)
+    if compact_lines:
+        return compact_lines
+
     lines: list[str] = []
 
     health_state = metadata.get("health_state")
@@ -44,3 +48,29 @@ def _format_metadata_lines(metadata: dict[str, object]) -> list[str]:
         lines.append(f"*Reason:* {primary_reason}")
 
     return lines
+
+
+def _format_compact_metadata_lines(metadata: dict[str, object]) -> list[str]:
+    health_state = metadata.get("health_state")
+    attention_required = bool(metadata.get("attention_required", False))
+    resource_exists = bool(metadata.get("resource_exists", True))
+    primary_reason = metadata.get("primary_reason")
+
+    if not isinstance(health_state, str) or not health_state:
+        return []
+    if not isinstance(primary_reason, str) or not primary_reason:
+        return []
+
+    if not resource_exists:
+        return [
+            f"*State:* {health_state}",
+            f"*Reason:* {primary_reason}",
+        ]
+
+    if health_state == "healthy" and not attention_required and resource_exists:
+        return [
+            f"*State:* {health_state}",
+            f"*Reason:* {primary_reason}",
+        ]
+
+    return []

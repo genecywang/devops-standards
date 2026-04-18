@@ -54,6 +54,34 @@ Examples:
 This is expected. The bot is reporting **current resource state**, not replaying
 the exact semantics of the original alert rule at firing time.
 
+### Investigation Outcome Taxonomy
+
+Supported investigation results should use a small shared metadata contract:
+
+- `health_state`
+- `attention_required`
+- `resource_exists`
+- `primary_reason`
+
+Current canonical `health_state` values:
+
+| health_state | Meaning | Typical examples |
+|--------------|---------|------------------|
+| `healthy` | Resource is currently in a good terminal or stable state | running pod without warning signal, completed job |
+| `degraded` | Resource exists but is unhealthy or needs operator attention | pending pod, OOMKilled pod, waiting pod |
+| `failed` | Resource reached a failed terminal state | job failed with `BackoffLimitExceeded` |
+| `in_progress` | Resource is actively running and not yet terminal | active job still running |
+| `pending` | Resource exists but has not yet made meaningful progress | job created but neither active nor complete |
+| `idle` | Resource is healthy but currently has no active or recent execution | cronjob with no recent jobs |
+| `suspended` | Resource is intentionally paused | suspended cronjob |
+| `gone` | Resource no longer exists at investigation time | short-lived pod already deleted |
+
+Interpretation rules:
+
+- `attention_required=true` means the current state needs follow-up, even if the original alert rule had different wording
+- `resource_exists=false` means the target disappeared before or during investigation; this is not automatically a failure
+- `primary_reason` should describe the strongest current signal, not restate the alert name
+
 ---
 
 ## Actively Supported (`INVESTIGATE`)

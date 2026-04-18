@@ -56,10 +56,11 @@ def test_format_investigation_reply_for_success() -> None:
     assert "*Environment:* dev" in text
     assert "*Check:* get_deployment_status" in text
     assert "*Result:* success" in text
-    assert "*Health:* healthy" in text
-    assert "*Attention:* no" in text
-    assert "*Exists:* yes" in text
+    assert "*State:* healthy" in text
     assert "*Reason:* Completed" in text
+    assert "*Health:*" not in text
+    assert "*Attention:*" not in text
+    assert "*Exists:*" not in text
     assert "*Summary:* deployment medication-service is healthy: 2/2 ready, 2 available" in text
 
 
@@ -85,3 +86,47 @@ def test_format_investigation_reply_omits_metadata_lines_when_unavailable() -> N
     assert "*Attention:*" not in text
     assert "*Exists:*" not in text
     assert "*Reason:*" not in text
+
+
+def test_format_investigation_reply_compacts_deleted_resource_metadata() -> None:
+    text = format_investigation_reply(
+        make_event(resource_type="pod", resource_name="worker-pod"),
+        make_response(
+            summary="pod worker-pod no longer exists; latest event=Normal/Scheduled",
+            actions_attempted=["get_pod_events"],
+            metadata={
+                "health_state": "gone",
+                "attention_required": False,
+                "resource_exists": False,
+                "primary_reason": "Deleted",
+            },
+        ),
+    )
+
+    assert "*State:* gone" in text
+    assert "*Reason:* Deleted" in text
+    assert "*Health:*" not in text
+    assert "*Attention:*" not in text
+    assert "*Exists:*" not in text
+
+
+def test_format_investigation_reply_keeps_full_metadata_for_actionable_state() -> None:
+    text = format_investigation_reply(
+        make_event(resource_type="job", resource_name="nightly-backfill-12345"),
+        make_response(
+            summary="job nightly-backfill-12345 failed: active=0, succeeded=0, failed=3",
+            actions_attempted=["get_job_status"],
+            metadata={
+                "health_state": "failed",
+                "attention_required": True,
+                "resource_exists": True,
+                "primary_reason": "BackoffLimitExceeded",
+            },
+        ),
+    )
+
+    assert "*Health:* failed" in text
+    assert "*Attention:* yes" in text
+    assert "*Exists:* yes" in text
+    assert "*Reason:* BackoffLimitExceeded" in text
+    assert "*State:*" not in text
