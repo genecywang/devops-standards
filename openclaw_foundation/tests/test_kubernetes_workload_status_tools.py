@@ -80,6 +80,12 @@ def test_get_deployment_status_tool_uses_adapter_and_returns_summary() -> None:
     assert "dev-api" in result.summary
     assert len(result.evidence) == 1
     assert result.evidence[0]["desired_replicas"] == 3
+    assert result.metadata == {
+        "health_state": "healthy",
+        "attention_required": False,
+        "resource_exists": True,
+        "primary_reason": "MinimumReplicasAvailable",
+    }
 
 
 def test_get_deployment_status_tool_denies_cluster_outside_allowlist() -> None:

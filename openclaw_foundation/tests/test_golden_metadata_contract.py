@@ -4,6 +4,7 @@ from openclaw_foundation.adapters.kubernetes import (
 )
 from openclaw_foundation.models.enums import RequestType
 from openclaw_foundation.models.requests import ExecutionBudget, InvestigationRequest
+from openclaw_foundation.tools.kubernetes_deployment_status import KubernetesDeploymentStatusTool
 from openclaw_foundation.tools.kubernetes_cronjob_status import KubernetesCronJobStatusTool
 from openclaw_foundation.tools.kubernetes_job_status import KubernetesJobStatusTool
 from openclaw_foundation.tools.kubernetes_pod_events import KubernetesPodEventsTool
@@ -95,6 +96,31 @@ class _FailedJobAdapter(FakeKubernetesProviderAdapter):
         }
 
 
+class _HealthyDeploymentAdapter(FakeKubernetesProviderAdapter):
+    def get_deployment_status(
+        self,
+        cluster: str,
+        namespace: str,
+        deployment_name: str,
+    ) -> dict[str, object]:
+        return {
+            "deployment_name": deployment_name,
+            "namespace": namespace,
+            "desired_replicas": 3,
+            "ready_replicas": 3,
+            "available_replicas": 3,
+            "updated_replicas": 3,
+            "conditions": [
+                {
+                    "type": "Available",
+                    "status": "True",
+                    "reason": "MinimumReplicasAvailable",
+                    "message": "Deployment has minimum availability.",
+                }
+            ],
+        }
+
+
 class _DegradedPodAdapter(FakeKubernetesProviderAdapter):
     def get_pod_status(self, cluster: str, namespace: str, pod_name: str) -> dict[str, object]:
         return {
@@ -176,6 +202,23 @@ def test_golden_metadata_deleted_pod_contract() -> None:
         "attention_required": False,
         "resource_exists": False,
         "primary_reason": "Deleted",
+    }
+
+
+def test_golden_metadata_healthy_deployment_contract() -> None:
+    tool = KubernetesDeploymentStatusTool(
+        adapter=_HealthyDeploymentAdapter(),
+        allowed_clusters={"staging-main"},
+        allowed_namespaces={"dev"},
+    )
+
+    result = tool.invoke(_make_request("get_deployment_status", "medication-service"))
+
+    assert result.metadata == {
+        "health_state": "healthy",
+        "attention_required": False,
+        "resource_exists": True,
+        "primary_reason": "MinimumReplicasAvailable",
     }
 
 

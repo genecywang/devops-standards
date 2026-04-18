@@ -6,6 +6,11 @@ from openclaw_foundation.runtime.guards import (
     truncate_deployment_status,
     validate_scope,
 )
+from openclaw_foundation.tools.investigation_metadata import (
+    HEALTH_STATE_DEGRADED,
+    HEALTH_STATE_HEALTHY,
+    make_investigation_metadata,
+)
 
 
 class KubernetesDeploymentStatusTool:
@@ -41,9 +46,20 @@ class KubernetesDeploymentStatusTool:
         desired = redacted.get("desired_replicas", 0)
         ready = redacted.get("ready_replicas", 0)
         available = redacted.get("available_replicas", 0)
-        health = "healthy" if desired == ready == available else "degraded"
+        health = HEALTH_STATE_HEALTHY if desired == ready == available else HEALTH_STATE_DEGRADED
+        primary_reason = "ReplicasMismatch"
+        for condition in redacted.get("conditions", []):
+            if condition.get("status") == "True" and condition.get("reason"):
+                primary_reason = str(condition["reason"])
+                break
 
         return ToolResult(
             summary=f"deployment {deployment_name} is {health}: {ready}/{desired} ready, {available} available",
             evidence=[redacted],
+            metadata=make_investigation_metadata(
+                health_state=health,
+                attention_required=health != HEALTH_STATE_HEALTHY,
+                resource_exists=True,
+                primary_reason=primary_reason,
+            ),
         )

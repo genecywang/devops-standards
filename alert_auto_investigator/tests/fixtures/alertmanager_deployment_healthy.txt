@@ -1,0 +1,28 @@
+[FIRING:1] DeploymentReplicasMismatch | dev-tw | H2S-EKS-DEV-STG-EAST-2
+Alert: DeploymentReplicasMismatch
+Resource: medication-service
+Environment: dev-tw
+Cluster: H2S-EKS-DEV-STG-EAST-2
+Severity: warning
+Summary: Deployment has unavailable replicas
+
+--- Structured Alert ---
+AlertSource: prometheus
+Environment: dev-tw
+Cluster: H2S-EKS-DEV-STG-EAST-2
+Severity: warning
+Status: firing
+AlertName: DeploymentReplicasMismatch
+ResourceType: deployment
+ResourceName: medication-service
+Namespace: dev
+Summary: Deployment has unavailable replicas
+Description: Deployment dev/medication-service has replica mismatch.
+
+RawLabels:
+- alertname=DeploymentReplicasMismatch
+- cluster=H2S-EKS-DEV-STG-EAST-2
+- deployment=medication-service
+- environment=dev-tw
+- namespace=dev
+- severity=warning

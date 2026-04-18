@@ -79,6 +79,19 @@ def test_golden_parser_job_slow_completion_replay() -> None:
     )
 
 
+def test_golden_parser_deployment_replay() -> None:
+    event = _parse_fixture("alertmanager_deployment_healthy.txt")
+
+    assert event.alert_name == "DeploymentReplicasMismatch"
+    assert event.resource_type == "deployment"
+    assert event.resource_name == "medication-service"
+    assert event.namespace == "dev"
+    assert (
+        event.alert_key
+        == "alertmanager:H2S-EKS-DEV-STG-EAST-2:dev:DeploymentReplicasMismatch:medication-service"
+    )
+
+
 def test_golden_skip_by_design_namespace_replay(caplog) -> None:
     event = _parse_fixture("alertmanager_namespace_skip.txt")
     dispatcher = OpenClawDispatcher(
@@ -137,6 +150,28 @@ def test_golden_formatter_keeps_full_metadata_for_failed_job_reply() -> None:
     assert "*Attention:* yes" in text
     assert "*Exists:* yes" in text
     assert "*Reason:* BackoffLimitExceeded" in text
+
+
+def test_golden_formatter_compacts_healthy_deployment_reply() -> None:
+    event = _parse_fixture("alertmanager_deployment_healthy.txt")
+    response = _make_response(
+        summary="deployment medication-service is healthy: 3/3 ready, 3 available",
+        check="get_deployment_status",
+        metadata={
+            "health_state": "healthy",
+            "attention_required": False,
+            "resource_exists": True,
+            "primary_reason": "MinimumReplicasAvailable",
+        },
+    )
+
+    text = format_investigation_reply(event, response)
+
+    assert "*State:* healthy" in text
+    assert "*Reason:* MinimumReplicasAvailable" in text
+    assert "*Health:*" not in text
+    assert "*Attention:*" not in text
+    assert "*Exists:*" not in text
 
 
 def test_golden_formatter_compacts_gone_pod_reply() -> None:
