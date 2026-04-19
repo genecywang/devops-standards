@@ -177,6 +177,8 @@ When evaluating future proposals, use these rules:
 The near-term focus should remain on Phase 1 work:
 
 - continue tightening investigation support and coverage
+- document bounded enrichment separately from primary investigation tools:
+  - `docs/target-group-k8s-enrichment.md`
 - document company-specific assumptions explicitly
 - keep the investigation metadata contract stable
 
