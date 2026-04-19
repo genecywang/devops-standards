@@ -7,6 +7,9 @@ and what it does with each. The same policy is enforced in code at
 For future roadmap sequencing beyond the current read-only investigation scope,
 see `docs/future-phases.md`.
 
+For operational deployment and runtime verification of AWS investigation paths,
+see `docs/aws-operations.md`.
+
 ---
 
 ## Runtime Behavior Quick Reference

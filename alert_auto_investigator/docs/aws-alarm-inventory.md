@@ -8,6 +8,9 @@ This document summarizes the current AWS CloudWatch alarm surface observed from:
 The goal is to decide AWS support posture from real alarm distribution rather
 than extending parser and investigation code blindly.
 
+For deployment, IRSA, manual replay, and runtime troubleshooting, see
+`docs/aws-operations.md`.
+
 ---
 
 ## Current Status
