@@ -58,7 +58,8 @@ The current AWS tool surface only needs these read-only actions:
         "rds:DescribeDBInstances",
         "elasticloadbalancing:DescribeLoadBalancers",
         "elasticloadbalancing:DescribeTargetGroups",
-        "elasticloadbalancing:DescribeTargetHealth"
+        "elasticloadbalancing:DescribeTargetHealth",
+        "elasticloadbalancing:DescribeTags"
       ],
       "Resource": "*"
     }
@@ -68,9 +69,27 @@ The current AWS tool surface only needs these read-only actions:
 
 Nothing in AWS phase 1 requires write access.
 
+`DescribeTags` is required for target group single-IP tag fallback.
+
 ---
 
-## 3. IRSA / Existing ServiceAccount Checklist
+## 3. Required Kubernetes Read Permissions
+
+Target group K8s enrichment also needs these read-only Kubernetes permissions:
+
+- core/v1 `pods`: `get`, `list`, `watch`
+- core/v1 `pods/status`: `get`, `list`, `watch`
+- core/v1 `events`: `get`, `list`, `watch`
+- core/v1 `services`: `get`, `list`, `watch`
+- discovery.k8s.io/v1 `endpointslices`: `get`, `list`, `watch`
+
+If `services` or `endpointslices` are missing, base AWS target group replies still
+work, but K8s enrichment will fail open and no `RelatedK8sNamespace` /
+`RelatedK8sService` lines will be appended.
+
+---
+
+## 4. IRSA / Existing ServiceAccount Checklist
 
 Before runtime testing, confirm these align:
 
@@ -116,7 +135,7 @@ working.
 
 ---
 
-## 4. Recommended Helm Examples
+## 5. Recommended Helm Examples
 
 ### Existing ServiceAccount Mode
 
@@ -167,7 +186,7 @@ Notes:
 
 ---
 
-## 5. Manual Replay Templates
+## 6. Manual Replay Templates
 
 The easiest runtime check is to paste a structured CloudWatch alert directly
 into Slack.
@@ -257,7 +276,7 @@ resource_name: app/prod-api/abc123
 
 ---
 
-## 6. Runtime Verification
+## 7. Runtime Verification
 
 When replaying or observing real AWS alerts, look for these logs:
 
