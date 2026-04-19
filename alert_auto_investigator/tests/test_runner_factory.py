@@ -79,3 +79,4 @@ def test_build_registry_registers_expected_tools() -> None:
     assert registry.get("get_cronjob_status").tool_name == "get_cronjob_status"
     assert registry.get("get_rds_instance_status").tool_name == "get_rds_instance_status"
     assert registry.get("get_target_group_status").tool_name == "get_target_group_status"
+    assert registry.get("get_load_balancer_status").tool_name == "get_load_balancer_status"

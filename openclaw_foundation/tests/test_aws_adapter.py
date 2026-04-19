@@ -47,6 +47,19 @@ def test_fake_adapter_returns_bounded_target_group_payload() -> None:
     assert result["unhealthy_count"] == 0
 
 
+def test_fake_adapter_returns_bounded_load_balancer_payload() -> None:
+    adapter = FakeAwsProviderAdapter()
+
+    result = adapter.get_load_balancer_status(
+        region_code="ap-northeast-1",
+        load_balancer_name="app/prod-api/abc123",
+    )
+
+    assert result["load_balancer_name"] == "app/prod-api/abc123"
+    assert result["scheme"] == "internet-facing"
+    assert result["state"] == "active"
+
+
 def test_real_adapter_maps_rds_instance_payload() -> None:
     client = Mock()
     client.describe_db_instances.return_value = {
@@ -124,6 +137,43 @@ def test_real_adapter_maps_target_group_payload() -> None:
     }
 
 
+def test_real_adapter_maps_load_balancer_payload() -> None:
+    elbv2_client = Mock()
+    elbv2_client.describe_load_balancers.return_value = {
+        "LoadBalancers": [
+            {
+                "LoadBalancerName": "prod-api",
+                "LoadBalancerArn": "arn:aws:elasticloadbalancing:ap-northeast-1:123:loadbalancer/app/prod-api/abc123",
+                "DNSName": "prod-api-123.ap-northeast-1.elb.amazonaws.com",
+                "Scheme": "internet-facing",
+                "Type": "application",
+                "VpcId": "vpc-12345",
+                "State": {"Code": "active"},
+                "AvailabilityZones": [{"ZoneName": "apne1-a"}, {"ZoneName": "apne1-c"}],
+                "SecurityGroups": ["sg-1", "sg-2"],
+            }
+        ]
+    }
+    adapter = RealAwsProviderAdapter(client_factory=Mock(return_value=elbv2_client))
+
+    result = adapter.get_load_balancer_status(
+        region_code="ap-northeast-1",
+        load_balancer_name="app/prod-api/abc123",
+    )
+
+    assert result == {
+        "load_balancer_name": "app/prod-api/abc123",
+        "load_balancer_arn": "arn:aws:elasticloadbalancing:ap-northeast-1:123:loadbalancer/app/prod-api/abc123",
+        "dns_name": "prod-api-123.ap-northeast-1.elb.amazonaws.com",
+        "scheme": "internet-facing",
+        "type": "application",
+        "state": "active",
+        "vpc_id": "vpc-12345",
+        "availability_zone_count": 2,
+        "security_group_count": 2,
+    }
+
+
 def test_real_adapter_maps_missing_rds_instance_to_domain_error() -> None:
     client = Mock()
     client.describe_db_instances.return_value = {"DBInstances": []}
@@ -145,6 +195,18 @@ def test_real_adapter_maps_missing_target_group_to_domain_error() -> None:
         adapter.get_target_group_status(
             region_code="ap-northeast-1",
             target_group_name="targetgroup/api/abc123",
+        )
+
+
+def test_real_adapter_maps_missing_load_balancer_to_domain_error() -> None:
+    client = Mock()
+    client.describe_load_balancers.return_value = {"LoadBalancers": []}
+    adapter = RealAwsProviderAdapter(client_factory=Mock(return_value=client))
+
+    with pytest.raises(AwsResourceNotFoundError, match="load balancer not found"):
+        adapter.get_load_balancer_status(
+            region_code="ap-northeast-1",
+            load_balancer_name="app/prod-api/abc123",
         )
 
 

@@ -14,6 +14,7 @@ from openclaw_foundation.adapters.prometheus import (
 )
 from openclaw_foundation.runtime.runner import OpenClawRunner
 from openclaw_foundation.tools.aws_rds_instance_status import AwsRdsInstanceStatusTool
+from openclaw_foundation.tools.aws_load_balancer_status import AwsLoadBalancerStatusTool
 from openclaw_foundation.tools.aws_target_group_status import AwsTargetGroupStatusTool
 from openclaw_foundation.tools.kubernetes_cronjob_status import KubernetesCronJobStatusTool
 from openclaw_foundation.tools.kubernetes_deployment_status import KubernetesDeploymentStatusTool
@@ -92,5 +93,6 @@ def build_registry(config: InvestigatorConfig) -> ToolRegistry:
         )
     )
     registry.register(AwsRdsInstanceStatusTool(adapter=aws_adapter))
+    registry.register(AwsLoadBalancerStatusTool(adapter=aws_adapter))
     registry.register(AwsTargetGroupStatusTool(adapter=aws_adapter))
     return registry

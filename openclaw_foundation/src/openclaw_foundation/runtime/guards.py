@@ -113,6 +113,25 @@ def truncate_target_group_status(payload: dict[str, object]) -> dict[str, object
     }
 
 
+def truncate_load_balancer_status(payload: dict[str, object]) -> dict[str, object]:
+    return {
+        key: value
+        for key, value in payload.items()
+        if key
+        in {
+            "load_balancer_name",
+            "load_balancer_arn",
+            "dns_name",
+            "scheme",
+            "type",
+            "state",
+            "vpc_id",
+            "availability_zone_count",
+            "security_group_count",
+        }
+    }
+
+
 def truncate_pod_logs(lines: list[str]) -> list[str]:
     bounded = lines[:_MAX_LOG_LINES]
     return [

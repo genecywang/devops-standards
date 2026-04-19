@@ -153,15 +153,15 @@ This section is a posture recommendation, not an implementation commitment.
 
 ### 1. Investigate Now
 
-These have the strongest bounded investigation value. `rds_instance` and
-`target_group` are already implemented; `load_balancer` remains the next
-candidate.
+These have the strongest bounded investigation value. `rds_instance`,
+`target_group`, and `load_balancer` are now implemented as bounded read-only
+tools.
 
 | resource area | Why |
 |---------------|-----|
 | `rds_instance` | implemented first AWS investigation type; backed by `DescribeDBInstances`; bounded API surface |
 | `target_group` | implemented second AWS investigation type; backed by `DescribeTargetGroups` + `DescribeTargetHealth`; strongest ALB-side actionability |
-| `load_balancer` | clear ALB health signals; still useful, but broader and less direct than target-group health |
+| `load_balancer` | implemented third AWS investigation type; backed by `DescribeLoadBalancers`; answers ALB existence and front-door state |
 
 ### 2. Notify-Only First
 
@@ -202,13 +202,13 @@ Only after that:
 
 Start with:
 
-- `load_balancer`
+- AWS/K8s correlation or selected notify-only domains
 
-Possible first tool shape:
+Possible next tool shapes:
 
-- describe ALB scheme / type / state
-- capture coarse availability posture
-- avoid listener / rule / metric correlation in the first pass
+- selected AWS/K8s enrichment for `target_group`
+- one notify-only domain promoted to investigate (`elasticache_cluster` or `msk_cluster`)
+- avoid broad listener / rule / metric correlation unless there is a concrete alert class driving it
 
 ---
 
@@ -221,4 +221,5 @@ Based on the current inventory:
 - first implementation work should go into **classification and source coverage**
 - first implemented AWS investigation type is now `rds_instance`
 - second implemented AWS investigation type is now `target_group`
-- next real AWS investigation candidate should likely be `load_balancer`
+- third implemented AWS investigation type is now `load_balancer`
+- next candidate should focus on enrichment rather than another broad AWS surface

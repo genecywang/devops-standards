@@ -167,6 +167,21 @@ def test_dispatch_routes_target_group_to_get_target_group_status() -> None:
     assert runner.last_request.tool_name == "get_target_group_status"
 
 
+def test_dispatch_routes_load_balancer_to_get_load_balancer_status() -> None:
+    dispatcher, runner = make_dispatcher()
+    dispatcher.dispatch(
+        make_event(
+            source="cloudwatch_alarm",
+            cluster="",
+            namespace="",
+            resource_type="load_balancer",
+            resource_name="app/prod-api/abc123",
+        )
+    )
+
+    assert runner.last_request.tool_name == "get_load_balancer_status"
+
+
 def test_dispatch_logs_supported_but_unrouted_for_investigate_type(caplog) -> None:
     dispatcher, runner = make_dispatcher(make_config(tool_routing={}))
 

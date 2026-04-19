@@ -21,6 +21,7 @@ Use this section when reading live Slack alerts. "No reply" is not always a bug.
 | `job` in allowed namespace | Replies in thread | `job` is actively supported |
 | `cronjob` in allowed namespace | Replies in thread | latest owned Job is investigated and summarized |
 | `rds_instance` | Replies in thread | `rds_instance` is actively supported |
+| `load_balancer` | Replies in thread | `load_balancer` is actively supported |
 | `target_group` | Replies in thread | `target_group` is actively supported |
 | `job` outside `ALLOWED_NAMESPACES` or `ALLOWED_CLUSTERS` | No Slack reply | blocked by runtime scope guard |
 | `cronjob` outside `ALLOWED_NAMESPACES` or `ALLOWED_CLUSTERS` | No Slack reply | blocked by runtime scope guard |
@@ -125,6 +126,7 @@ These resource types trigger a real investigation via an OpenClaw tool.
 | `job` | `get_job_status` | Alertmanager (label: `job_name` or `exported_job`) |
 | `cronjob` | `get_cronjob_status` | Alertmanager (label: `cronjob`) |
 | `rds_instance` | `get_rds_instance_status` | CloudWatch alarm (dimension: `DBInstanceIdentifier`) |
+| `load_balancer` | `get_load_balancer_status` | CloudWatch alarm (dimension: `LoadBalancer`) |
 | `target_group` | `get_target_group_status` | CloudWatch alarm (dimension: `TargetGroup`) |
 
 ### Runtime Scope Guard
@@ -210,7 +212,6 @@ value, but no AWS tool exists yet. The dispatcher logs
 
 | resource_type | Reason |
 |---------------|--------|
-| `load_balancer` | ALB-level health and traffic signals are operationally useful but need dedicated AWS APIs. |
 
 ### Catch-all
 

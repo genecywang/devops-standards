@@ -2,6 +2,7 @@ from openclaw_foundation.models.enums import RequestType
 from openclaw_foundation.models.requests import ExecutionBudget, InvestigationRequest
 from openclaw_foundation.tools.kubernetes_pod_status import KubernetesPodStatusTool
 from openclaw_foundation.tools.aws_rds_instance_status import AwsRdsInstanceStatusTool
+from openclaw_foundation.tools.aws_load_balancer_status import AwsLoadBalancerStatusTool
 from openclaw_foundation.tools.aws_target_group_status import AwsTargetGroupStatusTool
 from openclaw_foundation.runtime.runner import OpenClawRunner
 from openclaw_foundation.runtime.state_machine import RuntimeState
@@ -196,4 +197,41 @@ def test_runner_executes_target_group_status_tool() -> None:
         "attention_required": False,
         "resource_exists": True,
         "primary_reason": "HealthyTargets",
+    }
+
+
+def test_runner_executes_load_balancer_status_tool() -> None:
+    registry = ToolRegistry()
+    registry.register(AwsLoadBalancerStatusTool(adapter=FakeAwsProviderAdapter()))
+    runner = OpenClawRunner(registry)
+    request = InvestigationRequest(
+        request_type=RequestType.INVESTIGATION,
+        request_id="req-lb-001",
+        source_product="alert_auto_investigator",
+        scope={"environment": "prod-jp", "cluster": "", "region_code": "ap-northeast-1"},
+        input_ref="fixture:lb-demo",
+        budget=ExecutionBudget(
+            max_steps=2,
+            max_tool_calls=1,
+            max_duration_seconds=30,
+            max_output_tokens=256,
+        ),
+        tool_name="get_load_balancer_status",
+        target={
+            "cluster": "",
+            "namespace": "",
+            "resource_name": "app/prod-api/abc123",
+        },
+    )
+
+    response = runner.run(request)
+
+    assert response.result_state == "success"
+    assert response.actions_attempted == ["get_load_balancer_status"]
+    assert "load balancer app/prod-api/abc123 is active" in response.summary
+    assert response.metadata == {
+        "health_state": "healthy",
+        "attention_required": False,
+        "resource_exists": True,
+        "primary_reason": "active",
     }

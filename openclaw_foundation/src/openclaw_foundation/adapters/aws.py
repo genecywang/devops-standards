@@ -33,6 +33,7 @@ class AwsApiError(AwsError):
 class AwsProviderAdapter(Protocol):
     def get_rds_instance_status(self, region_code: str, db_instance_identifier: str) -> dict[str, object]: ...
     def get_target_group_status(self, region_code: str, target_group_name: str) -> dict[str, object]: ...
+    def get_load_balancer_status(self, region_code: str, load_balancer_name: str) -> dict[str, object]: ...
 
 
 def build_rds_client(region_code: str) -> Any:
@@ -81,6 +82,23 @@ class FakeAwsProviderAdapter:
             "initial_count": 0,
             "draining_count": 0,
             "unused_count": 0,
+        }
+
+    def get_load_balancer_status(
+        self,
+        region_code: str,
+        load_balancer_name: str,
+    ) -> dict[str, object]:
+        return {
+            "load_balancer_name": load_balancer_name,
+            "load_balancer_arn": f"arn:aws:elasticloadbalancing:{region_code}:123:loadbalancer/app/prod-api/abc123",
+            "dns_name": f"prod-api-123.{region_code}.elb.amazonaws.com",
+            "scheme": "internet-facing",
+            "type": "application",
+            "state": "active",
+            "vpc_id": "vpc-12345",
+            "availability_zone_count": 2,
+            "security_group_count": 2,
         }
 
 
@@ -200,9 +218,53 @@ class RealAwsProviderAdapter:
             **counts,
         }
 
+    def get_load_balancer_status(
+        self,
+        region_code: str,
+        load_balancer_name: str,
+    ) -> dict[str, object]:
+        try:
+            client = self._client_factory(region_code)
+            response = client.describe_load_balancers(Names=[_load_balancer_short_name(load_balancer_name)])
+        except Exception as error:
+            if self._client_error_cls is not None and isinstance(error, self._client_error_cls):
+                code = str(getattr(error, "response", {}).get("Error", {}).get("Code") or "")
+                if code in {"AccessDenied", "AccessDeniedException", "UnauthorizedOperation"}:
+                    raise AwsAccessDeniedError("aws access denied") from error
+                if code in {"LoadBalancerNotFound", "LoadBalancerNotFoundException"}:
+                    raise AwsResourceNotFoundError("load balancer not found") from error
+                raise AwsApiError("failed to describe load balancer") from error
+            if isinstance(error, AwsError):
+                raise
+            raise AwsApiError("failed to describe load balancer") from error
+
+        load_balancers = response.get("LoadBalancers", [])
+        if not load_balancers:
+            raise AwsResourceNotFoundError("load balancer not found")
+
+        load_balancer = load_balancers[0]
+        return {
+            "load_balancer_name": load_balancer_name,
+            "load_balancer_arn": str(load_balancer.get("LoadBalancerArn") or ""),
+            "dns_name": str(load_balancer.get("DNSName") or ""),
+            "scheme": str(load_balancer.get("Scheme") or "unknown"),
+            "type": str(load_balancer.get("Type") or "unknown"),
+            "state": str((load_balancer.get("State") or {}).get("Code") or "unknown"),
+            "vpc_id": str(load_balancer.get("VpcId") or "unknown"),
+            "availability_zone_count": len(load_balancer.get("AvailabilityZones", []) or []),
+            "security_group_count": len(load_balancer.get("SecurityGroups", []) or []),
+        }
+
 
 def _target_group_short_name(target_group_name: str) -> str:
     parts = target_group_name.split("/")
     if len(parts) >= 2:
         return parts[-2]
     return target_group_name
+
+
+def _load_balancer_short_name(load_balancer_name: str) -> str:
+    parts = load_balancer_name.split("/")
+    if len(parts) >= 2:
+        return parts[-2]
+    return load_balancer_name
