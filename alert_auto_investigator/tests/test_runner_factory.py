@@ -80,3 +80,9 @@ def test_build_registry_registers_expected_tools() -> None:
     assert registry.get("get_rds_instance_status").tool_name == "get_rds_instance_status"
     assert registry.get("get_target_group_status").tool_name == "get_target_group_status"
     assert registry.get("get_load_balancer_status").tool_name == "get_load_balancer_status"
+
+
+def test_build_kubernetes_adapter_returns_fake_adapter_for_stub_provider() -> None:
+    adapter = runner_factory.build_kubernetes_adapter(make_config(provider="stub"))
+
+    assert adapter.__class__.__name__ == "FakeKubernetesProviderAdapter"

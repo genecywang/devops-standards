@@ -31,7 +31,7 @@ from alert_auto_investigator.investigation.dispatcher import (
 )
 from alert_auto_investigator.models.control_policy import ControlPolicy
 from alert_auto_investigator.service.handler import handle_message
-from alert_auto_investigator.service.runner_factory import build_runner
+from alert_auto_investigator.service.runner_factory import build_kubernetes_adapter, build_runner
 
 logging.basicConfig(
     level=logging.INFO,
@@ -66,6 +66,7 @@ def main() -> None:
         tool_routing=dict(DEFAULT_TOOL_ROUTING)
     )
     dispatcher = OpenClawDispatcher(build_runner(config), investigation_config)
+    kubernetes_adapter = build_kubernetes_adapter(config)
 
     app = App(token=config.slack_bot_token)
     auth_info = app.client.auth_test()
@@ -80,6 +81,7 @@ def main() -> None:
             config,
             pipeline,
             dispatcher,
+            kubernetes_adapter=kubernetes_adapter,
             assist_service=assist_service,
             own_bot_id=own_bot_id,
             own_bot_user_id=own_bot_user_id,

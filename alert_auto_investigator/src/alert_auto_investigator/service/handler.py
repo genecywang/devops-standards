@@ -7,6 +7,7 @@ from alert_auto_investigator.ingress import (
     parse_alertmanager_slack_messages,
     parse_cloudwatch_slack_message,
 )
+from alert_auto_investigator.investigation.target_group_enrichment import enrich_target_group_response
 from alert_auto_investigator.models.control_decision import ControlAction
 from alert_auto_investigator.models.normalized_alert_event import NormalizedAlertEvent
 from alert_auto_investigator.service.formatter import format_investigation_reply
@@ -87,6 +88,7 @@ def handle_message(
     config: InvestigatorConfig,
     pipeline: ControlPipeline,
     dispatcher: OpenClawDispatcher,
+    kubernetes_adapter: object | None = None,
     assist_service: ReadonlyAssistService | None = None,
     own_bot_id: str | None = None,
     own_bot_user_id: str | None = None,
@@ -156,6 +158,15 @@ def handle_message(
             # dispatcher already logs the specific reason (skip_by_design / next_candidate / unknown)
             continue
 
+        enrichment = _maybe_enrich_target_group_response(
+            alert=alert,
+            response=response,
+            kubernetes_adapter=kubernetes_adapter,
+            allowed_namespaces=list(config.allowed_namespaces or []),
+        )
+        if enrichment is not None:
+            response.enrichment = enrichment
+
         # Record only after a successful dispatch to avoid poisoning cooldown
         pipeline.record_investigation(alert)
 
@@ -193,3 +204,35 @@ def handle_message(
                     alert.alert_key,
                     alert.resource_type,
                 )
+
+
+def _maybe_enrich_target_group_response(
+    *,
+    alert: NormalizedAlertEvent,
+    response: object,
+    kubernetes_adapter: object | None,
+    allowed_namespaces: list[str],
+) -> dict[str, str] | None:
+    if alert.resource_type != "target_group":
+        return None
+    if str(getattr(response, "result_state", "")).lower() != "success":
+        return None
+
+    actions_attempted = getattr(response, "actions_attempted", []) or []
+    if actions_attempted != ["get_target_group_status"]:
+        return None
+
+    try:
+        return enrich_target_group_response(
+            alert=alert,
+            response=response,
+            kubernetes_adapter=kubernetes_adapter,
+            allowed_namespaces=allowed_namespaces,
+        )
+    except Exception:
+        logger.exception(
+            "target_group_enrichment_failed alert_key=%s resource_name=%s",
+            alert.alert_key,
+            alert.resource_name,
+        )
+        return None

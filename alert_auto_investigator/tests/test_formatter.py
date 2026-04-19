@@ -130,3 +130,45 @@ def test_format_investigation_reply_keeps_full_metadata_for_actionable_state() -
     assert "*Exists:* yes" in text
     assert "*Reason:* BackoffLimitExceeded" in text
     assert "*State:*" not in text
+
+
+def test_format_investigation_reply_appends_related_k8s_lines_for_high_confidence_target_group() -> None:
+    text = format_investigation_reply(
+        make_event(
+            alert_name="UnHealthyHostCount",
+            resource_type="target_group",
+            resource_name="targetgroup/k8s-dev-api/abc123",
+            namespace="-",
+        ),
+        make_response(
+            summary="target group targetgroup/k8s-dev-api/abc123 is unhealthy: healthy=0, unhealthy=2",
+            actions_attempted=["get_target_group_status"],
+            metadata={
+                "health_state": "failed",
+                "attention_required": True,
+                "resource_exists": True,
+                "primary_reason": "UnhealthyTargets",
+            },
+            enrichment={
+                "confidence": "high",
+                "namespace": "dev",
+                "service_name": "h2-api",
+            },
+        ),
+    )
+
+    assert "RelatedK8sNamespace: dev" in text
+    assert "RelatedK8sService: h2-api" in text
+
+
+def test_format_investigation_reply_omits_related_k8s_lines_without_high_confidence() -> None:
+    text = format_investigation_reply(
+        make_event(resource_type="target_group", resource_name="targetgroup/k8s-dev-api/abc123"),
+        make_response(
+            actions_attempted=["get_target_group_status"],
+            enrichment={"confidence": "not_applicable", "reason": "unsupported_target_type"},
+        ),
+    )
+
+    assert "RelatedK8sNamespace:" not in text
+    assert "RelatedK8sService:" not in text

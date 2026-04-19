@@ -17,7 +17,9 @@ class CanonicalResponse:
     summary: str
     actions_attempted: list[str]
     redaction_applied: bool
+    evidence: list[dict[str, object]] = field(default_factory=list)
     metadata: dict[str, object] = field(default_factory=dict)
+    enrichment: dict[str, object] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         if not self.request_id:

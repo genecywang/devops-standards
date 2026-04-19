@@ -6,6 +6,7 @@ from openclaw_foundation.adapters.kubernetes import (
     build_apps_v1_api,
     build_batch_v1_api,
     build_core_v1_api,
+    build_discovery_v1_api,
 )
 from openclaw_foundation.adapters.aws import FakeAwsProviderAdapter, RealAwsProviderAdapter
 from openclaw_foundation.adapters.prometheus import (
@@ -36,20 +37,14 @@ def build_runner(config: InvestigatorConfig) -> object:
 
 
 def build_registry(config: InvestigatorConfig) -> ToolRegistry:
+    if config.provider == "real" and not config.prometheus_base_url:
+        raise ValueError("OPENCLAW_PROMETHEUS_BASE_URL is required for real provider")
+
+    kubernetes_adapter = build_kubernetes_adapter(config)
     if config.provider == "real":
-        if not config.prometheus_base_url:
-            raise ValueError("OPENCLAW_PROMETHEUS_BASE_URL is required for real provider")
-        kubernetes_adapter = RealKubernetesProviderAdapter(
-            build_core_v1_api(),
-            build_apps_v1_api(),
-            build_batch_v1_api(),
-        )
-        prometheus_adapter = RealPrometheusProviderAdapter(
-            base_url=config.prometheus_base_url,
-        )
+        prometheus_adapter = RealPrometheusProviderAdapter(base_url=config.prometheus_base_url)
         aws_adapter = RealAwsProviderAdapter()
     else:
-        kubernetes_adapter = FakeKubernetesProviderAdapter()
         prometheus_adapter = FakePrometheusProviderAdapter()
         aws_adapter = FakeAwsProviderAdapter()
 
@@ -96,3 +91,14 @@ def build_registry(config: InvestigatorConfig) -> ToolRegistry:
     registry.register(AwsLoadBalancerStatusTool(adapter=aws_adapter))
     registry.register(AwsTargetGroupStatusTool(adapter=aws_adapter))
     return registry
+
+
+def build_kubernetes_adapter(config: InvestigatorConfig) -> object:
+    if config.provider == "real":
+        return RealKubernetesProviderAdapter(
+            build_core_v1_api(),
+            build_apps_v1_api(),
+            build_batch_v1_api(),
+            build_discovery_v1_api(),
+        )
+    return FakeKubernetesProviderAdapter()

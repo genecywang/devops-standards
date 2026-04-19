@@ -11,6 +11,8 @@ Covers:
 from pathlib import Path
 from unittest.mock import ANY, MagicMock, call
 
+from openclaw_foundation.adapters.kubernetes import FakeKubernetesProviderAdapter
+
 from alert_auto_investigator.config import InvestigatorConfig
 from alert_auto_investigator.control.pipeline import ControlPipeline
 from alert_auto_investigator.control.store import InMemoryAlertStateStore
@@ -60,6 +62,23 @@ event_time: 2024-01-01T00:00:00Z
 alert_key: cloudwatch_alarm:123456789012:ap-east-1:HighCPUUtilization
 resource_type: ec2_instance
 resource_name: i-1234567890abcdef0
+"""
+
+_TARGET_GROUP_TEXT = """\
+:fire: [*FIRING*] target group unhealthy
+
+--- Structured Alert ---
+schema_version: v1
+source: cloudwatch_alarm
+status: ALARM
+alert_name: UnHealthyHostCount
+account_id: 123456789012
+region_code: ap-east-1
+environment: dev
+event_time: 2024-01-01T00:00:00Z
+alert_key: cloudwatch_alarm:123456789012:ap-east-1:UnHealthyHostCount
+resource_type: target_group
+resource_name: targetgroup/k8s-dev-api/abc123
 """
 
 _MULTI_ALERT_TEXT = """\
@@ -419,6 +438,87 @@ class TestHandleMessageControlGating:
 
 
 class TestHandleMessageRecordAndReply:
+    def test_high_confidence_target_group_enrichment_is_appended_to_reply(self) -> None:
+        client = MagicMock()
+        dispatcher = MagicMock()
+        dispatcher.dispatch.return_value = MagicMock(
+            summary="target group targetgroup/k8s-dev-api/abc123 is unhealthy: healthy=0, unhealthy=2",
+            result_state="success",
+            actions_attempted=["get_target_group_status"],
+            evidence=[
+                {
+                    "target_type": "ip",
+                    "target_ips": ["10.0.1.23"],
+                    "k8s_controller_tags": {
+                        "elbv2.k8s.aws/cluster": "dev-cluster",
+                        "service.k8s.aws/resource": "service",
+                        "service.k8s.aws/stack": "dev/dev-api",
+                    },
+                }
+            ],
+            metadata={
+                "health_state": "failed",
+                "attention_required": True,
+                "resource_exists": True,
+                "primary_reason": "UnhealthyTargets",
+            },
+        )
+        config = _make_config()
+        config.allowed_namespaces = ["dev"]
+        pipeline = _make_pipeline(config)
+
+        handle_message(
+            _make_event(attachments=[{"text": _TARGET_GROUP_TEXT}], ts="111.000"),
+            client,
+            config,
+            pipeline,
+            dispatcher,
+            kubernetes_adapter=FakeKubernetesProviderAdapter(),
+        )
+
+        reply_text = client.chat_postMessage.call_args.kwargs["text"]
+        assert "RelatedK8sNamespace: dev" in reply_text
+        assert "RelatedK8sService: dev-api" in reply_text
+
+    def test_target_group_enrichment_failure_keeps_base_reply(self) -> None:
+        client = MagicMock()
+        dispatcher = MagicMock()
+        dispatcher.dispatch.return_value = MagicMock(
+            summary="target group targetgroup/k8s-dev-api/abc123 is unhealthy: healthy=0, unhealthy=2",
+            result_state="success",
+            actions_attempted=["get_target_group_status"],
+            evidence=[
+                {
+                    "target_type": "ip",
+                    "target_ips": ["10.0.1.23"],
+                    "k8s_controller_tags": {},
+                }
+            ],
+            metadata={
+                "health_state": "failed",
+                "attention_required": True,
+                "resource_exists": True,
+                "primary_reason": "UnhealthyTargets",
+            },
+        )
+        config = _make_config()
+        config.allowed_namespaces = ["dev"]
+        pipeline = _make_pipeline(config)
+
+        handle_message(
+            _make_event(attachments=[{"text": _TARGET_GROUP_TEXT}], ts="111.000"),
+            client,
+            config,
+            pipeline,
+            dispatcher,
+            kubernetes_adapter=FakeKubernetesProviderAdapter(),
+        )
+
+        reply_text = client.chat_postMessage.call_args.kwargs["text"]
+        assert "*Check:* get_target_group_status" in reply_text
+        assert "RelatedK8sNamespace:" not in reply_text
+        assert "RelatedK8sService:" not in reply_text
+
     def test_reply_uses_formatted_investigation_message(self) -> None:
         client = MagicMock()
         dispatcher = MagicMock()

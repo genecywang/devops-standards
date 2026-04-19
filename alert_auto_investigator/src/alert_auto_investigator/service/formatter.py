@@ -8,6 +8,7 @@ def format_investigation_reply(event: NormalizedAlertEvent, response: object) ->
     summary = getattr(response, "summary", str(response))
     actions_attempted = getattr(response, "actions_attempted", [])
     metadata = getattr(response, "metadata", {}) or {}
+    enrichment = getattr(response, "enrichment", {}) or {}
     check = ", ".join(actions_attempted) if actions_attempted else "none"
 
     lines = [
@@ -19,6 +20,7 @@ def format_investigation_reply(event: NormalizedAlertEvent, response: object) ->
         f"*Result:* {result_state}",
     ]
     lines.extend(_format_metadata_lines(metadata))
+    lines.extend(_format_enrichment_lines(enrichment))
     lines.append(f"*Summary:* {summary}")
     return "\n".join(lines)
 
@@ -74,3 +76,18 @@ def _format_compact_metadata_lines(metadata: dict[str, object]) -> list[str]:
         ]
 
     return []
+
+
+def _format_enrichment_lines(enrichment: dict[str, object]) -> list[str]:
+    if enrichment.get("confidence") != "high":
+        return []
+
+    namespace = str(enrichment.get("namespace") or "")
+    service_name = str(enrichment.get("service_name") or "")
+    if not namespace or not service_name:
+        return []
+
+    return [
+        f"RelatedK8sNamespace: {namespace}",
+        f"RelatedK8sService: {service_name}",
+    ]

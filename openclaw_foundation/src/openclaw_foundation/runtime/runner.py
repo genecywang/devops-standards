@@ -19,6 +19,7 @@ class OpenClawRunner:
         result_state: ResultState,
         summary: str,
         actions_attempted: list[str],
+        evidence: list[dict[str, object]] | None = None,
         metadata: dict[str, object] | None = None,
     ) -> CanonicalResponse:
         return CanonicalResponse(
@@ -27,6 +28,7 @@ class OpenClawRunner:
             summary=summary,
             actions_attempted=actions_attempted,
             redaction_applied=True,
+            evidence=evidence or [],
             metadata=metadata or {},
         )
 
@@ -60,5 +62,6 @@ class OpenClawRunner:
             ResultState.SUCCESS,
             tool_result.summary,
             [tool.tool_name],
+            tool_result.evidence,
             tool_result.metadata,
         )
