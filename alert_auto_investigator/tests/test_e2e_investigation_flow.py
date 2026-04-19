@@ -112,6 +112,35 @@ def test_cloudwatch_alarm_ok_is_skipped_by_control_plane() -> None:
     assert "resolved" in decision.reason
 
 
+def test_cloudwatch_rds_alarm_reaches_dispatcher() -> None:
+    payload = {
+        "AlarmName": "p-rds-shuriken_ReadIOPS",
+        "AWSAccountId": "416885395773",
+        "NewStateValue": "ALARM",
+        "StateChangeTime": "2026-04-18T01:02:03.000+0000",
+        "AlarmArn": "arn:aws:cloudwatch:ap-northeast-1:416885395773:alarm:p-rds-shuriken_ReadIOPS",
+        "Trigger": {
+            "Dimensions": [
+                {
+                    "name": "DBInstanceIdentifier",
+                    "value": "shuriken",
+                }
+            ]
+        },
+    }
+
+    event = normalize_cloudwatch_alarm(payload, environment="prod-jp")
+    pipeline = ControlPipeline(policy=make_policy(), store=InMemoryAlertStateStore())
+    decision = pipeline.evaluate(event)
+    dispatcher, runner = make_dispatcher()
+    response = dispatcher.dispatch(event)
+
+    assert decision.action == ControlAction.INVESTIGATE
+    assert event.resource_type == "rds_instance"
+    assert response is not None
+    assert runner.last_request.tool_name == "get_rds_instance_status"
+
+
 def test_alertmanager_pod_alert_reaches_dispatcher() -> None:
     alert = make_alertmanager_alert()
 

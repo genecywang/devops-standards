@@ -1,9 +1,11 @@
 from openclaw_foundation.models.enums import RequestType
 from openclaw_foundation.models.requests import ExecutionBudget, InvestigationRequest
 from openclaw_foundation.tools.kubernetes_pod_status import KubernetesPodStatusTool
+from openclaw_foundation.tools.aws_rds_instance_status import AwsRdsInstanceStatusTool
 from openclaw_foundation.runtime.runner import OpenClawRunner
 from openclaw_foundation.runtime.state_machine import RuntimeState
 from openclaw_foundation.adapters.kubernetes import FakeKubernetesProviderAdapter
+from openclaw_foundation.adapters.aws import FakeAwsProviderAdapter
 from openclaw_foundation.tools.fake_investigation import FakeInvestigationTool
 from openclaw_foundation.tools.registry import ToolRegistry
 
@@ -120,3 +122,40 @@ def test_runner_executes_kubernetes_pod_status_tool() -> None:
     assert response.result_state == "success"
     assert response.actions_attempted == ["get_pod_status"]
     assert "dev-api-123" in response.summary
+
+
+def test_runner_executes_rds_instance_status_tool() -> None:
+    registry = ToolRegistry()
+    registry.register(AwsRdsInstanceStatusTool(adapter=FakeAwsProviderAdapter()))
+    runner = OpenClawRunner(registry)
+    request = InvestigationRequest(
+        request_type=RequestType.INVESTIGATION,
+        request_id="req-rds-001",
+        source_product="alert_auto_investigator",
+        scope={"environment": "prod-jp", "cluster": "", "region_code": "ap-northeast-1"},
+        input_ref="fixture:rds-demo",
+        budget=ExecutionBudget(
+            max_steps=2,
+            max_tool_calls=1,
+            max_duration_seconds=30,
+            max_output_tokens=256,
+        ),
+        tool_name="get_rds_instance_status",
+        target={
+            "cluster": "",
+            "namespace": "",
+            "resource_name": "shuriken",
+        },
+    )
+
+    response = runner.run(request)
+
+    assert response.result_state == "success"
+    assert response.actions_attempted == ["get_rds_instance_status"]
+    assert "rds instance shuriken is available" in response.summary
+    assert response.metadata == {
+        "health_state": "healthy",
+        "attention_required": False,
+        "resource_exists": True,
+        "primary_reason": "available",
+    }

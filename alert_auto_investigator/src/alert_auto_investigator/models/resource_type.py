@@ -75,7 +75,7 @@ SUPPORT_MATRIX: dict[str, InvestigationPolicy] = {
 
     # --- Skip by design: AWS resources ---
     # Investigation would require CloudWatch / RDS / EC2 API tools not yet built.
-    ResourceType.RDS_INSTANCE: InvestigationPolicy.NEXT_CANDIDATE,
+    ResourceType.RDS_INSTANCE: InvestigationPolicy.INVESTIGATE,
     ResourceType.LOAD_BALANCER: InvestigationPolicy.NEXT_CANDIDATE,
     ResourceType.TARGET_GROUP: InvestigationPolicy.NEXT_CANDIDATE,
     ResourceType.EC2_INSTANCE: InvestigationPolicy.SKIP,

@@ -20,6 +20,7 @@ Use this section when reading live Slack alerts. "No reply" is not always a bug.
 | `deployment` in allowed namespace | Replies in thread | `deployment` is actively supported |
 | `job` in allowed namespace | Replies in thread | `job` is actively supported |
 | `cronjob` in allowed namespace | Replies in thread | latest owned Job is investigated and summarized |
+| `rds_instance` | Replies in thread | `rds_instance` is actively supported |
 | `job` outside `ALLOWED_NAMESPACES` or `ALLOWED_CLUSTERS` | No Slack reply | blocked by runtime scope guard |
 | `cronjob` outside `ALLOWED_NAMESPACES` or `ALLOWED_CLUSTERS` | No Slack reply | blocked by runtime scope guard |
 | `namespace` | No Slack reply | `SKIP` by design |
@@ -122,6 +123,7 @@ These resource types trigger a real investigation via an OpenClaw tool.
 | `deployment` | `get_deployment_status` | Alertmanager (label: `deployment`) |
 | `job` | `get_job_status` | Alertmanager (label: `job_name` or `exported_job`) |
 | `cronjob` | `get_cronjob_status` | Alertmanager (label: `cronjob`) |
+| `rds_instance` | `get_rds_instance_status` | CloudWatch alarm (dimension: `DBInstanceIdentifier`) |
 
 ### Runtime Scope Guard
 
@@ -206,7 +208,6 @@ value, but no AWS tool exists yet. The dispatcher logs
 
 | resource_type | Reason |
 |---------------|--------|
-| `rds_instance` | Strong identity via `DBInstanceIdentifier`; good first bounded AWS investigation candidate. |
 | `load_balancer` | ALB-level health and traffic signals are operationally useful but need dedicated AWS APIs. |
 | `target_group` | Target-group health is often more actionable than ALB-wide metrics and should be modeled explicitly. |
 

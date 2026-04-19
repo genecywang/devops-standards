@@ -12,7 +12,7 @@ than extending parser and investigation code blindly.
 
 ## Current Status
 
-Current AWS support is **parse-first, investigate-later**.
+Current AWS support is **parse-first, selective-investigate**.
 
 What already exists:
 
@@ -23,10 +23,11 @@ What already exists:
   - `ec2_instance`
   - `load_balancer`
   - `eks_cluster`
-- AWS alerts are currently treated as `SKIP` in `SUPPORT_MATRIX`
+- `rds_instance` is now routed to a real read-only investigation tool
+- remaining AWS alerts are still treated as `NEXT_CANDIDATE` or `SKIP` in `SUPPORT_MATRIX`
 
-This means AWS alerts are recognized, keyed, and controlled, but they do not
-yet enter a real investigation tool path.
+This means AWS alerts are recognized, keyed, and controlled, and `rds_instance`
+now enters a real investigation tool path.
 
 ---
 
@@ -150,13 +151,14 @@ Implication:
 
 This section is a posture recommendation, not an implementation commitment.
 
-### 1. Investigate Candidate
+### 1. Investigate Now
 
-These look like the best first candidates for bounded AWS investigation support.
+These have the strongest bounded investigation value. `rds_instance` is already
+implemented; the others remain next candidates.
 
 | resource area | Why |
 |---------------|-----|
-| `rds_instance` | strong identity via `DBInstanceIdentifier`; high operational value; bounded API surface |
+| `rds_instance` | implemented first AWS investigation type; backed by `DescribeDBInstances`; bounded API surface |
 | `load_balancer` / `target_group` | clear ALB health signals; stable AWS APIs; strong relation to user-visible impact |
 
 ### 2. Notify-Only First
@@ -194,11 +196,11 @@ It should start with:
 
 Only after that:
 
-### Phase AWS-2: First Bounded AWS Investigation Tool
+### Phase AWS-2: Next Bounded AWS Investigation Tool
 
 Start with:
 
-- `rds_instance`
+- `load_balancer` / `target_group`
 
 Possible first tool shape:
 
@@ -215,4 +217,5 @@ Based on the current inventory:
 - AWS support should continue
 - but it should not be modeled as just `rds_instance/ec2_instance/load_balancer/eks_cluster`
 - first implementation work should go into **classification and source coverage**
-- first real AWS investigation candidate should likely be `rds_instance`
+- first implemented AWS investigation type is now `rds_instance`
+- next real AWS investigation candidate should likely be `load_balancer` / `target_group`

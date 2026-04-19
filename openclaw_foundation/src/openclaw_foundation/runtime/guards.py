@@ -74,6 +74,24 @@ def truncate_job_status(payload: dict[str, object]) -> dict[str, object]:
     return result
 
 
+def truncate_rds_instance_status(payload: dict[str, object]) -> dict[str, object]:
+    return {
+        key: value
+        for key, value in payload.items()
+        if key
+        in {
+            "db_instance_identifier",
+            "status",
+            "engine",
+            "engine_version",
+            "instance_class",
+            "multi_az",
+            "endpoint_address",
+            "endpoint_port",
+        }
+    }
+
+
 def truncate_pod_logs(lines: list[str]) -> list[str]:
     bounded = lines[:_MAX_LOG_LINES]
     return [
