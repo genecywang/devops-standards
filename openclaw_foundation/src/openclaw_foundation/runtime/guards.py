@@ -32,6 +32,13 @@ _MAX_DEPLOYMENT_CONDITIONS = 5
 _MAX_CONDITION_MESSAGE_LEN = 256
 _MAX_LOG_LINES = 100
 _MAX_LOG_LINE_LEN = 512
+_MAX_TARGET_IPS = 20
+_MAX_CONTROLLER_TAG_VALUE_LEN = 256
+_TARGET_GROUP_CONTROLLER_TAG_KEYS = (
+    "elbv2.k8s.aws/cluster",
+    "service.k8s.aws/resource",
+    "service.k8s.aws/stack",
+)
 
 
 def truncate_pod_events(events: list[dict[str, object]]) -> list[dict[str, object]]:
@@ -93,7 +100,7 @@ def truncate_rds_instance_status(payload: dict[str, object]) -> dict[str, object
 
 
 def truncate_target_group_status(payload: dict[str, object]) -> dict[str, object]:
-    return {
+    result = {
         key: value
         for key, value in payload.items()
         if key
@@ -111,6 +118,17 @@ def truncate_target_group_status(payload: dict[str, object]) -> dict[str, object
             "unused_count",
         }
     }
+    target_ips = payload.get("target_ips")
+    if isinstance(target_ips, list):
+        result["target_ips"] = target_ips[:_MAX_TARGET_IPS]
+    controller_tags = payload.get("k8s_controller_tags")
+    if isinstance(controller_tags, dict):
+        result["k8s_controller_tags"] = {
+            key: _truncate_string(str(controller_tags[key]), _MAX_CONTROLLER_TAG_VALUE_LEN)
+            for key in _TARGET_GROUP_CONTROLLER_TAG_KEYS
+            if key in controller_tags
+        }
+    return result
 
 
 def truncate_load_balancer_status(payload: dict[str, object]) -> dict[str, object]:
@@ -166,3 +184,9 @@ def redact_output(payload: dict[str, object]) -> dict[str, object]:
         return value
 
     return {key: redact_value(value) for key, value in payload.items()}
+
+
+def _truncate_string(value: str, max_len: int) -> str:
+    if len(value) <= max_len:
+        return value
+    return value[:max_len] + "...[truncated]"

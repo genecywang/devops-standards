@@ -115,6 +115,7 @@ def test_real_adapter_maps_target_group_payload() -> None:
             {"TargetHealth": {"State": "draining"}},
         ]
     }
+    elbv2_client.describe_tags.return_value = {"TagDescriptions": []}
     adapter = RealAwsProviderAdapter(elbv2_client_factory=Mock(return_value=elbv2_client))
 
     result = adapter.get_target_group_status(
@@ -134,7 +135,156 @@ def test_real_adapter_maps_target_group_payload() -> None:
         "initial_count": 0,
         "draining_count": 1,
         "unused_count": 0,
+        "target_ips": [],
+        "k8s_controller_tags": {},
     }
+
+
+def test_real_adapter_returns_target_ips_and_controller_tags() -> None:
+    elbv2_client = Mock()
+    elbv2_client.describe_target_groups.return_value = {
+        "TargetGroups": [
+            {
+                "TargetGroupName": "k8s-prod-api",
+                "TargetGroupArn": "arn:aws:elasticloadbalancing:ap-northeast-1:123:targetgroup/k8s-prod-api/abc123",
+                "TargetType": "ip",
+                "Protocol": "HTTP",
+                "Port": 8080,
+                "VpcId": "vpc-12345",
+            }
+        ]
+    }
+    elbv2_client.describe_target_health.return_value = {
+        "TargetHealthDescriptions": [
+            {"Target": {"Id": "10.0.1.10"}, "TargetHealth": {"State": "healthy"}},
+            {"Target": {"Id": "10.0.1.11"}, "TargetHealth": {"State": "healthy"}},
+            {"Target": {"Id": "i-abc123"}, "TargetHealth": {"State": "draining"}},
+        ]
+    }
+    elbv2_client.describe_tags.return_value = {
+        "TagDescriptions": [
+            {
+                "ResourceArn": "arn:aws:elasticloadbalancing:ap-northeast-1:123:targetgroup/k8s-prod-api/abc123",
+                "Tags": [
+                    {"Key": "elbv2.k8s.aws/cluster", "Value": "prod-cluster"},
+                    {"Key": "service.k8s.aws/resource", "Value": "service"},
+                    {"Key": "service.k8s.aws/stack", "Value": "prod/service"},
+                ],
+            }
+        ]
+    }
+    adapter = RealAwsProviderAdapter(elbv2_client_factory=Mock(return_value=elbv2_client))
+
+    result = adapter.get_target_group_status(
+        region_code="ap-northeast-1",
+        target_group_name="targetgroup/k8s-prod-api/abc123",
+    )
+
+    assert result["target_ips"] == ["10.0.1.10", "10.0.1.11"]
+    assert result["k8s_controller_tags"] == {
+        "elbv2.k8s.aws/cluster": "prod-cluster",
+        "service.k8s.aws/resource": "service",
+        "service.k8s.aws/stack": "prod/service",
+    }
+
+
+def test_real_adapter_returns_empty_controller_tags_when_describe_tags_fails() -> None:
+    class FakeClientError(Exception):
+        def __init__(self) -> None:
+            self.response = {"Error": {"Code": "AccessDeniedException"}}
+
+    elbv2_client = Mock()
+    elbv2_client.describe_target_groups.return_value = {
+        "TargetGroups": [
+            {
+                "TargetGroupName": "k8s-prod-api",
+                "TargetGroupArn": "arn:aws:elasticloadbalancing:ap-northeast-1:123:targetgroup/k8s-prod-api/abc123",
+                "TargetType": "ip",
+                "Protocol": "HTTP",
+                "Port": 8080,
+                "VpcId": "vpc-12345",
+            }
+        ]
+    }
+    elbv2_client.describe_target_health.return_value = {
+        "TargetHealthDescriptions": [
+            {"Target": {"Id": "10.0.1.10"}, "TargetHealth": {"State": "healthy"}}
+        ]
+    }
+    elbv2_client.describe_tags.side_effect = FakeClientError()
+    adapter = RealAwsProviderAdapter(
+        elbv2_client_factory=Mock(return_value=elbv2_client),
+        client_error_cls=FakeClientError,
+    )
+
+    result = adapter.get_target_group_status(
+        region_code="ap-northeast-1",
+        target_group_name="targetgroup/k8s-prod-api/abc123",
+    )
+
+    assert result["target_ips"] == ["10.0.1.10"]
+    assert result["k8s_controller_tags"] == {}
+
+
+def test_real_adapter_ignores_target_ips_for_non_ip_target_type() -> None:
+    elbv2_client = Mock()
+    elbv2_client.describe_target_groups.return_value = {
+        "TargetGroups": [
+            {
+                "TargetGroupName": "k8s-prod-api",
+                "TargetGroupArn": "arn:aws:elasticloadbalancing:ap-northeast-1:123:targetgroup/k8s-prod-api/abc123",
+                "TargetType": "instance",
+                "Protocol": "HTTP",
+                "Port": 8080,
+                "VpcId": "vpc-12345",
+            }
+        ]
+    }
+    elbv2_client.describe_target_health.return_value = {
+        "TargetHealthDescriptions": [
+            {"Target": {"Id": "10.0.1.10"}, "TargetHealth": {"State": "healthy"}},
+            {"Target": {"Id": "10.0.1.11"}, "TargetHealth": {"State": "draining"}},
+        ]
+    }
+    elbv2_client.describe_tags.return_value = {"TagDescriptions": []}
+    adapter = RealAwsProviderAdapter(elbv2_client_factory=Mock(return_value=elbv2_client))
+
+    result = adapter.get_target_group_status(
+        region_code="ap-northeast-1",
+        target_group_name="targetgroup/k8s-prod-api/abc123",
+    )
+
+    assert result["target_type"] == "instance"
+    assert result["target_ips"] == []
+
+
+def test_real_adapter_raises_api_error_when_describe_tags_raises_non_client_error() -> None:
+    elbv2_client = Mock()
+    elbv2_client.describe_target_groups.return_value = {
+        "TargetGroups": [
+            {
+                "TargetGroupName": "k8s-prod-api",
+                "TargetGroupArn": "arn:aws:elasticloadbalancing:ap-northeast-1:123:targetgroup/k8s-prod-api/abc123",
+                "TargetType": "ip",
+                "Protocol": "HTTP",
+                "Port": 8080,
+                "VpcId": "vpc-12345",
+            }
+        ]
+    }
+    elbv2_client.describe_target_health.return_value = {
+        "TargetHealthDescriptions": [
+            {"Target": {"Id": "10.0.1.10"}, "TargetHealth": {"State": "healthy"}}
+        ]
+    }
+    elbv2_client.describe_tags.side_effect = ValueError("boom")
+    adapter = RealAwsProviderAdapter(elbv2_client_factory=Mock(return_value=elbv2_client))
+
+    with pytest.raises(AwsApiError, match="failed to describe target group tags"):
+        adapter.get_target_group_status(
+            region_code="ap-northeast-1",
+            target_group_name="targetgroup/k8s-prod-api/abc123",
+        )
 
 
 def test_real_adapter_maps_load_balancer_payload() -> None:

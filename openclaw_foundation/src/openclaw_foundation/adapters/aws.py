@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ipaddress
 from typing import Any, Protocol
 
 try:
@@ -8,6 +9,13 @@ try:
 except ImportError:  # pragma: no cover - exercised via real provider setup
     boto3 = None
     ClientError = None
+
+
+_TARGET_GROUP_CONTROLLER_TAG_KEYS = (
+    "elbv2.k8s.aws/cluster",
+    "service.k8s.aws/resource",
+    "service.k8s.aws/stack",
+)
 
 
 class AwsError(RuntimeError):
@@ -82,6 +90,12 @@ class FakeAwsProviderAdapter:
             "initial_count": 0,
             "draining_count": 0,
             "unused_count": 0,
+            "target_ips": ["10.0.1.10", "10.0.1.11"],
+            "k8s_controller_tags": {
+                "elbv2.k8s.aws/cluster": "prod-cluster",
+                "service.k8s.aws/resource": "service",
+                "service.k8s.aws/stack": "prod/service",
+            },
         }
 
     def get_load_balancer_status(
@@ -176,6 +190,7 @@ class RealAwsProviderAdapter:
 
         group = groups[0]
         target_group_arn = str(group.get("TargetGroupArn") or "")
+        target_type = str(group.get("TargetType") or "unknown")
         try:
             health_response = client.describe_target_health(TargetGroupArn=target_group_arn)
         except Exception as error:
@@ -197,7 +212,11 @@ class RealAwsProviderAdapter:
             "draining_count": 0,
             "unused_count": 0,
         }
+        target_ips: list[str] = []
         for description in health_response.get("TargetHealthDescriptions", []):
+            target_id = str(((description.get("Target") or {}).get("Id")) or "").strip()
+            if target_type.lower() == "ip" and _is_ip_address(target_id):
+                target_ips.append(target_id)
             state = str((description.get("TargetHealth") or {}).get("State") or "").lower()
             if state == "healthy":
                 counts["healthy_count"] += 1
@@ -210,14 +229,22 @@ class RealAwsProviderAdapter:
             elif state == "unused":
                 counts["unused_count"] += 1
 
+        controller_tags = _describe_target_group_controller_tags(
+            client=client,
+            target_group_arn=target_group_arn,
+            client_error_cls=self._client_error_cls,
+        )
+
         return {
             "target_group_name": target_group_name,
             "target_group_arn": target_group_arn,
-            "target_type": str(group.get("TargetType") or "unknown"),
+            "target_type": target_type,
             "protocol": str(group.get("Protocol") or "unknown"),
             "port": group.get("Port"),
             "vpc_id": str(group.get("VpcId") or "unknown"),
             **counts,
+            "target_ips": target_ips,
+            "k8s_controller_tags": controller_tags,
         }
 
     def get_load_balancer_status(
@@ -270,3 +297,38 @@ def _load_balancer_short_name(load_balancer_name: str) -> str:
     if len(parts) >= 2:
         return parts[-2]
     return load_balancer_name
+
+
+def _is_ip_address(value: str) -> bool:
+    if not value:
+        return False
+    try:
+        ipaddress.ip_address(value)
+    except ValueError:
+        return False
+    return True
+
+
+def _describe_target_group_controller_tags(
+    client: Any,
+    target_group_arn: str,
+    client_error_cls: type[BaseException] | None,
+) -> dict[str, str]:
+    try:
+        tags_response = client.describe_tags(ResourceArns=[target_group_arn])
+    except Exception as error:
+        if client_error_cls is not None and isinstance(error, client_error_cls):
+            return {}
+        raise AwsApiError("failed to describe target group tags") from error
+
+    controller_tags: dict[str, str] = {}
+    tag_descriptions = tags_response.get("TagDescriptions", [])
+    for tag_description in tag_descriptions:
+        if str(tag_description.get("ResourceArn") or "") != target_group_arn:
+            continue
+        for tag in tag_description.get("Tags", []):
+            key = str(tag.get("Key") or "")
+            if key in _TARGET_GROUP_CONTROLLER_TAG_KEYS:
+                controller_tags[key] = str(tag.get("Value") or "")
+        break
+    return controller_tags

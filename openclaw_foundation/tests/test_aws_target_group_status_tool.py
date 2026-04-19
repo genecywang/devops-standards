@@ -3,6 +3,7 @@ from unittest.mock import Mock
 from openclaw_foundation.adapters.aws import AwsResourceNotFoundError, FakeAwsProviderAdapter
 from openclaw_foundation.models.enums import RequestType
 from openclaw_foundation.models.requests import ExecutionBudget, InvestigationRequest
+from openclaw_foundation.runtime.guards import truncate_target_group_status
 from openclaw_foundation.tools.aws_target_group_status import AwsTargetGroupStatusTool
 
 
@@ -90,3 +91,52 @@ def test_get_target_group_status_tool_handles_missing_target_group() -> None:
         "resource_exists": False,
         "primary_reason": "NotFound",
     }
+
+
+def test_truncate_target_group_status_keeps_only_bounded_evidence_fields() -> None:
+    long_tag_value = "x" * 300
+    payload = {
+        "target_group_name": "targetgroup/api/abc123",
+        "target_group_arn": "arn:aws:elasticloadbalancing:ap-northeast-1:123:targetgroup/api/abc123",
+        "target_type": "ip",
+        "protocol": "HTTP",
+        "port": 8080,
+        "vpc_id": "vpc-12345",
+        "healthy_count": 2,
+        "unhealthy_count": 0,
+        "initial_count": 0,
+        "draining_count": 0,
+        "unused_count": 0,
+        "target_ips": [f"10.0.1.{idx}" for idx in range(25)],
+        "k8s_controller_tags": {
+            "elbv2.k8s.aws/cluster": "prod-cluster",
+            "service.k8s.aws/resource": "service",
+            "service.k8s.aws/stack": long_tag_value,
+            "ignored.tag/key": "drop-me",
+        },
+        "unexpected": "drop-me",
+    }
+
+    result = truncate_target_group_status(payload)
+
+    assert result == {
+        "target_group_name": "targetgroup/api/abc123",
+        "target_group_arn": "arn:aws:elasticloadbalancing:ap-northeast-1:123:targetgroup/api/abc123",
+        "target_type": "ip",
+        "protocol": "HTTP",
+        "port": 8080,
+        "vpc_id": "vpc-12345",
+        "healthy_count": 2,
+        "unhealthy_count": 0,
+        "initial_count": 0,
+        "draining_count": 0,
+        "unused_count": 0,
+        "target_ips": [f"10.0.1.{idx}" for idx in range(20)],
+        "k8s_controller_tags": {
+            "elbv2.k8s.aws/cluster": "prod-cluster",
+            "service.k8s.aws/resource": "service",
+            "service.k8s.aws/stack": "x" * 256 + "...[truncated]",
+        },
+    }
+
+    assert len(result["target_ips"]) == 20
