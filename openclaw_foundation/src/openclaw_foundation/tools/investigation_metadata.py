@@ -1,5 +1,15 @@
 from __future__ import annotations
 
+from typing import TypedDict
+
+
+class InvestigationMetadata(TypedDict):
+    health_state: str
+    attention_required: bool
+    resource_exists: bool
+    primary_reason: str
+
+
 HEALTH_STATE_HEALTHY = "healthy"
 HEALTH_STATE_DEGRADED = "degraded"
 HEALTH_STATE_FAILED = "failed"
@@ -29,7 +39,7 @@ def make_investigation_metadata(
     attention_required: bool,
     resource_exists: bool,
     primary_reason: str,
-) -> dict[str, object]:
+) -> InvestigationMetadata:
     if health_state not in VALID_HEALTH_STATES:
         raise ValueError(f"unsupported health_state: {health_state}")
     if not primary_reason:

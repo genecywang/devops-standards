@@ -4,6 +4,9 @@ This document defines the authoritative list of resource types the bot handles,
 and what it does with each. The same policy is enforced in code at
 `models/resource_type.py` (`SUPPORT_MATRIX`).
 
+For future roadmap sequencing beyond the current read-only investigation scope,
+see `docs/future-phases.md`.
+
 ---
 
 ## Runtime Behavior Quick Reference

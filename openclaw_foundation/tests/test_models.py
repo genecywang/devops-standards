@@ -1,8 +1,11 @@
+from typing import get_type_hints
+
 from openclaw_foundation.models.enums import RequestType, ResultState
 from openclaw_foundation.models.requests import ExecutionBudget, InvestigationRequest
 from openclaw_foundation.models.responses import CanonicalResponse
 from openclaw_foundation.tools.investigation_metadata import (
     HEALTH_STATE_HEALTHY,
+    InvestigationMetadata,
     VALID_HEALTH_STATES,
     make_investigation_metadata,
 )
@@ -92,6 +95,18 @@ def test_make_investigation_metadata_accepts_known_health_state() -> None:
 
     assert metadata["health_state"] == HEALTH_STATE_HEALTHY
     assert HEALTH_STATE_HEALTHY in VALID_HEALTH_STATES
+
+
+def test_make_investigation_metadata_exposes_typed_contract() -> None:
+    hints = get_type_hints(make_investigation_metadata)
+
+    assert hints["return"] is InvestigationMetadata
+    assert InvestigationMetadata.__required_keys__ == {
+        "health_state",
+        "attention_required",
+        "resource_exists",
+        "primary_reason",
+    }
 
 
 def test_make_investigation_metadata_rejects_unknown_health_state() -> None:
