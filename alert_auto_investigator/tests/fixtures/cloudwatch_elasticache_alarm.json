@@ -1,0 +1,33 @@
+{
+  "AlarmName": "p-elasticache-redis-prod_FreeableMemory",
+  "AlarmDescription": "ElastiCache Redis cluster freeable memory is below threshold",
+  "AWSAccountId": "416885395773",
+  "NewStateValue": "ALARM",
+  "NewStateReason": "Threshold Crossed: 1 datapoint [123456.0 (19/04/26 03:04:05)] was less than the threshold (268435456.0).",
+  "OldStateValue": "OK",
+  "StateChangeTime": "2026-04-19T03:04:05.000+0000",
+  "Region": "ap-northeast-1",
+  "AlarmArn": "arn:aws:cloudwatch:ap-northeast-1:416885395773:alarm:p-elasticache-redis-prod_FreeableMemory",
+  "Trigger": {
+    "MetricName": "FreeableMemory",
+    "Namespace": "AWS/ElastiCache",
+    "StatisticType": "Statistic",
+    "Statistic": "AVERAGE",
+    "Unit": "Bytes",
+    "Dimensions": [
+      {
+        "name": "CacheNodeId",
+        "value": "redis-prod-001"
+      },
+      {
+        "name": "CacheClusterId",
+        "value": "redis-prod"
+      }
+    ],
+    "Period": 60,
+    "EvaluationPeriods": 1,
+    "ComparisonOperator": "LessThanThreshold",
+    "Threshold": 268435456,
+    "TreatMissingData": "missing"
+  }
+}
