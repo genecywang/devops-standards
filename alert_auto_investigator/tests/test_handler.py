@@ -113,6 +113,7 @@ def _make_config(
     denylist: list[str] | None = None,
     cooldown_seconds: float = 0.0,
     allowed_channel_ids: list[str] | None = None,
+    assist_mode: str = "off",
 ) -> InvestigatorConfig:
     return InvestigatorConfig(
         slack_bot_token="xoxb-test",
@@ -126,6 +127,7 @@ def _make_config(
         investigate_allowlist=allowlist if allowlist is not None else [],
         investigate_denylist=denylist if denylist is not None else [],
         allowed_channel_ids=allowed_channel_ids if allowed_channel_ids is not None else [],
+        assist_mode=assist_mode,
     )
 
 
@@ -535,6 +537,66 @@ class TestHandleMessageRecordAndReply:
         assert "attention_required=false" in caplog.text
         assert "resource_exists=true" in caplog.text
         assert "primary_reason=Running" in caplog.text
+
+    def test_shadow_assist_invoked_after_successful_investigation_without_extra_slack_reply(self) -> None:
+        client = MagicMock()
+        dispatcher = MagicMock()
+        dispatcher.dispatch.return_value = MagicMock(
+            summary="pod worker-pod is healthy",
+            result_state="success",
+            actions_attempted=["get_pod_events"],
+            metadata={
+                "health_state": "healthy",
+                "attention_required": False,
+                "resource_exists": True,
+                "primary_reason": "Running",
+            },
+        )
+        assist_service = MagicMock()
+        config = _make_config(assist_mode="shadow")
+        pipeline = _make_pipeline(config)
+
+        handle_message(
+            _make_event(attachments=[{"text": _ALERTMANAGER_TEXT}], ts="111.000"),
+            client,
+            config,
+            pipeline,
+            dispatcher,
+            assist_service=assist_service,
+        )
+
+        assist_service.after_investigation.assert_called_once()
+        assert client.chat_postMessage.call_count == 1
+
+    def test_shadow_assist_failure_does_not_break_primary_reply(self) -> None:
+        client = MagicMock()
+        dispatcher = MagicMock()
+        dispatcher.dispatch.return_value = MagicMock(
+            summary="pod worker-pod is healthy",
+            result_state="success",
+            actions_attempted=["get_pod_events"],
+            metadata={
+                "health_state": "healthy",
+                "attention_required": False,
+                "resource_exists": True,
+                "primary_reason": "Running",
+            },
+        )
+        assist_service = MagicMock()
+        assist_service.after_investigation.side_effect = RuntimeError("assist boom")
+        config = _make_config(assist_mode="shadow")
+        pipeline = _make_pipeline(config)
+
+        handle_message(
+            _make_event(attachments=[{"text": _ALERTMANAGER_TEXT}], ts="111.000"),
+            client,
+            config,
+            pipeline,
+            dispatcher,
+            assist_service=assist_service,
+        )
+
+        assert client.chat_postMessage.call_count == 1
 
     def test_dispatch_exception_is_logged_and_does_not_reply(self) -> None:
         client = MagicMock()

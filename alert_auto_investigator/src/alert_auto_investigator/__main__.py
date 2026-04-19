@@ -20,6 +20,7 @@ Optional env vars (with defaults):
 
 import logging
 
+from alert_auto_investigator.assist import build_readonly_assist_service
 from alert_auto_investigator.config import InvestigatorConfig
 from alert_auto_investigator.control.pipeline import ControlPipeline
 from alert_auto_investigator.control.store import InMemoryAlertStateStore
@@ -59,6 +60,7 @@ def main() -> None:
         rate_limit_window_seconds=config.rate_limit_window_seconds,
     )
     pipeline = ControlPipeline(policy, InMemoryAlertStateStore())
+    assist_service = build_readonly_assist_service(config)
 
     investigation_config = InvestigationConfig(
         tool_routing=dict(DEFAULT_TOOL_ROUTING)
@@ -78,6 +80,7 @@ def main() -> None:
             config,
             pipeline,
             dispatcher,
+            assist_service=assist_service,
             own_bot_id=own_bot_id,
             own_bot_user_id=own_bot_user_id,
         )

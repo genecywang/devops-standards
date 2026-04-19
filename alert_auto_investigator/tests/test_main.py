@@ -47,6 +47,7 @@ def test_main_fetches_bot_identity_and_passes_it_to_handler(monkeypatch) -> None
         handle_message_mock.assert_called_once()
         assert handle_message_mock.call_args.kwargs["own_bot_id"] == "B_SELF"
         assert handle_message_mock.call_args.kwargs["own_bot_user_id"] == "U_SELF"
+        assert "assist_service" in handle_message_mock.call_args.kwargs
 
     fake_client.auth_test.assert_called_once_with()
     fake_socket_handler.start.assert_called_once_with()

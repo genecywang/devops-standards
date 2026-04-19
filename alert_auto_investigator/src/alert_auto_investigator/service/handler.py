@@ -13,6 +13,7 @@ from alert_auto_investigator.service.formatter import format_investigation_reply
 from alert_auto_investigator.service.logging_utils import control_reason_code
 
 if TYPE_CHECKING:
+    from alert_auto_investigator.assist.service import ReadonlyAssistService
     from alert_auto_investigator.config import InvestigatorConfig
     from alert_auto_investigator.control.pipeline import ControlPipeline
     from alert_auto_investigator.investigation.dispatcher import OpenClawDispatcher
@@ -86,6 +87,7 @@ def handle_message(
     config: InvestigatorConfig,
     pipeline: ControlPipeline,
     dispatcher: OpenClawDispatcher,
+    assist_service: ReadonlyAssistService | None = None,
     own_bot_id: str | None = None,
     own_bot_user_id: str | None = None,
 ) -> None:
@@ -177,3 +179,17 @@ def handle_message(
             str(resource_exists).lower(),
             primary_reason,
         )
+        if assist_service is not None:
+            try:
+                assist_service.after_investigation(
+                    alert,
+                    response,
+                    channel=event["channel"],
+                    thread_ts=reply_ts,
+                )
+            except Exception:
+                logger.exception(
+                    "assist_shadow_failed alert_key=%s resource_type=%s",
+                    alert.alert_key,
+                    alert.resource_type,
+                )

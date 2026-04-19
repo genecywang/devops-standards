@@ -15,6 +15,7 @@ class InvestigatorConfig:
     investigate_allowlist: list[str]
     investigate_denylist: list[str]
     allowed_channel_ids: list[str] | None = None
+    assist_mode: str = "off"
     provider: str = "stub"
     allowed_clusters: list[str] | None = None
     allowed_namespaces: list[str] | None = None
@@ -37,6 +38,7 @@ class InvestigatorConfig:
             investigate_allowlist=_split(os.environ.get("INVESTIGATE_ALLOWLIST", "")),
             investigate_denylist=_split(os.environ.get("INVESTIGATE_DENYLIST", "")),
             allowed_channel_ids=_split(os.environ.get("ALERT_INVESTIGATOR_ALLOWED_CHANNEL_IDS", "")),
+            assist_mode=os.environ.get("OPENCLAW_READONLY_ASSIST_MODE", "off"),
             provider=os.environ.get("INVESTIGATION_PROVIDER", "stub"),
             allowed_clusters=_split(os.environ.get("ALLOWED_CLUSTERS", "")),
             allowed_namespaces=_split(os.environ.get("ALLOWED_NAMESPACES", "")),
