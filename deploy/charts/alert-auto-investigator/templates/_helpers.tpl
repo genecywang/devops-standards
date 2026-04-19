@@ -31,3 +31,11 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
 app.kubernetes.io/name: {{ include "alert-auto-investigator.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
+
+{{- define "alert-auto-investigator.serviceAccountName" -}}
+{{- if .Values.serviceAccount.name }}
+{{- .Values.serviceAccount.name | trunc 63 | trimSuffix "-" }}
+{{- else }}
+{{- include "alert-auto-investigator.fullname" . }}
+{{- end }}
+{{- end }}

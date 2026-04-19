@@ -32,6 +32,11 @@ slack:
   botTokenKey: SLACK_BOT_TOKEN
   appTokenKey: SLACK_APP_TOKEN
 
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+
 resources:
   requests:
     cpu: 100m

@@ -10,5 +10,5 @@ roleRef:
   name: {{ include "alert-auto-investigator.fullname" . }}-reader
 subjects:
   - kind: ServiceAccount
-    name: {{ include "alert-auto-investigator.fullname" . }}
+    name: {{ include "alert-auto-investigator.serviceAccountName" . }}
     namespace: {{ .Release.Namespace }}

@@ -15,7 +15,7 @@ spec:
       labels:
         {{- include "alert-auto-investigator.selectorLabels" . | nindent 8 }}
     spec:
-      serviceAccountName: {{ include "alert-auto-investigator.fullname" . }}
+      serviceAccountName: {{ include "alert-auto-investigator.serviceAccountName" . }}
       securityContext:
         runAsNonRoot: true
         runAsUser: 1000
