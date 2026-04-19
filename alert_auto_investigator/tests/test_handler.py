@@ -598,6 +598,39 @@ class TestHandleMessageRecordAndReply:
 
         assert client.chat_postMessage.call_count == 1
 
+    def test_shadow_assist_failure_is_logged_and_primary_reply_still_posts(self, caplog) -> None:
+        client = MagicMock()
+        dispatcher = MagicMock()
+        dispatcher.dispatch.return_value = MagicMock(
+            summary="pod worker-pod is healthy",
+            result_state="success",
+            actions_attempted=["get_pod_events"],
+            metadata={
+                "health_state": "healthy",
+                "attention_required": False,
+                "resource_exists": True,
+                "primary_reason": "Running",
+            },
+        )
+        assist_service = MagicMock()
+        assist_service.after_investigation.side_effect = RuntimeError("assist boom")
+        config = _make_config(assist_mode="shadow")
+        pipeline = _make_pipeline(config)
+
+        with caplog.at_level("ERROR"):
+            handle_message(
+                _make_event(attachments=[{"text": _ALERTMANAGER_TEXT}], ts="111.000"),
+                client,
+                config,
+                pipeline,
+                dispatcher,
+                assist_service=assist_service,
+            )
+
+        assert client.chat_postMessage.call_count == 1
+        assert "assist_shadow_failed alert_key=" in caplog.text
+        assert "resource_type=node" in caplog.text
+
     def test_dispatch_exception_is_logged_and_does_not_reply(self) -> None:
         client = MagicMock()
         dispatcher = MagicMock()

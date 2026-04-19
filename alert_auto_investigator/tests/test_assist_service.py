@@ -84,3 +84,20 @@ def test_readonly_assist_service_builds_shadow_payload_and_calls_backend() -> No
     assert payload["investigation"]["metadata"]["primary_reason"] == "BackoffLimitExceeded"
     assert payload["context"]["channel"] == "C123"
     assert payload["context"]["thread_ts"] == "111.000"
+
+
+def test_readonly_assist_service_logs_shadow_invocation_and_completion(caplog) -> None:
+    backend = _BackendStub()
+    service = ReadonlyAssistService(mode="shadow", backend=backend)
+
+    with caplog.at_level("INFO"):
+        service.after_investigation(
+            _make_event(),
+            _make_response(),
+            channel="C123",
+            thread_ts="111.000",
+        )
+
+    assert "assist_shadow_invoked alert_key=alertmanager:test-cluster:monitoring:KubernetesJobFailed:nightly-backfill" in caplog.text
+    assert "assist_shadow_completed alert_key=alertmanager:test-cluster:monitoring:KubernetesJobFailed:nightly-backfill" in caplog.text
+    assert "confidence=low" in caplog.text
