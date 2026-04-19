@@ -301,7 +301,39 @@ If you see `cooldown`, change the replay `alert_key`.
 
 ---
 
-## 7. Known Failure Modes
+## 8. Shadow Rollout Verification
+
+If you want to stage target group enrichment conservatively in production, use a
+shadow-style verification pass before relying on the appended K8s lines.
+
+Recommended checks:
+
+1. Deploy the current build with target group enrichment code included.
+2. Replay target group alerts that cover:
+   - unsupported target types
+   - namespace scope misses
+   - successful high-confidence matches
+3. Watch logs for fail-open behavior instead of Slack regressions:
+
+```bash
+kubectl -n devops logs deploy/alert-auto-investigator | \
+  rg 'target_group_enrichment_failed|dispatch_started|investigation_replied'
+```
+
+4. Confirm the base target group reply still posts even when enrichment does not
+   resolve a Kubernetes Service.
+5. Confirm `RelatedK8sNamespace` / `RelatedK8sService` only appear for real
+   high-confidence cases.
+
+Operational expectation:
+
+- enrichment failure must not suppress the base AWS reply
+- missing RBAC or lookup misses should degrade to normal target group output
+- only deterministic matches should append K8s identity lines
+
+---
+
+## 9. Known Failure Modes
 
 ### `AssumeRoleWithWebIdentity` AccessDenied
 
@@ -332,6 +364,7 @@ Check:
 - `elasticloadbalancing:DescribeLoadBalancers`
 - `elasticloadbalancing:DescribeTargetGroups`
 - `elasticloadbalancing:DescribeTargetHealth`
+- `elasticloadbalancing:DescribeTags`
 
 ---
 
@@ -356,7 +389,7 @@ The machine-readable block should remain plain text, not wrapped in code fences.
 
 ---
 
-## 8. Practical Phase-1 Exit Criteria
+## 10. Practical Phase-1 Exit Criteria
 
 AWS phase 1 can be considered operationally complete when:
 
