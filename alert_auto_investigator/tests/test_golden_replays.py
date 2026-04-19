@@ -116,6 +116,19 @@ def test_golden_parser_cronjob_replay() -> None:
     )
 
 
+def test_golden_parser_cronjob_idle_replay() -> None:
+    event = _parse_fixture("alertmanager_cronjob_idle.txt")
+
+    assert event.alert_name == "KubernetesCronjobIdle"
+    assert event.resource_type == "cronjob"
+    assert event.resource_name == "nightly-backfill"
+    assert event.namespace == "dev"
+    assert (
+        event.alert_key
+        == "alertmanager:H2S-EKS-DEV-STG-EAST-2:dev:KubernetesCronjobIdle:nightly-backfill"
+    )
+
+
 def test_golden_parser_multi_alert_replay_returns_all_alerts() -> None:
     events = _parse_multi_fixture("alertmanager_multi_pod_oom.txt")
 
@@ -125,6 +138,45 @@ def test_golden_parser_multi_alert_replay_returns_all_alerts() -> None:
     assert events[0].resource_name == "prod-h2-lab-worker-6dfcbbbff4-55w6b"
     assert events[1].resource_name == "prod-h2-server-go-567589445c-n8b9s"
     assert events[0].alert_key != events[1].alert_key
+
+
+def test_golden_parser_pod_healthy_replay() -> None:
+    event = _parse_fixture("alertmanager_pod_healthy.txt")
+
+    assert event.alert_name == "KubernetesPod not in running status"
+    assert event.resource_type == "pod"
+    assert event.resource_name == "dev-py3-h2s-apisvc-7b866db5cd-qfg95"
+    assert event.namespace == "dev"
+    assert (
+        event.alert_key
+        == "alertmanager:H2S-EKS-DEV-STG-EAST-2:dev:KubernetesPod not in running status:dev-py3-h2s-apisvc-7b866db5cd-qfg95"
+    )
+
+
+def test_golden_parser_pod_gone_replay() -> None:
+    event = _parse_fixture("alertmanager_pod_gone.txt")
+
+    assert event.alert_name == "KubernetesPod not in running status"
+    assert event.resource_type == "pod"
+    assert event.resource_name == "worker-pod-gone"
+    assert event.namespace == "dev"
+    assert (
+        event.alert_key
+        == "alertmanager:H2S-EKS-DEV-STG-EAST-2:dev:KubernetesPod not in running status:worker-pod-gone"
+    )
+
+
+def test_golden_parser_pod_oomkilled_replay() -> None:
+    event = _parse_fixture("alertmanager_pod_oomkilled.txt")
+
+    assert event.alert_name == "KubernetesContainerOomKiller"
+    assert event.resource_type == "pod"
+    assert event.resource_name == "prod-h2-server-go-567589445c-n8b9s"
+    assert event.namespace == "prod"
+    assert (
+        event.alert_key
+        == "alertmanager:H2S-EKS-DEV-STG-EAST-2:prod:KubernetesContainerOomKiller:prod-h2-server-go-567589445c-n8b9s"
+    )
 
 
 def test_golden_skip_by_design_namespace_replay(caplog) -> None:
