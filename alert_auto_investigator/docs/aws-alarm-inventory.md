@@ -23,14 +23,17 @@ What already exists:
 - `cloudwatch_alarm` normalization exists
 - current resource mapping supports:
   - `rds_instance`
+  - `elasticache_cluster`
   - `ec2_instance`
   - `load_balancer`
   - `eks_cluster`
 - `rds_instance` is now routed to a real read-only investigation tool
+- `elasticache_cluster` is now routed to a real read-only investigation tool
 - remaining AWS alerts are still treated as `NEXT_CANDIDATE` or `SKIP` in `SUPPORT_MATRIX`
 
-This means AWS alerts are recognized, keyed, and controlled, and `rds_instance`
-now enters a real investigation tool path.
+This means AWS alerts are recognized, keyed, and controlled, and both
+`rds_instance` and `elasticache_cluster` now enter real investigation tool
+paths.
 
 ---
 
@@ -46,7 +49,7 @@ Top CloudWatch namespaces:
 |-----------|-------|-------|
 | `AWS/Kafka` | `39` | mostly MSK lag / broker metrics |
 | `AWS/RDS` | `29` | clear candidate for bounded investigation |
-| `AWS/ElastiCache` | `29` | common but currently unmapped |
+| `AWS/ElastiCache` | `29` | common and now modeled as a bounded investigation target |
 | `AWS/ApplicationELB` | `25` | clear load-balancer / target-group identity |
 | `AWS/WAFV2` | `21` | security / policy domain, likely notify-only first |
 | `CWAgent` | `6` | host / node-like signal, not a good first candidate |
@@ -165,6 +168,7 @@ tools.
 | `rds_instance` | implemented first AWS investigation type; backed by `DescribeDBInstances`; bounded API surface |
 | `target_group` | implemented second AWS investigation type; backed by `DescribeTargetGroups` + `DescribeTargetHealth`; strongest ALB-side actionability |
 | `load_balancer` | implemented third AWS investigation type; backed by `DescribeLoadBalancers`; answers ALB existence and front-door state |
+| `elasticache_cluster` | implemented fourth AWS investigation type; backed by `DescribeCacheClusters`; bounded current-state view for cluster and node status |
 
 ### 2. Notify-Only First
 
@@ -173,7 +177,6 @@ These should be explicitly classified but not investigated yet.
 | resource area | Why |
 |---------------|-----|
 | `msk_cluster` / Kafka lag | high volume and useful, but investigation surface is broader and needs careful scoping |
-| `elasticache_cluster` | common in inventory, but not yet modeled and not the best first AWS tool |
 | `waf_web_acl` | important security signal, but not a good fit for the current workload investigation plane |
 | `sqs_queue` | queue-specific runbooks likely differ from current triage patterns |
 
@@ -210,7 +213,7 @@ Start with:
 Possible next tool shapes:
 
 - selected AWS/K8s enrichment for `target_group`
-- one notify-only domain promoted to investigate (`elasticache_cluster` or `msk_cluster`)
+- one notify-only domain promoted to investigate (`msk_cluster`)
 - avoid broad listener / rule / metric correlation unless there is a concrete alert class driving it
 
 ---
@@ -225,4 +228,5 @@ Based on the current inventory:
 - first implemented AWS investigation type is now `rds_instance`
 - second implemented AWS investigation type is now `target_group`
 - third implemented AWS investigation type is now `load_balancer`
-- next candidate should focus on enrichment rather than another broad AWS surface
+- fourth implemented AWS investigation type is now `elasticache_cluster`
+- next candidate should focus on either `target_group` follow-on enrichment or a more carefully bounded `msk_cluster` design

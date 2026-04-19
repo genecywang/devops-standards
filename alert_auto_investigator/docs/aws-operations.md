@@ -8,6 +8,7 @@ It is intentionally operational, not architectural.
 Current supported AWS investigation targets:
 
 - `rds_instance`
+- `elasticache_cluster`
 - `target_group`
 - `load_balancer`
 
@@ -56,6 +57,7 @@ The current AWS tool surface only needs these read-only actions:
       "Effect": "Allow",
       "Action": [
         "rds:DescribeDBInstances",
+        "elasticache:DescribeCacheClusters",
         "elasticloadbalancing:DescribeLoadBalancers",
         "elasticloadbalancing:DescribeTargetGroups",
         "elasticloadbalancing:DescribeTargetHealth",
@@ -249,6 +251,31 @@ resource_type: target_group
 resource_name: targetgroup/api/abc123
 ```
 
+### ElastiCache Example
+
+```text
+:fire: [FIRING]
+AWS Account : 123456789012
+AWS Region : Asia Pacific (Tokyo)
+AlarmName : manual-test-elasticache-memory-20260419-01
+Time : 2026-04-19T10:31:30.000+0000
+status : ALARM
+message : Manual test for ElastiCache investigation.
+
+--- Structured Alert ---
+schema_version: v1
+source: cloudwatch_alarm
+status: ALARM
+alert_name: manual-test-elasticache-memory-20260419-01
+account_id: 123456789012
+region_code: ap-northeast-1
+environment: prod-jp
+event_time: 2026-04-19T10:31:30.000+0000
+alert_key: cloudwatch_alarm:123456789012:ap-northeast-1:manual-test-elasticache-memory-20260419-01
+resource_type: elasticache_cluster
+resource_name: redis-prod
+```
+
 ### Load Balancer Example
 
 ```text
@@ -276,7 +303,27 @@ resource_name: app/prod-api/abc123
 
 ---
 
-## 7. Runtime Verification
+## 7. Focused Verification
+
+Recommended focused verification before runtime replay:
+
+```bash
+pytest openclaw_foundation/tests/test_aws_adapter.py \
+  openclaw_foundation/tests/test_aws_elasticache_cluster_status_tool.py \
+  openclaw_foundation/tests/test_aws_rds_instance_status_tool.py \
+  openclaw_foundation/tests/test_aws_load_balancer_status_tool.py \
+  openclaw_foundation/tests/test_aws_target_group_status_tool.py \
+  openclaw_foundation/tests/test_runner.py \
+  alert_auto_investigator/tests/test_cloudwatch_alarm_normalizer.py \
+  alert_auto_investigator/tests/test_openclaw_dispatcher.py \
+  alert_auto_investigator/tests/test_e2e_investigation_flow.py \
+  alert_auto_investigator/tests/test_golden_replays.py \
+  alert_auto_investigator/tests/test_runner_factory.py -q
+```
+
+---
+
+## 8. Runtime Verification
 
 When replaying or observing real AWS alerts, look for these logs:
 

@@ -24,6 +24,7 @@ Use this section when reading live Slack alerts. "No reply" is not always a bug.
 | `job` in allowed namespace | Replies in thread | `job` is actively supported |
 | `cronjob` in allowed namespace | Replies in thread | latest owned Job is investigated and summarized |
 | `rds_instance` | Replies in thread | `rds_instance` is actively supported |
+| `elasticache_cluster` | Replies in thread | `elasticache_cluster` is actively supported |
 | `load_balancer` | Replies in thread | `load_balancer` is actively supported |
 | `target_group` | Replies in thread | `target_group` is actively supported |
 | `job` outside `ALLOWED_NAMESPACES` or `ALLOWED_CLUSTERS` | No Slack reply | blocked by runtime scope guard |
@@ -108,6 +109,7 @@ golden-covered", not "unsupported".
 | `pod` | degraded pod with OOMKilled signal | `alertmanager_pod_oomkilled.txt`, `test_golden_formatter_keeps_full_metadata_for_degraded_pod_reply`, `test_golden_metadata_degraded_pod_contract` | formatter, tool metadata |
 | `cronjob` | suspended cronjob with no recent jobs | `alertmanager_cronjob_suspended.txt`, `alertmanager_cronjob_parser.txt`, `test_golden_parser_cronjob_replay`, `test_golden_formatter_compacts_suspended_cronjob_reply`, `test_golden_metadata_suspended_cronjob_contract` | parser, formatter, tool metadata |
 | `cronjob` | idle cronjob with no recent jobs | `alertmanager_cronjob_idle.txt`, `test_golden_formatter_keeps_full_metadata_for_idle_cronjob_reply`, `test_golden_metadata_idle_cronjob_contract` | formatter, tool metadata |
+| `elasticache_cluster` | CloudWatch alarm with `CacheClusterId + CacheNodeId` routed to bounded AWS investigation | `cloudwatch_elasticache_alarm.json`, `test_golden_cloudwatch_elasticache_alarm_replay_normalizes_and_routes` | parser, dispatcher |
 | `multi-alert` | grouped Slack message with two structured pod alerts | `alertmanager_multi_pod_oom.txt`, `test_golden_parser_multi_alert_replay_returns_all_alerts`, `test_golden_grouped_message_replies_once_per_alert_in_same_thread` | parser, handler thread reply |
 | `namespace` | skip-by-design dispatcher miss | `alertmanager_namespace_skip.txt`, `test_golden_skip_by_design_namespace_replay` | parser, dispatcher skip |
 
@@ -129,6 +131,7 @@ These resource types trigger a real investigation via an OpenClaw tool.
 | `job` | `get_job_status` | Alertmanager (label: `job_name` or `exported_job`) |
 | `cronjob` | `get_cronjob_status` | Alertmanager (label: `cronjob`) |
 | `rds_instance` | `get_rds_instance_status` | CloudWatch alarm (dimension: `DBInstanceIdentifier`) |
+| `elasticache_cluster` | `get_elasticache_cluster_status` | CloudWatch alarm (dimension: `CacheClusterId`) |
 | `load_balancer` | `get_load_balancer_status` | CloudWatch alarm (dimension: `LoadBalancer`) |
 | `target_group` | `get_target_group_status` | CloudWatch alarm (dimension: `TargetGroup`) |
 
@@ -200,7 +203,6 @@ The dispatcher logs at DEBUG (`skip_by_design`) — no Slack reply is posted.
 
 | resource_type | Reason |
 |---------------|--------|
-| `elasticache_cluster` | Common in inventory, but not yet modeled as a bounded AWS investigation tool. |
 | `ec2_instance` | EC2 metrics live outside K8s; no investigation tool exists. |
 | `eks_cluster` | Cluster-level alerts need a separate runbook; not scoped to a single workload. |
 | `msk_cluster` | Kafka lag / broker alarms are useful but need a separate bounded AWS investigation surface. |
