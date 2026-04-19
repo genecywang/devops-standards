@@ -153,13 +153,15 @@ This section is a posture recommendation, not an implementation commitment.
 
 ### 1. Investigate Now
 
-These have the strongest bounded investigation value. `rds_instance` is already
-implemented; the others remain next candidates.
+These have the strongest bounded investigation value. `rds_instance` and
+`target_group` are already implemented; `load_balancer` remains the next
+candidate.
 
 | resource area | Why |
 |---------------|-----|
 | `rds_instance` | implemented first AWS investigation type; backed by `DescribeDBInstances`; bounded API surface |
-| `load_balancer` / `target_group` | clear ALB health signals; stable AWS APIs; strong relation to user-visible impact |
+| `target_group` | implemented second AWS investigation type; backed by `DescribeTargetGroups` + `DescribeTargetHealth`; strongest ALB-side actionability |
+| `load_balancer` | clear ALB health signals; still useful, but broader and less direct than target-group health |
 
 ### 2. Notify-Only First
 
@@ -200,13 +202,13 @@ Only after that:
 
 Start with:
 
-- `load_balancer` / `target_group`
+- `load_balancer`
 
 Possible first tool shape:
 
-- describe current DB instance state
-- capture coarse health / status / class / storage posture
-- avoid freeform RDS diagnostics or write actions
+- describe ALB scheme / type / state
+- capture coarse availability posture
+- avoid listener / rule / metric correlation in the first pass
 
 ---
 
@@ -218,4 +220,5 @@ Based on the current inventory:
 - but it should not be modeled as just `rds_instance/ec2_instance/load_balancer/eks_cluster`
 - first implementation work should go into **classification and source coverage**
 - first implemented AWS investigation type is now `rds_instance`
-- next real AWS investigation candidate should likely be `load_balancer` / `target_group`
+- second implemented AWS investigation type is now `target_group`
+- next real AWS investigation candidate should likely be `load_balancer`

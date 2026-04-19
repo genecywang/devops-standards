@@ -92,6 +92,27 @@ def truncate_rds_instance_status(payload: dict[str, object]) -> dict[str, object
     }
 
 
+def truncate_target_group_status(payload: dict[str, object]) -> dict[str, object]:
+    return {
+        key: value
+        for key, value in payload.items()
+        if key
+        in {
+            "target_group_name",
+            "target_group_arn",
+            "target_type",
+            "protocol",
+            "port",
+            "vpc_id",
+            "healthy_count",
+            "unhealthy_count",
+            "initial_count",
+            "draining_count",
+            "unused_count",
+        }
+    }
+
+
 def truncate_pod_logs(lines: list[str]) -> list[str]:
     bounded = lines[:_MAX_LOG_LINES]
     return [

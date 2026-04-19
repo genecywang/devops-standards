@@ -14,6 +14,7 @@ DEFAULT_TOOL_ROUTING: dict[str, str] = {
     ResourceType.JOB: "get_job_status",
     ResourceType.CRONJOB: "get_cronjob_status",
     ResourceType.RDS_INSTANCE: "get_rds_instance_status",
+    ResourceType.TARGET_GROUP: "get_target_group_status",
 }
 
 

@@ -141,6 +141,35 @@ def test_cloudwatch_rds_alarm_reaches_dispatcher() -> None:
     assert runner.last_request.tool_name == "get_rds_instance_status"
 
 
+def test_cloudwatch_target_group_alarm_reaches_dispatcher() -> None:
+    payload = {
+        "AlarmName": "p-alb-prod-api_UnHealthyHostCount",
+        "AWSAccountId": "416885395773",
+        "NewStateValue": "ALARM",
+        "StateChangeTime": "2026-04-19T01:02:03.000+0000",
+        "AlarmArn": "arn:aws:cloudwatch:ap-northeast-1:416885395773:alarm:p-alb-prod-api_UnHealthyHostCount",
+        "Trigger": {
+            "Dimensions": [
+                {
+                    "name": "TargetGroup",
+                    "value": "targetgroup/api/abc123",
+                }
+            ]
+        },
+    }
+
+    event = normalize_cloudwatch_alarm(payload, environment="prod-jp")
+    pipeline = ControlPipeline(policy=make_policy(), store=InMemoryAlertStateStore())
+    decision = pipeline.evaluate(event)
+    dispatcher, runner = make_dispatcher()
+    response = dispatcher.dispatch(event)
+
+    assert decision.action == ControlAction.INVESTIGATE
+    assert event.resource_type == "target_group"
+    assert response is not None
+    assert runner.last_request.tool_name == "get_target_group_status"
+
+
 def test_alertmanager_pod_alert_reaches_dispatcher() -> None:
     alert = make_alertmanager_alert()
 
