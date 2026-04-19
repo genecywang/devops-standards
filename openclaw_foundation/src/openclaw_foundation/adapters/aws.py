@@ -105,10 +105,12 @@ class FakeAwsProviderAdapter:
 class RealAwsProviderAdapter:
     def __init__(
         self,
-        client_factory=build_rds_client,
+        rds_client_factory=build_rds_client,
+        elbv2_client_factory=build_elbv2_client,
         client_error_cls=ClientError,
     ) -> None:
-        self._client_factory = client_factory
+        self._rds_client_factory = rds_client_factory
+        self._elbv2_client_factory = elbv2_client_factory
         self._client_error_cls = client_error_cls
 
     def get_rds_instance_status(
@@ -117,7 +119,7 @@ class RealAwsProviderAdapter:
         db_instance_identifier: str,
     ) -> dict[str, object]:
         try:
-            client = self._client_factory(region_code)
+            client = self._rds_client_factory(region_code)
             response = client.describe_db_instances(DBInstanceIdentifier=db_instance_identifier)
         except Exception as error:
             if self._client_error_cls is not None and isinstance(error, self._client_error_cls):
@@ -154,7 +156,7 @@ class RealAwsProviderAdapter:
         target_group_name: str,
     ) -> dict[str, object]:
         try:
-            client = self._client_factory(region_code)
+            client = self._elbv2_client_factory(region_code)
             groups_response = client.describe_target_groups(Names=[_target_group_short_name(target_group_name)])
         except Exception as error:
             if self._client_error_cls is not None and isinstance(error, self._client_error_cls):
@@ -224,7 +226,7 @@ class RealAwsProviderAdapter:
         load_balancer_name: str,
     ) -> dict[str, object]:
         try:
-            client = self._client_factory(region_code)
+            client = self._elbv2_client_factory(region_code)
             response = client.describe_load_balancers(Names=[_load_balancer_short_name(load_balancer_name)])
         except Exception as error:
             if self._client_error_cls is not None and isinstance(error, self._client_error_cls):

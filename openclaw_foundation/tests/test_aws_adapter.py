@@ -75,7 +75,7 @@ def test_real_adapter_maps_rds_instance_payload() -> None:
             }
         ]
     }
-    adapter = RealAwsProviderAdapter(client_factory=Mock(return_value=client))
+    adapter = RealAwsProviderAdapter(rds_client_factory=Mock(return_value=client))
 
     result = adapter.get_rds_instance_status(
         region_code="ap-northeast-1",
@@ -115,7 +115,7 @@ def test_real_adapter_maps_target_group_payload() -> None:
             {"TargetHealth": {"State": "draining"}},
         ]
     }
-    adapter = RealAwsProviderAdapter(client_factory=Mock(return_value=elbv2_client))
+    adapter = RealAwsProviderAdapter(elbv2_client_factory=Mock(return_value=elbv2_client))
 
     result = adapter.get_target_group_status(
         region_code="ap-northeast-1",
@@ -154,7 +154,7 @@ def test_real_adapter_maps_load_balancer_payload() -> None:
             }
         ]
     }
-    adapter = RealAwsProviderAdapter(client_factory=Mock(return_value=elbv2_client))
+    adapter = RealAwsProviderAdapter(elbv2_client_factory=Mock(return_value=elbv2_client))
 
     result = adapter.get_load_balancer_status(
         region_code="ap-northeast-1",
@@ -177,7 +177,7 @@ def test_real_adapter_maps_load_balancer_payload() -> None:
 def test_real_adapter_maps_missing_rds_instance_to_domain_error() -> None:
     client = Mock()
     client.describe_db_instances.return_value = {"DBInstances": []}
-    adapter = RealAwsProviderAdapter(client_factory=Mock(return_value=client))
+    adapter = RealAwsProviderAdapter(rds_client_factory=Mock(return_value=client))
 
     with pytest.raises(AwsResourceNotFoundError, match="rds instance not found"):
         adapter.get_rds_instance_status(
@@ -189,7 +189,7 @@ def test_real_adapter_maps_missing_rds_instance_to_domain_error() -> None:
 def test_real_adapter_maps_missing_target_group_to_domain_error() -> None:
     client = Mock()
     client.describe_target_groups.return_value = {"TargetGroups": []}
-    adapter = RealAwsProviderAdapter(client_factory=Mock(return_value=client))
+    adapter = RealAwsProviderAdapter(elbv2_client_factory=Mock(return_value=client))
 
     with pytest.raises(AwsResourceNotFoundError, match="target group not found"):
         adapter.get_target_group_status(
@@ -201,7 +201,7 @@ def test_real_adapter_maps_missing_target_group_to_domain_error() -> None:
 def test_real_adapter_maps_missing_load_balancer_to_domain_error() -> None:
     client = Mock()
     client.describe_load_balancers.return_value = {"LoadBalancers": []}
-    adapter = RealAwsProviderAdapter(client_factory=Mock(return_value=client))
+    adapter = RealAwsProviderAdapter(elbv2_client_factory=Mock(return_value=client))
 
     with pytest.raises(AwsResourceNotFoundError, match="load balancer not found"):
         adapter.get_load_balancer_status(
@@ -216,7 +216,7 @@ def test_real_adapter_maps_access_denied_client_error() -> None:
             self.response = {"Error": {"Code": "AccessDeniedException"}}
 
     adapter = RealAwsProviderAdapter(
-        client_factory=Mock(
+        rds_client_factory=Mock(
             return_value=SimpleNamespace(
                 describe_db_instances=Mock(side_effect=FakeClientError())
             )
@@ -229,3 +229,36 @@ def test_real_adapter_maps_access_denied_client_error() -> None:
             region_code="ap-northeast-1",
             db_instance_identifier="shuriken",
         )
+
+
+def test_real_adapter_uses_elbv2_factory_for_load_balancer_calls() -> None:
+    rds_factory = Mock()
+    elbv2_client = Mock()
+    elbv2_client.describe_load_balancers.return_value = {
+        "LoadBalancers": [
+            {
+                "LoadBalancerArn": "arn:aws:elasticloadbalancing:ap-northeast-1:123:loadbalancer/app/prod-api/abc123",
+                "DNSName": "prod-api-123.ap-northeast-1.elb.amazonaws.com",
+                "Scheme": "internet-facing",
+                "Type": "application",
+                "VpcId": "vpc-12345",
+                "State": {"Code": "active"},
+                "AvailabilityZones": [{"ZoneName": "apne1-a"}],
+                "SecurityGroups": ["sg-1"],
+            }
+        ]
+    }
+    elbv2_factory = Mock(return_value=elbv2_client)
+    adapter = RealAwsProviderAdapter(
+        rds_client_factory=rds_factory,
+        elbv2_client_factory=elbv2_factory,
+    )
+
+    result = adapter.get_load_balancer_status(
+        region_code="ap-northeast-1",
+        load_balancer_name="app/prod-api/abc123",
+    )
+
+    rds_factory.assert_not_called()
+    elbv2_factory.assert_called_once_with("ap-northeast-1")
+    assert result["state"] == "active"
