@@ -452,6 +452,32 @@ resource_name: shuriken
     assert event.raw_text == text
 
 
+def test_parse_cloudwatch_message_returns_expanded_aws_resource_type() -> None:
+    text = """[FIRING]
+AWS Account : 416885395773
+AlarmName : p-alb-h2-server-lb_HTTPCode_Target_5XX_Count
+
+--- Structured Alert ---
+schema_version: v1
+source: cloudwatch_alarm
+status: ALARM
+alert_name: p-alb-h2-server-lb_HTTPCode_Target_5XX_Count
+account_id: 416885395773
+region_code: ap-northeast-1
+environment: prod-jp
+event_time: 2026-04-13T15:02:59.759+0000
+alert_key: cloudwatch_alarm:416885395773:ap-northeast-1:p-alb-h2-server-lb_HTTPCode_Target_5XX_Count
+resource_type: target_group
+resource_name: targetgroup/api/abc123
+"""
+
+    event = parse_cloudwatch_slack_message(text)
+
+    assert event is not None
+    assert event.resource_type == "target_group"
+    assert event.resource_name == "targetgroup/api/abc123"
+
+
 def test_parse_cloudwatch_message_returns_none_without_marker() -> None:
     text = """[FIRING]
 AWS Account : 416885395773

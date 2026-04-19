@@ -26,7 +26,12 @@ class ResourceType:
     RDS_INSTANCE = "rds_instance"
     EC2_INSTANCE = "ec2_instance"
     LOAD_BALANCER = "load_balancer"
+    TARGET_GROUP = "target_group"
     EKS_CLUSTER = "eks_cluster"
+    ELASTICACHE_CLUSTER = "elasticache_cluster"
+    MSK_CLUSTER = "msk_cluster"
+    SQS_QUEUE = "sqs_queue"
+    WAF_WEB_ACL = "waf_web_acl"
 
     UNKNOWN = "unknown"
 
@@ -70,10 +75,15 @@ SUPPORT_MATRIX: dict[str, InvestigationPolicy] = {
 
     # --- Skip by design: AWS resources ---
     # Investigation would require CloudWatch / RDS / EC2 API tools not yet built.
-    ResourceType.RDS_INSTANCE: InvestigationPolicy.SKIP,
+    ResourceType.RDS_INSTANCE: InvestigationPolicy.NEXT_CANDIDATE,
+    ResourceType.LOAD_BALANCER: InvestigationPolicy.NEXT_CANDIDATE,
+    ResourceType.TARGET_GROUP: InvestigationPolicy.NEXT_CANDIDATE,
     ResourceType.EC2_INSTANCE: InvestigationPolicy.SKIP,
-    ResourceType.LOAD_BALANCER: InvestigationPolicy.SKIP,
     ResourceType.EKS_CLUSTER: InvestigationPolicy.SKIP,
+    ResourceType.ELASTICACHE_CLUSTER: InvestigationPolicy.SKIP,
+    ResourceType.MSK_CLUSTER: InvestigationPolicy.SKIP,
+    ResourceType.SQS_QUEUE: InvestigationPolicy.SKIP,
+    ResourceType.WAF_WEB_ACL: InvestigationPolicy.SKIP,
 
     # --- Skip by design: catch-all ---
     ResourceType.UNKNOWN: InvestigationPolicy.SKIP,

@@ -95,8 +95,64 @@ def test_normalize_maps_load_balancer_dimension() -> None:
     assert event.resource_name == "app/my-lb/abc123"
 
 
+def test_normalize_maps_target_group_dimension() -> None:
+    payload = make_payload(dimensions=[{"name": "TargetGroup", "value": "targetgroup/api/abc123"}])
+    event = cloudwatch_alarm.normalize(payload, environment="prod-jp")
+
+    assert event.resource_type == "target_group"
+    assert event.resource_name == "targetgroup/api/abc123"
+
+
+def test_normalize_maps_elasticache_cluster_dimension() -> None:
+    payload = make_payload(
+        dimensions=[{"name": "CacheClusterId", "value": "redis-prod"}],
+        namespace="AWS/ElastiCache",
+        metric_name="FreeableMemory",
+    )
+    event = cloudwatch_alarm.normalize(payload, environment="prod-jp")
+
+    assert event.resource_type == "elasticache_cluster"
+    assert event.resource_name == "redis-prod"
+
+
+def test_normalize_maps_msk_cluster_dimension() -> None:
+    payload = make_payload(
+        dimensions=[{"name": "Cluster Name", "value": "h2-server"}],
+        namespace="AWS/Kafka",
+        metric_name="SumOffsetLag",
+    )
+    event = cloudwatch_alarm.normalize(payload, environment="prod-jp")
+
+    assert event.resource_type == "msk_cluster"
+    assert event.resource_name == "h2-server"
+
+
+def test_normalize_maps_sqs_queue_dimension() -> None:
+    payload = make_payload(
+        dimensions=[{"name": "QueueName", "value": "prod-jobs"}],
+        namespace="AWS/SQS",
+        metric_name="ApproximateNumberOfMessagesVisible",
+    )
+    event = cloudwatch_alarm.normalize(payload, environment="prod-jp")
+
+    assert event.resource_type == "sqs_queue"
+    assert event.resource_name == "prod-jobs"
+
+
+def test_normalize_maps_waf_web_acl_dimension() -> None:
+    payload = make_payload(
+        dimensions=[{"name": "WebACL", "value": "prod-main-waf"}],
+        namespace="AWS/WAFV2",
+        metric_name="CountedRequests",
+    )
+    event = cloudwatch_alarm.normalize(payload, environment="prod-jp")
+
+    assert event.resource_type == "waf_web_acl"
+    assert event.resource_name == "prod-main-waf"
+
+
 def test_normalize_unknown_dimension_returns_unknown_resource() -> None:
-    payload = make_payload(dimensions=[{"name": "QueueName", "value": "my-queue"}])
+    payload = make_payload(dimensions=[{"name": "UnmappedDimension", "value": "mystery"}])
     event = cloudwatch_alarm.normalize(payload, environment="prod-jp")
 
     assert event.resource_type == "unknown"

@@ -7,7 +7,12 @@ _DIMENSION_TO_RESOURCE_TYPE: dict[str, str] = {
     "DBInstanceIdentifier": ResourceType.RDS_INSTANCE,
     "InstanceId": ResourceType.EC2_INSTANCE,
     "LoadBalancer": ResourceType.LOAD_BALANCER,
+    "TargetGroup": ResourceType.TARGET_GROUP,
     "ClusterName": ResourceType.EKS_CLUSTER,
+    "Cluster Name": ResourceType.MSK_CLUSTER,
+    "CacheClusterId": ResourceType.ELASTICACHE_CLUSTER,
+    "QueueName": ResourceType.SQS_QUEUE,
+    "WebACL": ResourceType.WAF_WEB_ACL,
 }
 
 _STATE_TO_STATUS: dict[str, str] = {

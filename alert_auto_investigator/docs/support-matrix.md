@@ -191,10 +191,24 @@ The dispatcher logs at DEBUG (`skip_by_design`) — no Slack reply is posted.
 
 | resource_type | Reason |
 |---------------|--------|
-| `rds_instance` | Requires CloudWatch / RDS API tools not built yet. |
+| `elasticache_cluster` | Common in inventory, but not yet modeled as a bounded AWS investigation tool. |
 | `ec2_instance` | EC2 metrics live outside K8s; no investigation tool exists. |
-| `load_balancer` | ALB / NLB metric investigation is a different domain. |
 | `eks_cluster` | Cluster-level alerts need a separate runbook; not scoped to a single workload. |
+| `msk_cluster` | Kafka lag / broker alarms are useful but need a separate bounded AWS investigation surface. |
+| `sqs_queue` | Queue-specific runbooks differ from the current workload investigation plane. |
+| `waf_web_acl` | WAF policy alarms are security-domain signals, not workload triage targets. |
+
+### AWS Next Candidates
+
+These resource types are recognised from CloudWatch alarms and have investigation
+value, but no AWS tool exists yet. The dispatcher logs
+`next_candidate_not_yet_implemented` at INFO.
+
+| resource_type | Reason |
+|---------------|--------|
+| `rds_instance` | Strong identity via `DBInstanceIdentifier`; good first bounded AWS investigation candidate. |
+| `load_balancer` | ALB-level health and traffic signals are operationally useful but need dedicated AWS APIs. |
+| `target_group` | Target-group health is often more actionable than ALB-wide metrics and should be modeled explicitly. |
 
 ### Catch-all
 
