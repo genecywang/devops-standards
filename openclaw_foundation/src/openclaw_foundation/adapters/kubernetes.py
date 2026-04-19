@@ -15,6 +15,22 @@ except ImportError:  # pragma: no cover - exercised via real provider setup
     NameResolutionError = None
 
 
+def _build_exception_type_tuple(*exception_types: object) -> tuple[type[BaseException], ...]:
+    return tuple(
+        exception_type
+        for exception_type in exception_types
+        if isinstance(exception_type, type) and issubclass(exception_type, BaseException)
+    )
+
+
+_API_EXCEPTION_TYPES = _build_exception_type_tuple(ApiException)
+_ENDPOINT_UNREACHABLE_EXCEPTION_TYPES = _build_exception_type_tuple(
+    NameResolutionError,
+    ConnectTimeoutError,
+    MaxRetryError,
+)
+
+
 class KubernetesError(RuntimeError):
     pass
 
@@ -48,6 +64,12 @@ class KubernetesProviderAdapter(Protocol):
     ) -> dict[str, object]: ...
     def get_job_status(self, cluster: str, namespace: str, job_name: str) -> dict[str, object]: ...
     def get_cronjob_status(self, cluster: str, namespace: str, cronjob_name: str) -> dict[str, object]: ...
+    def find_pod_by_ip(
+        self, cluster: str, namespaces: list[str], pod_ip: str
+    ) -> dict[str, object] | None: ...
+    def find_service_for_pod(
+        self, cluster: str, namespaces: list[str], namespace: str, pod_name: str
+    ) -> dict[str, object] | None: ...
 
 
 def build_core_v1_api() -> Any:
@@ -95,7 +117,46 @@ def build_batch_v1_api() -> Any:
     return client.BatchV1Api()
 
 
+def build_discovery_v1_api() -> Any:
+    if client is None or kube_config is None:
+        raise KubernetesConfigError("kubernetes client dependency is not installed")
+
+    try:
+        kube_config.load_incluster_config()
+    except Exception:
+        try:
+            kube_config.load_kube_config()
+        except Exception as kubeconfig_error:
+            raise KubernetesConfigError("unable to load kubernetes config") from kubeconfig_error
+
+    return client.DiscoveryV1Api()
+
+
 class FakeKubernetesProviderAdapter:
+    _POD_LOOKUP_FIXTURES = {
+        "10.0.1.23": {
+            "namespace": "dev",
+            "pod_name": "dev-api-123",
+        },
+        "10.0.2.23": {
+            "namespace": "staging",
+            "pod_name": "staging-api-123",
+        },
+    }
+    _SERVICE_LOOKUP_FIXTURES = {
+        ("dev", "dev-api-123"): {
+            "namespace": "dev",
+            "service_name": "dev-api",
+        },
+        ("staging", "staging-api-123"): {
+            "namespace": "staging",
+            "service_name": "staging-api",
+        },
+    }
+    _SERVICE_LOOKUP_AMBIGUOUS_FIXTURES = {
+        ("staging", "staging-api-ambiguous"),
+    }
+
     def get_pod_status(self, cluster: str, namespace: str, pod_name: str) -> dict[str, object]:
         return {
             "pod_name": pod_name,
@@ -216,6 +277,44 @@ class FakeKubernetesProviderAdapter:
             ],
         }
 
+    def find_pod_by_ip(
+        self,
+        cluster: str,
+        namespaces: list[str],
+        pod_ip: str,
+    ) -> dict[str, object] | None:
+        fixture = self._POD_LOOKUP_FIXTURES.get(pod_ip)
+        if fixture is None:
+            return None
+        namespace = str(fixture["namespace"])
+        if namespace not in namespaces:
+            return None
+        return {
+            "namespace": namespace,
+            "pod_name": str(fixture["pod_name"]),
+            "pod_ip": pod_ip,
+        }
+
+    def find_service_for_pod(
+        self,
+        cluster: str,
+        namespaces: list[str],
+        namespace: str,
+        pod_name: str,
+    ) -> dict[str, object] | None:
+        if namespace not in namespaces:
+            return None
+        lookup_key = (namespace, pod_name)
+        if lookup_key in self._SERVICE_LOOKUP_AMBIGUOUS_FIXTURES:
+            return None
+        fixture = self._SERVICE_LOOKUP_FIXTURES.get(lookup_key)
+        if fixture is None:
+            return None
+        return {
+            "namespace": str(fixture["namespace"]),
+            "service_name": str(fixture["service_name"]),
+        }
+
 
 class RealKubernetesProviderAdapter:
     def __init__(
@@ -223,21 +322,23 @@ class RealKubernetesProviderAdapter:
         core_v1_api: Any,
         apps_v1_api: Any | None = None,
         batch_v1_api: Any | None = None,
+        discovery_v1_api: Any | None = None,
     ) -> None:
         self._core_v1_api = core_v1_api
         self._apps_v1_api = apps_v1_api
         self._batch_v1_api = batch_v1_api
+        self._discovery_v1_api = discovery_v1_api
 
     def get_pod_status(self, cluster: str, namespace: str, pod_name: str) -> dict[str, object]:
         try:
             pod = self._core_v1_api.read_namespaced_pod_status(name=pod_name, namespace=namespace)
-        except ApiException as error:
+        except _API_EXCEPTION_TYPES as error:
             if error.status in (401, 403):
                 raise KubernetesAccessDeniedError("kubernetes access denied") from error
             if error.status == 404:
                 raise KubernetesResourceNotFoundError("pod not found") from error
             raise KubernetesApiError("failed to read pod status") from error
-        except (NameResolutionError, ConnectTimeoutError, MaxRetryError) as error:
+        except _ENDPOINT_UNREACHABLE_EXCEPTION_TYPES as error:
             raise KubernetesEndpointUnreachableError("cluster endpoint unreachable") from error
         except Exception as error:
             raise KubernetesApiError("failed to read pod status") from error
@@ -284,13 +385,13 @@ class RealKubernetesProviderAdapter:
                 namespace=namespace,
                 field_selector=f"involvedObject.name={pod_name}",
             )
-        except ApiException as error:
+        except _API_EXCEPTION_TYPES as error:
             if error.status in (401, 403):
                 raise KubernetesAccessDeniedError("kubernetes access denied") from error
             if error.status == 404:
                 raise KubernetesResourceNotFoundError("namespace not found") from error
             raise KubernetesApiError("failed to list pod events") from error
-        except (NameResolutionError, ConnectTimeoutError, MaxRetryError) as error:
+        except _ENDPOINT_UNREACHABLE_EXCEPTION_TYPES as error:
             raise KubernetesEndpointUnreachableError("cluster endpoint unreachable") from error
         except Exception as error:
             raise KubernetesApiError("failed to list pod events") from error
@@ -318,13 +419,13 @@ class RealKubernetesProviderAdapter:
                 namespace=namespace,
                 tail_lines=tail_lines,
             )
-        except ApiException as error:
+        except _API_EXCEPTION_TYPES as error:
             if error.status in (401, 403):
                 raise KubernetesAccessDeniedError("kubernetes access denied") from error
             if error.status == 404:
                 raise KubernetesResourceNotFoundError("pod not found") from error
             raise KubernetesApiError("failed to read pod logs") from error
-        except (NameResolutionError, ConnectTimeoutError, MaxRetryError) as error:
+        except _ENDPOINT_UNREACHABLE_EXCEPTION_TYPES as error:
             raise KubernetesEndpointUnreachableError("cluster endpoint unreachable") from error
         except Exception as error:
             raise KubernetesApiError("failed to read pod logs") from error
@@ -347,13 +448,13 @@ class RealKubernetesProviderAdapter:
                 name=deployment_name,
                 namespace=namespace,
             )
-        except ApiException as error:
+        except _API_EXCEPTION_TYPES as error:
             if error.status in (401, 403):
                 raise KubernetesAccessDeniedError("kubernetes access denied") from error
             if error.status == 404:
                 raise KubernetesResourceNotFoundError("deployment not found") from error
             raise KubernetesApiError("failed to read deployment status") from error
-        except (NameResolutionError, ConnectTimeoutError, MaxRetryError) as error:
+        except _ENDPOINT_UNREACHABLE_EXCEPTION_TYPES as error:
             raise KubernetesEndpointUnreachableError("cluster endpoint unreachable") from error
         except Exception as error:
             raise KubernetesApiError("failed to read deployment status") from error
@@ -393,13 +494,13 @@ class RealKubernetesProviderAdapter:
                 name=job_name,
                 namespace=namespace,
             )
-        except ApiException as error:
+        except _API_EXCEPTION_TYPES as error:
             if error.status in (401, 403):
                 raise KubernetesAccessDeniedError("kubernetes access denied") from error
             if error.status == 404:
                 raise KubernetesResourceNotFoundError("job not found") from error
             raise KubernetesApiError("failed to read job status") from error
-        except (NameResolutionError, ConnectTimeoutError, MaxRetryError) as error:
+        except _ENDPOINT_UNREACHABLE_EXCEPTION_TYPES as error:
             raise KubernetesEndpointUnreachableError("cluster endpoint unreachable") from error
         except Exception as error:
             raise KubernetesApiError("failed to read job status") from error
@@ -455,13 +556,13 @@ class RealKubernetesProviderAdapter:
                 namespace=namespace,
             )
             job_list = self._batch_v1_api.list_namespaced_job(namespace=namespace)
-        except ApiException as error:
+        except _API_EXCEPTION_TYPES as error:
             if error.status in (401, 403):
                 raise KubernetesAccessDeniedError("kubernetes access denied") from error
             if error.status == 404:
                 raise KubernetesResourceNotFoundError("namespace not found") from error
             raise KubernetesApiError("failed to read cronjob status") from error
-        except (NameResolutionError, ConnectTimeoutError, MaxRetryError) as error:
+        except _ENDPOINT_UNREACHABLE_EXCEPTION_TYPES as error:
             raise KubernetesEndpointUnreachableError("cluster endpoint unreachable") from error
         except Exception as error:
             raise KubernetesApiError("failed to read cronjob status") from error
@@ -512,6 +613,102 @@ class RealKubernetesProviderAdapter:
             "succeeded": latest_payload["succeeded"],
             "failed": latest_payload["failed"],
             "conditions": latest_payload["conditions"],
+        }
+
+    def find_pod_by_ip(
+        self,
+        cluster: str,
+        namespaces: list[str],
+        pod_ip: str,
+    ) -> dict[str, object] | None:
+        if self._core_v1_api is None:
+            raise KubernetesApiError("failed to find pod by ip")
+
+        matches: list[dict[str, object]] = []
+        try:
+            for namespace in namespaces:
+                pod_list = self._core_v1_api.list_namespaced_pod(
+                    namespace=namespace,
+                    field_selector=f"status.podIP={pod_ip}",
+                )
+                for pod in getattr(pod_list, "items", []) or []:
+                    status = getattr(pod, "status", None)
+                    pod_ip_value = getattr(status, "pod_ip", None)
+                    if pod_ip_value is None:
+                        pod_ip_value = getattr(status, "podIP", None)
+                    if pod_ip_value != pod_ip:
+                        continue
+
+                    metadata = getattr(pod, "metadata", None)
+                    matches.append(
+                        {
+                            "namespace": getattr(metadata, "namespace", namespace),
+                            "pod_name": getattr(metadata, "name", None),
+                            "pod_ip": pod_ip_value,
+                        }
+                    )
+        except _API_EXCEPTION_TYPES as error:
+            if error.status in (401, 403):
+                raise KubernetesAccessDeniedError("kubernetes access denied") from error
+            if error.status == 404:
+                raise KubernetesResourceNotFoundError("namespace not found") from error
+            raise KubernetesApiError("failed to find pod by ip") from error
+        except _ENDPOINT_UNREACHABLE_EXCEPTION_TYPES as error:
+            raise KubernetesEndpointUnreachableError("cluster endpoint unreachable") from error
+        except Exception as error:
+            raise KubernetesApiError("failed to find pod by ip") from error
+
+        if len(matches) != 1:
+            return None
+        return matches[0]
+
+    def find_service_for_pod(
+        self,
+        cluster: str,
+        namespaces: list[str],
+        namespace: str,
+        pod_name: str,
+    ) -> dict[str, object] | None:
+        if namespace not in namespaces:
+            return None
+        discovery_v1_api = self._discovery_v1_api
+        if discovery_v1_api is None:
+            raise KubernetesApiError("failed to find service for pod")
+
+        try:
+            endpoint_slice_list = discovery_v1_api.list_namespaced_endpoint_slice(namespace=namespace)
+        except _API_EXCEPTION_TYPES as error:
+            if error.status in (401, 403):
+                raise KubernetesAccessDeniedError("kubernetes access denied") from error
+            if error.status == 404:
+                raise KubernetesResourceNotFoundError("namespace not found") from error
+            raise KubernetesApiError("failed to find service for pod") from error
+        except _ENDPOINT_UNREACHABLE_EXCEPTION_TYPES as error:
+            raise KubernetesEndpointUnreachableError("cluster endpoint unreachable") from error
+        except Exception as error:
+            raise KubernetesApiError("failed to find service for pod") from error
+
+        service_names = set()
+        for endpoint_slice in getattr(endpoint_slice_list, "items", []) or []:
+            metadata = getattr(endpoint_slice, "metadata", None)
+            labels = getattr(metadata, "labels", None) or {}
+            service_name = labels.get("kubernetes.io/service-name")
+            if not service_name:
+                continue
+
+            for endpoint in getattr(endpoint_slice, "endpoints", []) or []:
+                target_ref = getattr(endpoint, "target_ref", None)
+                if getattr(target_ref, "kind", None) == "Pod" and getattr(target_ref, "name", None) == pod_name:
+                    service_names.add(service_name)
+                    break
+
+        if len(service_names) != 1:
+            return None
+
+        service_name = next(iter(service_names))
+        return {
+            "namespace": namespace,
+            "service_name": service_name,
         }
 
 

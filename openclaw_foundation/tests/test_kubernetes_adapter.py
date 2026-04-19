@@ -1,5 +1,5 @@
 from types import SimpleNamespace
-from unittest.mock import Mock
+from unittest.mock import Mock, call
 
 import pytest
 from kubernetes.client import ApiException
@@ -228,6 +228,102 @@ def test_real_adapter_maps_404_to_resource_not_found() -> None:
         )
 
 
+def test_real_adapter_handles_missing_optional_exception_dependency(monkeypatch: pytest.MonkeyPatch) -> None:
+    api = Mock()
+    api.read_namespaced_pod_status.side_effect = RuntimeError("boom")
+
+    monkeypatch.setattr("openclaw_foundation.adapters.kubernetes.ApiException", None)
+    monkeypatch.setattr("openclaw_foundation.adapters.kubernetes.NameResolutionError", None)
+    monkeypatch.setattr("openclaw_foundation.adapters.kubernetes.ConnectTimeoutError", None)
+    monkeypatch.setattr("openclaw_foundation.adapters.kubernetes.MaxRetryError", None)
+    monkeypatch.setattr("openclaw_foundation.adapters.kubernetes._API_EXCEPTION_TYPES", ())
+    monkeypatch.setattr(
+        "openclaw_foundation.adapters.kubernetes._ENDPOINT_UNREACHABLE_EXCEPTION_TYPES",
+        (),
+    )
+
+    adapter = RealKubernetesProviderAdapter(api)
+
+    with pytest.raises(KubernetesApiError, match="failed to read pod status"):
+        adapter.get_pod_status(
+            cluster="staging-main",
+            namespace="dev",
+            pod_name="dev-api-123",
+        )
+
+
+def test_real_adapter_finds_pod_by_ip_within_provided_namespaces_only() -> None:
+    pod = SimpleNamespace(
+        metadata=SimpleNamespace(name="dev-api-123", namespace="dev"),
+        status=SimpleNamespace(pod_ip="10.0.1.23"),
+    )
+    api = Mock()
+    api.list_namespaced_pod.side_effect = [
+        SimpleNamespace(items=[]),
+        SimpleNamespace(items=[pod]),
+    ]
+
+    adapter = RealKubernetesProviderAdapter(api)
+
+    result = adapter.find_pod_by_ip(
+        cluster="staging-main",
+        namespaces=["staging", "dev"],
+        pod_ip="10.0.1.23",
+    )
+
+    assert result == {
+        "namespace": "dev",
+        "pod_name": "dev-api-123",
+        "pod_ip": "10.0.1.23",
+    }
+    assert api.list_namespaced_pod.call_args_list == [
+        call(namespace="staging", field_selector="status.podIP=10.0.1.23"),
+        call(namespace="dev", field_selector="status.podIP=10.0.1.23"),
+    ]
+
+
+def test_real_adapter_find_service_for_pod_returns_none_when_namespace_outside_scope() -> None:
+    api = Mock()
+
+    adapter = RealKubernetesProviderAdapter(core_v1_api=Mock(), discovery_v1_api=api)
+
+    result = adapter.find_service_for_pod(
+        cluster="staging-main",
+        namespaces=["staging"],
+        namespace="dev",
+        pod_name="dev-api-123",
+    )
+
+    assert result is None
+    api.list_namespaced_endpoint_slice.assert_not_called()
+
+
+def test_real_adapter_returns_none_when_pod_ip_matches_multiple_namespaces() -> None:
+    pod_a = SimpleNamespace(
+        metadata=SimpleNamespace(name="dev-api-123", namespace="dev"),
+        status=SimpleNamespace(pod_ip="10.0.1.23"),
+    )
+    pod_b = SimpleNamespace(
+        metadata=SimpleNamespace(name="staging-api-123", namespace="staging"),
+        status=SimpleNamespace(pod_ip="10.0.1.23"),
+    )
+    api = Mock()
+    api.list_namespaced_pod.side_effect = [
+        SimpleNamespace(items=[pod_a]),
+        SimpleNamespace(items=[pod_b]),
+    ]
+
+    adapter = RealKubernetesProviderAdapter(api)
+
+    result = adapter.find_pod_by_ip(
+        cluster="staging-main",
+        namespaces=["dev", "staging"],
+        pod_ip="10.0.1.23",
+    )
+
+    assert result is None
+
+
 def test_fake_adapter_get_deployment_status_returns_bounded_payload() -> None:
     adapter = FakeKubernetesProviderAdapter()
 
@@ -303,6 +399,79 @@ def test_fake_adapter_get_cronjob_status_returns_latest_job_payload() -> None:
     assert result["latest_job_name"] == "nightly-backfill-12345"
     assert result["succeeded"] == 1
     assert isinstance(result["conditions"], list)
+
+
+def test_fake_adapter_find_pod_by_ip_returns_bounded_lookup_payload() -> None:
+    adapter = FakeKubernetesProviderAdapter()
+
+    result = adapter.find_pod_by_ip(
+        cluster="staging-main",
+        namespaces=["dev"],
+        pod_ip="10.0.1.23",
+    )
+
+    assert result == {
+        "namespace": "dev",
+        "pod_name": "dev-api-123",
+        "pod_ip": "10.0.1.23",
+    }
+
+
+def test_fake_adapter_find_pod_by_ip_returns_none_outside_allowed_namespaces() -> None:
+    adapter = FakeKubernetesProviderAdapter()
+
+    result = adapter.find_pod_by_ip(
+        cluster="staging-main",
+        namespaces=["staging"],
+        pod_ip="10.0.1.23",
+    )
+
+    assert result is None
+
+
+def test_fake_adapter_find_service_for_pod_returns_bounded_lookup_payload() -> None:
+    adapter = FakeKubernetesProviderAdapter()
+
+    result = adapter.find_service_for_pod(
+        cluster="staging-main",
+        namespaces=["dev"],
+        namespace="dev",
+        pod_name="dev-api-123",
+    )
+
+    assert result == {
+        "namespace": "dev",
+        "service_name": "dev-api",
+    }
+
+
+def test_fake_adapter_find_service_for_pod_uses_staging_fixture() -> None:
+    adapter = FakeKubernetesProviderAdapter()
+
+    result = adapter.find_service_for_pod(
+        cluster="staging-main",
+        namespaces=["staging"],
+        namespace="staging",
+        pod_name="staging-api-123",
+    )
+
+    assert result == {
+        "namespace": "staging",
+        "service_name": "staging-api",
+    }
+
+
+def test_fake_adapter_find_service_for_pod_returns_none_for_ambiguous_fixture() -> None:
+    adapter = FakeKubernetesProviderAdapter()
+
+    result = adapter.find_service_for_pod(
+        cluster="staging-main",
+        namespaces=["staging"],
+        namespace="staging",
+        pod_name="staging-api-ambiguous",
+    )
+
+    assert result is None
 
 
 # --- get_pod_events: Fake adapter ---
