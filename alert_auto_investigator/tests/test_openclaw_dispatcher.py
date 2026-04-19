@@ -167,6 +167,21 @@ def test_dispatch_routes_target_group_to_get_target_group_status() -> None:
     assert runner.last_request.tool_name == "get_target_group_status"
 
 
+def test_dispatch_routes_elasticache_cluster_to_get_elasticache_cluster_status() -> None:
+    dispatcher, runner = make_dispatcher()
+    dispatcher.dispatch(
+        make_event(
+            source="cloudwatch_alarm",
+            cluster="",
+            namespace="",
+            resource_type="elasticache_cluster",
+            resource_name="redis-prod",
+        )
+    )
+
+    assert runner.last_request.tool_name == "get_elasticache_cluster_status"
+
+
 def test_dispatch_routes_load_balancer_to_get_load_balancer_status() -> None:
     dispatcher, runner = make_dispatcher()
     dispatcher.dispatch(

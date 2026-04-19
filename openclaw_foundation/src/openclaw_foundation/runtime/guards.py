@@ -33,6 +33,7 @@ _MAX_CONDITION_MESSAGE_LEN = 256
 _MAX_LOG_LINES = 100
 _MAX_LOG_LINE_LEN = 512
 _MAX_TARGET_IPS = 20
+_MAX_ELASTICACHE_NODE_STATUSES = 20
 _MAX_CONTROLLER_TAG_VALUE_LEN = 256
 _TARGET_GROUP_CONTROLLER_TAG_KEYS = (
     "elbv2.k8s.aws/cluster",
@@ -97,6 +98,33 @@ def truncate_rds_instance_status(payload: dict[str, object]) -> dict[str, object
             "endpoint_port",
         }
     }
+
+
+def truncate_elasticache_cluster_status(payload: dict[str, object]) -> dict[str, object]:
+    result = {
+        key: value
+        for key, value in payload.items()
+        if key
+        in {
+            "cache_cluster_id",
+            "replication_group_id",
+            "engine",
+            "engine_version",
+            "cache_cluster_status",
+            "num_cache_nodes",
+        }
+    }
+    node_statuses = payload.get("node_statuses")
+    if isinstance(node_statuses, list):
+        result["node_statuses"] = [
+            {
+                "cache_node_id": str(node_status.get("cache_node_id") or ""),
+                "cache_node_status": str(node_status.get("cache_node_status") or "unknown"),
+            }
+            for node_status in node_statuses[:_MAX_ELASTICACHE_NODE_STATUSES]
+            if isinstance(node_status, dict)
+        ]
+    return result
 
 
 def truncate_target_group_status(payload: dict[str, object]) -> dict[str, object]:

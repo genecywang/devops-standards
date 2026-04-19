@@ -39,6 +39,10 @@ def normalize(payload: dict, environment: str) -> NormalizedAlertEvent:
     resource_name = "unknown"
     for dim in dimensions:
         dim_name = dim.get("name", "")
+        if dim_name == "CacheClusterId":
+            resource_type = _DIMENSION_TO_RESOURCE_TYPE[dim_name]
+            resource_name = dim.get("value", "unknown")
+            break
         if dim_name in _DIMENSION_TO_RESOURCE_TYPE:
             resource_type = _DIMENSION_TO_RESOURCE_TYPE[dim_name]
             resource_name = dim.get("value", "unknown")
