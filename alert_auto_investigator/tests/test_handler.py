@@ -81,6 +81,23 @@ resource_type: target_group
 resource_name: targetgroup/k8s-dev-api/abc123
 """
 
+_ELASTICACHE_TEXT = """\
+:fire: [*FIRING*] elasticache memory low
+
+--- Structured Alert ---
+schema_version: v1
+source: cloudwatch_alarm
+status: ALARM
+alert_name: ElastiCacheFreeableMemoryLow
+account_id: 123456789012
+region_code: ap-northeast-1
+environment: prod-jp
+event_time: 2024-01-01T00:00:00Z
+alert_key: cloudwatch_alarm:123456789012:ap-northeast-1:ElastiCacheFreeableMemoryLow
+resource_type: elasticache_cluster
+resource_name: redis-prod
+"""
+
 _MULTI_ALERT_TEXT = """\
 [FIRING:2] KubernetesContainerOomKiller | dev | test-cluster
 Alert: KubernetesContainerOomKiller
@@ -438,6 +455,46 @@ class TestHandleMessageControlGating:
 
 
 class TestHandleMessageRecordAndReply:
+    def test_elasticache_cloudwatch_alert_uses_generic_reply_path(self) -> None:
+        client = MagicMock()
+        dispatcher = MagicMock()
+        dispatcher.dispatch.return_value = MagicMock(
+            summary=(
+                "elasticache cluster redis-prod is available: engine=redis, engine_version=7.1, "
+                "nodes=2, node_statuses=available=2, replication_group_id=present"
+            ),
+            result_state="success",
+            actions_attempted=["get_elasticache_cluster_status"],
+            metadata={
+                "health_state": "healthy",
+                "attention_required": False,
+                "resource_exists": True,
+                "primary_reason": "available",
+            },
+        )
+        config = _make_config()
+        config.owned_environments = ["prod-jp"]
+        pipeline = _make_pipeline(config)
+
+        handle_message(
+            _make_event(attachments=[{"text": _ELASTICACHE_TEXT}], ts="111.000"),
+            client,
+            config,
+            pipeline,
+            dispatcher,
+        )
+
+        dispatched_alert = dispatcher.dispatch.call_args.args[0]
+        assert dispatched_alert.resource_type == "elasticache_cluster"
+        assert dispatched_alert.resource_name == "redis-prod"
+        client.chat_postMessage.assert_called_once()
+        reply_text = client.chat_postMessage.call_args.kwargs["text"]
+        assert "*Alert:* ElastiCacheFreeableMemoryLow" in reply_text
+        assert "*Target:* elasticache_cluster/redis-prod" in reply_text
+        assert "*Check:* get_elasticache_cluster_status" in reply_text
+        assert "*State:* healthy" in reply_text
+        assert "*Summary:* elasticache cluster redis-prod is available:" in reply_text
+
     def test_high_confidence_target_group_enrichment_is_appended_to_reply(self) -> None:
         client = MagicMock()
         dispatcher = MagicMock()

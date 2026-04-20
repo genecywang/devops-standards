@@ -132,6 +132,48 @@ def test_format_investigation_reply_keeps_full_metadata_for_actionable_state() -
     assert "*State:*" not in text
 
 
+def test_format_investigation_reply_for_elasticache_success_uses_generic_contract() -> None:
+    text = format_investigation_reply(
+        make_event(
+            source="cloudwatch_alarm",
+            environment="prod-jp",
+            region_code="ap-northeast-1",
+            alert_name="ElastiCacheFreeableMemoryLow",
+            alert_key="cloudwatch_alarm:416885395773:ap-northeast-1:ElastiCacheFreeableMemoryLow",
+            resource_type="elasticache_cluster",
+            resource_name="redis-prod",
+            summary="CloudWatch alarm ALARM: ElastiCacheFreeableMemoryLow",
+            cluster="",
+            namespace="",
+        ),
+        make_response(
+            summary=(
+                "elasticache cluster redis-prod is available: engine=redis, engine_version=7.1, "
+                "nodes=2, node_statuses=available=2, replication_group_id=present"
+            ),
+            actions_attempted=["get_elasticache_cluster_status"],
+            metadata={
+                "health_state": "healthy",
+                "attention_required": False,
+                "resource_exists": True,
+                "primary_reason": "available",
+            },
+        ),
+    )
+
+    assert "*Alert:* ElastiCacheFreeableMemoryLow" in text
+    assert "*Target:* elasticache_cluster/redis-prod" in text
+    assert "*Environment:* prod-jp" in text
+    assert "*Check:* get_elasticache_cluster_status" in text
+    assert "*Result:* success" in text
+    assert "*State:* healthy" in text
+    assert "*Reason:* available" in text
+    assert "*Summary:* elasticache cluster redis-prod is available:" in text
+    assert "*Health:*" not in text
+    assert "*Attention:*" not in text
+    assert "*Exists:*" not in text
+
+
 def test_format_investigation_reply_appends_related_k8s_lines_for_high_confidence_target_group() -> None:
     text = format_investigation_reply(
         make_event(
