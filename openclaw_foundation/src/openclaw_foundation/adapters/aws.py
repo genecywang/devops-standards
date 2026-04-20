@@ -40,6 +40,9 @@ class AwsApiError(AwsError):
 
 class AwsProviderAdapter(Protocol):
     def get_rds_instance_status(self, region_code: str, db_instance_identifier: str) -> dict[str, object]: ...
+    def get_elasticache_cluster_status(
+        self, region_code: str, cache_cluster_id: str
+    ) -> dict[str, object]: ...
     def get_target_group_status(self, region_code: str, target_group_name: str) -> dict[str, object]: ...
     def get_load_balancer_status(self, region_code: str, load_balancer_name: str) -> dict[str, object]: ...
 
@@ -54,6 +57,12 @@ def build_elbv2_client(region_code: str) -> Any:
     if boto3 is None:
         raise AwsConfigError("boto3 dependency is not installed")
     return boto3.client("elbv2", region_name=region_code)
+
+
+def build_elasticache_client(region_code: str) -> Any:
+    if boto3 is None:
+        raise AwsConfigError("boto3 dependency is not installed")
+    return boto3.client("elasticache", region_name=region_code)
 
 
 class FakeAwsProviderAdapter:
@@ -98,6 +107,24 @@ class FakeAwsProviderAdapter:
             },
         }
 
+    def get_elasticache_cluster_status(
+        self,
+        region_code: str,
+        cache_cluster_id: str,
+    ) -> dict[str, object]:
+        return {
+            "cache_cluster_id": cache_cluster_id,
+            "replication_group_id": f"{cache_cluster_id}-rg",
+            "engine": "redis",
+            "engine_version": "7.1",
+            "cache_cluster_status": "available",
+            "num_cache_nodes": 2,
+            "node_statuses": [
+                {"cache_node_id": "0001", "cache_node_status": "available"},
+                {"cache_node_id": "0002", "cache_node_status": "available"},
+            ],
+        }
+
     def get_load_balancer_status(
         self,
         region_code: str,
@@ -121,10 +148,12 @@ class RealAwsProviderAdapter:
         self,
         rds_client_factory=build_rds_client,
         elbv2_client_factory=build_elbv2_client,
+        elasticache_client_factory=build_elasticache_client,
         client_error_cls=ClientError,
     ) -> None:
         self._rds_client_factory = rds_client_factory
         self._elbv2_client_factory = elbv2_client_factory
+        self._elasticache_client_factory = elasticache_client_factory
         self._client_error_cls = client_error_cls
 
     def get_rds_instance_status(
@@ -245,6 +274,51 @@ class RealAwsProviderAdapter:
             **counts,
             "target_ips": target_ips,
             "k8s_controller_tags": controller_tags,
+        }
+
+    def get_elasticache_cluster_status(
+        self,
+        region_code: str,
+        cache_cluster_id: str,
+    ) -> dict[str, object]:
+        try:
+            client = self._elasticache_client_factory(region_code)
+            response = client.describe_cache_clusters(
+                CacheClusterId=cache_cluster_id,
+                ShowCacheNodeInfo=True,
+            )
+        except Exception as error:
+            if self._client_error_cls is not None and isinstance(error, self._client_error_cls):
+                code = str(getattr(error, "response", {}).get("Error", {}).get("Code") or "")
+                if code in {"AccessDenied", "AccessDeniedException", "UnauthorizedOperation"}:
+                    raise AwsAccessDeniedError("aws access denied") from error
+                if code in {"CacheClusterNotFound", "CacheClusterNotFoundFault"}:
+                    raise AwsResourceNotFoundError("elasticache cluster not found") from error
+                raise AwsApiError("failed to describe elasticache cluster") from error
+            if isinstance(error, AwsError):
+                raise
+            raise AwsApiError("failed to describe elasticache cluster") from error
+
+        cache_clusters = response.get("CacheClusters", [])
+        if not cache_clusters:
+            raise AwsResourceNotFoundError("elasticache cluster not found")
+
+        cache_cluster = cache_clusters[0]
+        cache_nodes = cache_cluster.get("CacheNodes", []) or []
+        return {
+            "cache_cluster_id": str(cache_cluster.get("CacheClusterId") or cache_cluster_id),
+            "replication_group_id": str(cache_cluster.get("ReplicationGroupId") or ""),
+            "engine": str(cache_cluster.get("Engine") or "unknown"),
+            "engine_version": str(cache_cluster.get("EngineVersion") or "unknown"),
+            "cache_cluster_status": str(cache_cluster.get("CacheClusterStatus") or "unknown"),
+            "num_cache_nodes": cache_cluster.get("NumCacheNodes") or len(cache_nodes),
+            "node_statuses": [
+                {
+                    "cache_node_id": str(cache_node.get("CacheNodeId") or ""),
+                    "cache_node_status": str(cache_node.get("CacheNodeStatus") or "unknown"),
+                }
+                for cache_node in cache_nodes
+            ],
         }
 
     def get_load_balancer_status(

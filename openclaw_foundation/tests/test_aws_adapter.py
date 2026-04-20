@@ -60,6 +60,28 @@ def test_fake_adapter_returns_bounded_load_balancer_payload() -> None:
     assert result["state"] == "active"
 
 
+def test_fake_adapter_returns_bounded_elasticache_cluster_payload() -> None:
+    adapter = FakeAwsProviderAdapter()
+
+    result = adapter.get_elasticache_cluster_status(
+        region_code="ap-northeast-1",
+        cache_cluster_id="prod-redis",
+    )
+
+    assert result == {
+        "cache_cluster_id": "prod-redis",
+        "replication_group_id": "prod-redis-rg",
+        "engine": "redis",
+        "engine_version": "7.1",
+        "cache_cluster_status": "available",
+        "num_cache_nodes": 2,
+        "node_statuses": [
+            {"cache_node_id": "0001", "cache_node_status": "available"},
+            {"cache_node_id": "0002", "cache_node_status": "available"},
+        ],
+    }
+
+
 def test_real_adapter_maps_rds_instance_payload() -> None:
     client = Mock()
     client.describe_db_instances.return_value = {
@@ -324,6 +346,45 @@ def test_real_adapter_maps_load_balancer_payload() -> None:
     }
 
 
+def test_real_adapter_maps_elasticache_cluster_payload() -> None:
+    elasticache_client = Mock()
+    elasticache_client.describe_cache_clusters.return_value = {
+        "CacheClusters": [
+            {
+                "CacheClusterId": "prod-redis",
+                "ReplicationGroupId": "prod-redis-rg",
+                "Engine": "redis",
+                "EngineVersion": "7.1",
+                "CacheClusterStatus": "available",
+                "NumCacheNodes": 2,
+                "CacheNodes": [
+                    {"CacheNodeId": "0001", "CacheNodeStatus": "available"},
+                    {"CacheNodeId": "0002", "CacheNodeStatus": "available"},
+                ],
+            }
+        ]
+    }
+    adapter = RealAwsProviderAdapter(elasticache_client_factory=Mock(return_value=elasticache_client))
+
+    result = adapter.get_elasticache_cluster_status(
+        region_code="ap-northeast-1",
+        cache_cluster_id="prod-redis",
+    )
+
+    assert result == {
+        "cache_cluster_id": "prod-redis",
+        "replication_group_id": "prod-redis-rg",
+        "engine": "redis",
+        "engine_version": "7.1",
+        "cache_cluster_status": "available",
+        "num_cache_nodes": 2,
+        "node_statuses": [
+            {"cache_node_id": "0001", "cache_node_status": "available"},
+            {"cache_node_id": "0002", "cache_node_status": "available"},
+        ],
+    }
+
+
 def test_real_adapter_maps_missing_rds_instance_to_domain_error() -> None:
     client = Mock()
     client.describe_db_instances.return_value = {"DBInstances": []}
@@ -360,6 +421,18 @@ def test_real_adapter_maps_missing_load_balancer_to_domain_error() -> None:
         )
 
 
+def test_real_adapter_maps_missing_elasticache_cluster_to_domain_error() -> None:
+    client = Mock()
+    client.describe_cache_clusters.return_value = {"CacheClusters": []}
+    adapter = RealAwsProviderAdapter(elasticache_client_factory=Mock(return_value=client))
+
+    with pytest.raises(AwsResourceNotFoundError, match="elasticache cluster not found"):
+        adapter.get_elasticache_cluster_status(
+            region_code="ap-northeast-1",
+            cache_cluster_id="prod-redis",
+        )
+
+
 def test_real_adapter_maps_access_denied_client_error() -> None:
     class FakeClientError(Exception):
         def __init__(self) -> None:
@@ -378,6 +451,48 @@ def test_real_adapter_maps_access_denied_client_error() -> None:
         adapter.get_rds_instance_status(
             region_code="ap-northeast-1",
             db_instance_identifier="shuriken",
+        )
+
+
+def test_real_adapter_maps_elasticache_access_denied_client_error() -> None:
+    class FakeClientError(Exception):
+        def __init__(self) -> None:
+            self.response = {"Error": {"Code": "AccessDeniedException"}}
+
+    adapter = RealAwsProviderAdapter(
+        elasticache_client_factory=Mock(
+            return_value=SimpleNamespace(
+                describe_cache_clusters=Mock(side_effect=FakeClientError())
+            )
+        ),
+        client_error_cls=FakeClientError,
+    )
+
+    with pytest.raises(AwsAccessDeniedError, match="aws access denied"):
+        adapter.get_elasticache_cluster_status(
+            region_code="ap-northeast-1",
+            cache_cluster_id="prod-redis",
+        )
+
+
+def test_real_adapter_maps_elasticache_generic_client_error_to_api_error() -> None:
+    class FakeClientError(Exception):
+        def __init__(self) -> None:
+            self.response = {"Error": {"Code": "ThrottlingException"}}
+
+    adapter = RealAwsProviderAdapter(
+        elasticache_client_factory=Mock(
+            return_value=SimpleNamespace(
+                describe_cache_clusters=Mock(side_effect=FakeClientError())
+            )
+        ),
+        client_error_cls=FakeClientError,
+    )
+
+    with pytest.raises(AwsApiError, match="failed to describe elasticache cluster"):
+        adapter.get_elasticache_cluster_status(
+            region_code="ap-northeast-1",
+            cache_cluster_id="prod-redis",
         )
 
 

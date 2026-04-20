@@ -141,6 +141,77 @@ def test_cloudwatch_rds_alarm_reaches_dispatcher() -> None:
     assert runner.last_request.tool_name == "get_rds_instance_status"
 
 
+def test_cloudwatch_elasticache_alarm_reaches_dispatcher() -> None:
+    payload = {
+        "AlarmName": "p-elasticache-redis-prod_FreeableMemory",
+        "AWSAccountId": "416885395773",
+        "NewStateValue": "ALARM",
+        "StateChangeTime": "2026-04-19T03:04:05.000+0000",
+        "AlarmArn": "arn:aws:cloudwatch:ap-northeast-1:416885395773:alarm:p-elasticache-redis-prod_FreeableMemory",
+        "Trigger": {
+            "Namespace": "AWS/ElastiCache",
+            "MetricName": "FreeableMemory",
+            "Dimensions": [
+                {
+                    "name": "CacheNodeId",
+                    "value": "redis-prod-001",
+                },
+                {
+                    "name": "CacheClusterId",
+                    "value": "redis-prod",
+                },
+            ],
+        },
+    }
+
+    event = normalize_cloudwatch_alarm(payload, environment="prod-jp")
+    pipeline = ControlPipeline(policy=make_policy(), store=InMemoryAlertStateStore())
+    decision = pipeline.evaluate(event)
+    dispatcher, runner = make_dispatcher()
+    response = dispatcher.dispatch(event)
+
+    assert decision.action == ControlAction.INVESTIGATE
+    assert event.resource_type == "elasticache_cluster"
+    assert event.resource_name == "redis-prod"
+    assert response is not None
+    assert runner.last_request.tool_name == "get_elasticache_cluster_status"
+
+
+def test_cloudwatch_elasticache_node_only_alarm_does_not_reach_dispatcher() -> None:
+    payload = {
+        "AlarmName": "p-elasticache-redis-prod-001_FreeableMemory",
+        "AWSAccountId": "416885395773",
+        "NewStateValue": "ALARM",
+        "StateChangeTime": "2026-04-19T03:04:05.000+0000",
+        "AlarmArn": (
+            "arn:aws:cloudwatch:ap-northeast-1:416885395773:"
+            "alarm:p-elasticache-redis-prod-001_FreeableMemory"
+        ),
+        "Trigger": {
+            "Namespace": "AWS/ElastiCache",
+            "MetricName": "FreeableMemory",
+            "Dimensions": [
+                {
+                    "name": "CacheNodeId",
+                    "value": "redis-prod-001",
+                }
+            ],
+        },
+    }
+
+    event = normalize_cloudwatch_alarm(payload, environment="prod-jp")
+    pipeline = ControlPipeline(policy=make_policy(), store=InMemoryAlertStateStore())
+    decision = pipeline.evaluate(event)
+    dispatcher, runner = make_dispatcher()
+    response = dispatcher.dispatch(event)
+
+    assert decision.action == ControlAction.INVESTIGATE
+    assert event.resource_type == "unknown"
+    assert event.resource_name == "unknown"
+    assert response is None
+    assert runner.last_request is None
+
+
 def test_cloudwatch_target_group_alarm_reaches_dispatcher() -> None:
     payload = {
         "AlarmName": "p-alb-prod-api_UnHealthyHostCount",

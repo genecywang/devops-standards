@@ -115,6 +115,35 @@ def test_normalize_maps_elasticache_cluster_dimension() -> None:
     assert event.resource_name == "redis-prod"
 
 
+def test_normalize_maps_elasticache_node_dimension_as_cluster_identity() -> None:
+    payload = make_payload(
+        dimensions=[
+            {"name": "CacheNodeId", "value": "redis-prod-001"},
+            {"name": "CacheClusterId", "value": "redis-prod"},
+        ],
+        namespace="AWS/ElastiCache",
+        metric_name="FreeableMemory",
+    )
+    event = cloudwatch_alarm.normalize(payload, environment="prod-jp")
+
+    assert event.resource_type == "elasticache_cluster"
+    assert event.resource_name == "redis-prod"
+
+
+def test_normalize_does_not_map_cache_node_id_without_cache_cluster_id() -> None:
+    payload = make_payload(
+        alarm_name="p-elasticache-redis-prod-001_FreeableMemory",
+        dimensions=[{"name": "CacheNodeId", "value": "redis-prod-001"}],
+        namespace="AWS/ElastiCache",
+        metric_name="FreeableMemory",
+        reason="Threshold Crossed: only CacheNodeId present",
+    )
+    event = cloudwatch_alarm.normalize(payload, environment="prod-jp")
+
+    assert event.resource_type == "unknown"
+    assert event.resource_name == "unknown"
+
+
 def test_normalize_maps_msk_cluster_dimension() -> None:
     payload = make_payload(
         dimensions=[{"name": "Cluster Name", "value": "h2-server"}],

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from openclaw_foundation.models.enums import ResultState
@@ -15,6 +16,7 @@ from alert_auto_investigator.investigation.dispatcher import (
     OpenClawDispatcher,
 )
 from alert_auto_investigator.models.normalized_alert_event import NormalizedAlertEvent
+from alert_auto_investigator.normalizers import cloudwatch_alarm
 from alert_auto_investigator.service.formatter import format_investigation_reply
 
 _FIXTURE_DIR = Path(__file__).parent / "fixtures"
@@ -24,6 +26,10 @@ _FALLBACK_ENV = "staging-jp"
 
 def _load_fixture(name: str) -> str:
     return (_FIXTURE_DIR / name).read_text(encoding="utf-8")
+
+
+def _load_json_fixture(name: str) -> dict[str, object]:
+    return json.loads(_load_fixture(name))
 
 
 def _parse_fixture(name: str) -> NormalizedAlertEvent:
@@ -177,6 +183,30 @@ def test_golden_parser_pod_oomkilled_replay() -> None:
         event.alert_key
         == "alertmanager:H2S-EKS-DEV-STG-EAST-2:prod:KubernetesContainerOomKiller:prod-h2-server-go-567589445c-n8b9s"
     )
+
+
+def test_golden_cloudwatch_elasticache_alarm_replay_normalizes_and_routes() -> None:
+    payload = _load_json_fixture("cloudwatch_elasticache_alarm.json")
+    event = cloudwatch_alarm.normalize(payload, environment="prod-jp")
+    runner = _RunnerStub()
+    dispatcher = OpenClawDispatcher(
+        runner=runner,
+        config=InvestigationConfig(tool_routing=dict(DEFAULT_TOOL_ROUTING)),
+    )
+
+    assert payload["Trigger"]["Dimensions"] == [
+        {"name": "CacheNodeId", "value": "redis-prod-001"},
+        {"name": "CacheClusterId", "value": "redis-prod"},
+    ]
+    assert event.resource_type == "elasticache_cluster"
+    assert event.resource_name == "redis-prod"
+    assert event.account_id == "416885395773"
+    assert event.region_code == "ap-northeast-1"
+
+    response = dispatcher.dispatch(event)
+
+    assert response is not None
+    assert runner.last_request.tool_name == "get_elasticache_cluster_status"
 
 
 def test_golden_skip_by_design_namespace_replay(caplog) -> None:

@@ -78,8 +78,27 @@ def test_build_registry_registers_expected_tools() -> None:
     assert registry.get("get_job_status").tool_name == "get_job_status"
     assert registry.get("get_cronjob_status").tool_name == "get_cronjob_status"
     assert registry.get("get_rds_instance_status").tool_name == "get_rds_instance_status"
+    assert registry.get("get_elasticache_cluster_status").tool_name == "get_elasticache_cluster_status"
     assert registry.get("get_target_group_status").tool_name == "get_target_group_status"
     assert registry.get("get_load_balancer_status").tool_name == "get_load_balancer_status"
+
+
+def test_build_registry_registers_elasticache_tool_for_real_provider(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(runner_factory, "build_kubernetes_adapter", lambda config: sentinel.kubernetes)
+    monkeypatch.setattr(
+        runner_factory,
+        "RealPrometheusProviderAdapter",
+        lambda base_url: sentinel.prometheus,
+    )
+    monkeypatch.setattr(runner_factory, "RealAwsProviderAdapter", lambda: sentinel.aws)
+
+    registry = runner_factory.build_registry(
+        make_config(provider="real", prometheus_base_url="http://prometheus.monitoring:9090")
+    )
+
+    assert registry.get("get_elasticache_cluster_status").tool_name == "get_elasticache_cluster_status"
 
 
 def test_build_kubernetes_adapter_returns_fake_adapter_for_stub_provider() -> None:
