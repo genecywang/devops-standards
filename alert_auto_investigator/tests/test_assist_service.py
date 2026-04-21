@@ -1,6 +1,14 @@
 from openclaw_foundation.models.enums import ResultState
 from openclaw_foundation.models.responses import CanonicalResponse
 
+from alert_auto_investigator.assist.contracts import (
+    ANALYSIS_RESULT_SUCCESS,
+    AnalysisRequestPayload,
+    AnalysisResponsePayload,
+    AnalysisUsagePayload,
+    AssistInvocationResult,
+)
+from alert_auto_investigator.assist.errors import AnalysisSchemaError
 from alert_auto_investigator.assist.service import ReadonlyAssistService
 from alert_auto_investigator.models.normalized_alert_event import NormalizedAlertEvent
 
@@ -41,13 +49,29 @@ def _make_response() -> CanonicalResponse:
 
 class _BackendStub:
     def __init__(self) -> None:
-        self.calls: list[dict[str, object]] = []
+        self.calls: list[AnalysisRequestPayload] = []
 
-    def generate(self, payload: dict[str, object]) -> dict[str, object]:
+    def generate(self, payload: AnalysisRequestPayload) -> AnalysisResponsePayload:
         self.calls.append(payload)
+        return AnalysisResponsePayload(
+            summary="shadow-mode stub summary",
+            current_interpretation="shadow-mode stub interpretation",
+            recommended_next_step="no action; stub backend only",
+            confidence="low",
+            caveats=["stub backend"],
+            provider="stub",
+            model="stub-v1",
+            prompt_version=payload.prompt_version,
+            output_schema_version=payload.output_schema_version,
+            usage=AnalysisUsagePayload(input_tokens=0, output_tokens=0, latency_ms=0),
+            result_state=ANALYSIS_RESULT_SUCCESS,
+        )
+
+
+class _DictBackendStub:
+    def generate(self, payload: AnalysisRequestPayload) -> dict[str, object]:
         return {
-            "operator_assessment": "shadow-mode stub",
-            "next_steps": [],
+            "summary": "partial response",
             "confidence": "low",
         }
 
@@ -66,11 +90,11 @@ def test_readonly_assist_service_skips_when_mode_is_off() -> None:
     assert backend.calls == []
 
 
-def test_readonly_assist_service_builds_shadow_payload_and_calls_backend() -> None:
+def test_readonly_assist_service_builds_shadow_payload_and_returns_structured_result() -> None:
     backend = _BackendStub()
     service = ReadonlyAssistService(mode="shadow", backend=backend)
 
-    service.after_investigation(
+    result = service.after_investigation(
         _make_event(),
         _make_response(),
         channel="C123",
@@ -79,11 +103,16 @@ def test_readonly_assist_service_builds_shadow_payload_and_calls_backend() -> No
 
     assert len(backend.calls) == 1
     payload = backend.calls[0]
-    assert payload["alert"]["alert_key"] == "alertmanager:test-cluster:monitoring:KubernetesJobFailed:nightly-backfill"
-    assert payload["investigation"]["check"] == "get_job_status"
-    assert payload["investigation"]["metadata"]["primary_reason"] == "BackoffLimitExceeded"
-    assert payload["context"]["channel"] == "C123"
-    assert payload["context"]["thread_ts"] == "111.000"
+    assert isinstance(result, AssistInvocationResult)
+    assert isinstance(result.request, AnalysisRequestPayload)
+    assert isinstance(result.response, AnalysisResponsePayload)
+    assert result.request.alert["alert_key"] == "alertmanager:test-cluster:monitoring:KubernetesJobFailed:nightly-backfill"
+    assert result.request.investigation["check"] == "get_job_status"
+    assert result.request.investigation["metadata"]["primary_reason"] == "BackoffLimitExceeded"
+    assert result.request.context["channel"] == "C123"
+    assert result.request.context["thread_ts"] == "111.000"
+    assert result.response.summary == "shadow-mode stub summary"
+    assert result.response.result_state == ANALYSIS_RESULT_SUCCESS
 
 
 def test_readonly_assist_service_logs_shadow_invocation_and_completion(caplog) -> None:
@@ -101,3 +130,20 @@ def test_readonly_assist_service_logs_shadow_invocation_and_completion(caplog) -
     assert "assist_shadow_invoked alert_key=alertmanager:test-cluster:monitoring:KubernetesJobFailed:nightly-backfill" in caplog.text
     assert "assist_shadow_completed alert_key=alertmanager:test-cluster:monitoring:KubernetesJobFailed:nightly-backfill" in caplog.text
     assert "confidence=low" in caplog.text
+
+
+def test_readonly_assist_service_raises_when_dict_response_missing_required_fields() -> None:
+    backend = _DictBackendStub()
+    service = ReadonlyAssistService(mode="shadow", backend=backend)
+
+    try:
+        service.after_investigation(
+            _make_event(),
+            _make_response(),
+            channel="C123",
+            thread_ts="111.000",
+        )
+    except AnalysisSchemaError as exc:
+        assert "missing required" in str(exc)
+    else:
+        raise AssertionError("AnalysisSchemaError was not raised")

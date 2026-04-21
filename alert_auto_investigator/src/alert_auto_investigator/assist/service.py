@@ -1,8 +1,15 @@
 from __future__ import annotations
 
 import logging
+from dataclasses import fields, is_dataclass
 from typing import Protocol
 
+from alert_auto_investigator.assist.contracts import (
+    AssistInvocationResult,
+    AnalysisRequestPayload,
+    AnalysisResponsePayload,
+)
+from alert_auto_investigator.assist.errors import AnalysisSchemaError
 from alert_auto_investigator.assist.stub_backend import StubReadonlyAssistBackend
 from alert_auto_investigator.config import InvestigatorConfig
 from alert_auto_investigator.models.normalized_alert_event import NormalizedAlertEvent
@@ -11,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 
 class ReadonlyAssistBackend(Protocol):
-    def generate(self, payload: dict[str, object]) -> dict[str, object]: ...
+    def generate(self, payload: AnalysisRequestPayload) -> AnalysisResponsePayload: ...
 
 
 class ReadonlyAssistService:
@@ -26,11 +33,17 @@ class ReadonlyAssistService:
         *,
         channel: str,
         thread_ts: str,
-    ) -> None:
+    ) -> AssistInvocationResult | None:
         if self._mode != "shadow":
             return
 
-        payload = _build_payload(alert, response, channel=channel, thread_ts=thread_ts)
+        payload = _build_payload(
+            alert,
+            response,
+            channel=channel,
+            thread_ts=thread_ts,
+            analysis_mode=self._mode,
+        )
         logger.info(
             "assist_shadow_invoked alert_key=%s resource_type=%s channel=%s thread_ts=%s",
             alert.alert_key,
@@ -38,13 +51,14 @@ class ReadonlyAssistService:
             channel,
             thread_ts,
         )
-        result = self._backend.generate(payload)
+        result = _coerce_response(self._backend.generate(payload))
         logger.info(
             "assist_shadow_completed alert_key=%s resource_type=%s confidence=%s",
             alert.alert_key,
             alert.resource_type,
-            str(result.get("confidence") or "unknown"),
+            result.confidence or "unknown",
         )
+        return AssistInvocationResult(request=payload, response=result)
 
 
 def build_readonly_assist_service(config: InvestigatorConfig) -> ReadonlyAssistService:
@@ -60,12 +74,13 @@ def _build_payload(
     *,
     channel: str,
     thread_ts: str,
-) -> dict[str, object]:
+    analysis_mode: str,
+) -> AnalysisRequestPayload:
     metadata = getattr(response, "metadata", {}) or {}
     actions_attempted = getattr(response, "actions_attempted", []) or []
 
-    return {
-        "alert": {
+    return AnalysisRequestPayload(
+        alert={
             "source": alert.source,
             "alert_name": alert.alert_name,
             "alert_key": alert.alert_key,
@@ -76,14 +91,38 @@ def _build_payload(
             "resource_name": alert.resource_name,
             "summary": alert.summary,
         },
-        "investigation": {
+        investigation={
             "result_state": str(getattr(response, "result_state", "unknown")).lower(),
             "check": actions_attempted[0] if actions_attempted else "none",
             "summary": str(getattr(response, "summary", "")),
             "metadata": metadata,
         },
-        "context": {
+        context={
             "channel": channel,
             "thread_ts": thread_ts,
         },
-    }
+        prompt_version="analysis-v1",
+        output_schema_version="v1",
+        analysis_mode=analysis_mode,
+        max_input_tokens=4000,
+        max_output_tokens=500,
+    )
+
+
+def _coerce_response(result: object) -> AnalysisResponsePayload:
+    if isinstance(result, AnalysisResponsePayload):
+        return result
+    if is_dataclass(result):
+        data = {field.name: getattr(result, field.name) for field in fields(result)}
+        try:
+            return AnalysisResponsePayload(**data)
+        except (TypeError, ValueError) as exc:
+            raise AnalysisSchemaError(str(exc)) from exc
+    if isinstance(result, dict):
+        try:
+            return AnalysisResponsePayload(**result)
+        except (TypeError, ValueError) as exc:
+            raise AnalysisSchemaError("missing required analysis response fields") from exc
+    raise AnalysisSchemaError(
+        f"unsupported analysis response type: {type(result).__name__}"
+    )
