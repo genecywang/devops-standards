@@ -17,6 +17,12 @@ class InvestigatorConfig:
     allowed_channel_ids: list[str] | None = None
     assist_mode: str = "off"
     provider: str = "stub"
+    assist_provider: str = "stub"
+    assist_prompt_version: str = "analysis-v1"
+    assist_output_schema_version: str = "v1"
+    assist_timeout_seconds: float = 10.0
+    assist_max_input_chars: int = 4000
+    assist_max_output_tokens: int = 500
     allowed_clusters: list[str] | None = None
     allowed_namespaces: list[str] | None = None
     prometheus_base_url: str | None = None
@@ -40,6 +46,24 @@ class InvestigatorConfig:
             allowed_channel_ids=_split(os.environ.get("ALERT_INVESTIGATOR_ALLOWED_CHANNEL_IDS", "")),
             assist_mode=os.environ.get("OPENCLAW_READONLY_ASSIST_MODE", "off"),
             provider=os.environ.get("INVESTIGATION_PROVIDER", "stub"),
+            assist_provider=os.environ.get("OPENCLAW_READONLY_ASSIST_PROVIDER", "stub"),
+            assist_prompt_version=os.environ.get(
+                "OPENCLAW_READONLY_ASSIST_PROMPT_VERSION",
+                "analysis-v1",
+            ),
+            assist_output_schema_version=os.environ.get(
+                "OPENCLAW_READONLY_ASSIST_OUTPUT_SCHEMA_VERSION",
+                "v1",
+            ),
+            assist_timeout_seconds=float(
+                os.environ.get("OPENCLAW_READONLY_ASSIST_TIMEOUT_SECONDS", "10")
+            ),
+            assist_max_input_chars=int(
+                os.environ.get("OPENCLAW_READONLY_ASSIST_MAX_INPUT_CHARS", "4000")
+            ),
+            assist_max_output_tokens=int(
+                os.environ.get("OPENCLAW_READONLY_ASSIST_MAX_OUTPUT_TOKENS", "500")
+            ),
             allowed_clusters=_split(os.environ.get("ALLOWED_CLUSTERS", "")),
             allowed_namespaces=_split(os.environ.get("ALLOWED_NAMESPACES", "")),
             prometheus_base_url=os.environ.get("OPENCLAW_PROMETHEUS_BASE_URL"),

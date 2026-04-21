@@ -37,6 +37,18 @@ def make_response(**overrides) -> CanonicalResponse:
     return CanonicalResponse(**defaults)
 
 
+def make_analysis(**overrides) -> dict[str, object]:
+    defaults = dict(
+        summary="no infrastructure-side degradation is visible",
+        current_interpretation="the service appears healthy from current signals",
+        recommended_next_step="check CloudWatch metric trend before escalating",
+        confidence="medium",
+        caveats=["current-state only"],
+    )
+    defaults.update(overrides)
+    return defaults
+
+
 def test_format_investigation_reply_for_success() -> None:
     text = format_investigation_reply(
         make_event(),
@@ -214,3 +226,30 @@ def test_format_investigation_reply_omits_related_k8s_lines_without_high_confide
 
     assert "RelatedK8sNamespace:" not in text
     assert "RelatedK8sService:" not in text
+
+
+def test_format_investigation_reply_appends_ai_analysis_section_when_provided() -> None:
+    text = format_investigation_reply(
+        make_event(),
+        make_response(),
+        analysis=make_analysis(),
+    )
+
+    assert "*AI Analysis*" in text
+    assert "AI-generated" in text
+    assert "verify before acting" in text
+    assert "*Confidence:* medium" in text
+    assert "*AI Summary:* no infrastructure-side degradation is visible" in text
+    assert "*Interpretation:* the service appears healthy from current signals" in text
+    assert "*Next Step:* check CloudWatch metric trend before escalating" in text
+    assert "*Caveats:* current-state only" in text
+
+
+def test_format_investigation_reply_omits_ai_analysis_section_when_incomplete() -> None:
+    text = format_investigation_reply(
+        make_event(),
+        make_response(),
+        analysis={"summary": "missing required fields"},
+    )
+
+    assert "*AI Analysis*" not in text

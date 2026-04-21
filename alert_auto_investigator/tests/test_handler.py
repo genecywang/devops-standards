@@ -10,6 +10,7 @@ Covers:
 
 from pathlib import Path
 from unittest.mock import ANY, MagicMock, call
+from types import SimpleNamespace
 
 from openclaw_foundation.adapters.kubernetes import FakeKubernetesProviderAdapter
 
@@ -197,6 +198,25 @@ def _make_event(
     if thread_ts is not None:
         event["thread_ts"] = thread_ts
     return event
+
+
+def _make_assist_result(
+    *,
+    summary: str = "no infrastructure-side degradation is visible",
+    current_interpretation: str = "the service appears healthy from current signals",
+    recommended_next_step: str = "check CloudWatch metric trend before escalating",
+    confidence: str = "medium",
+    caveats: list[str] | None = None,
+) -> SimpleNamespace:
+    return SimpleNamespace(
+        response=SimpleNamespace(
+            summary=summary,
+            current_interpretation=current_interpretation,
+            recommended_next_step=recommended_next_step,
+            confidence=confidence,
+            caveats=caveats if caveats is not None else ["current-state only"],
+        )
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -787,6 +807,73 @@ class TestHandleMessageRecordAndReply:
         assert client.chat_postMessage.call_count == 1
         assert "assist_shadow_failed alert_key=" in caplog.text
         assert "resource_type=node" in caplog.text
+
+    def test_visible_assist_appends_ai_analysis_section(self) -> None:
+        client = MagicMock()
+        dispatcher = MagicMock()
+        dispatcher.dispatch.return_value = MagicMock(
+            summary="pod worker-pod is healthy",
+            result_state="success",
+            actions_attempted=["get_pod_events"],
+            metadata={
+                "health_state": "healthy",
+                "attention_required": False,
+                "resource_exists": True,
+                "primary_reason": "Running",
+            },
+        )
+        assist_service = MagicMock()
+        assist_service.after_investigation.return_value = _make_assist_result()
+        config = _make_config(assist_mode="visible")
+        pipeline = _make_pipeline(config)
+
+        handle_message(
+            _make_event(attachments=[{"text": _ALERTMANAGER_TEXT}], ts="111.000"),
+            client,
+            config,
+            pipeline,
+            dispatcher,
+            assist_service=assist_service,
+        )
+
+        reply_text = client.chat_postMessage.call_args.kwargs["text"]
+        assert "*Investigation Result*" in reply_text
+        assert "*AI Analysis*" in reply_text
+        assert "AI-generated" in reply_text
+        assert "verify before acting" in reply_text
+        assist_service.after_investigation.assert_called_once()
+
+    def test_visible_assist_failure_keeps_primary_reply(self) -> None:
+        client = MagicMock()
+        dispatcher = MagicMock()
+        dispatcher.dispatch.return_value = MagicMock(
+            summary="pod worker-pod is healthy",
+            result_state="success",
+            actions_attempted=["get_pod_events"],
+            metadata={
+                "health_state": "healthy",
+                "attention_required": False,
+                "resource_exists": True,
+                "primary_reason": "Running",
+            },
+        )
+        assist_service = MagicMock()
+        assist_service.after_investigation.side_effect = RuntimeError("provider boom")
+        config = _make_config(assist_mode="visible")
+        pipeline = _make_pipeline(config)
+
+        handle_message(
+            _make_event(attachments=[{"text": _ALERTMANAGER_TEXT}], ts="111.000"),
+            client,
+            config,
+            pipeline,
+            dispatcher,
+            assist_service=assist_service,
+        )
+
+        reply_text = client.chat_postMessage.call_args.kwargs["text"]
+        assert "*Investigation Result*" in reply_text
+        assert "*AI Analysis*" not in reply_text
 
     def test_dispatch_exception_is_logged_and_does_not_reply(self) -> None:
         client = MagicMock()

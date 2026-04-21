@@ -3,7 +3,11 @@ from __future__ import annotations
 from alert_auto_investigator.models.normalized_alert_event import NormalizedAlertEvent
 
 
-def format_investigation_reply(event: NormalizedAlertEvent, response: object) -> str:
+def format_investigation_reply(
+    event: NormalizedAlertEvent,
+    response: object,
+    analysis: dict[str, object] | None = None,
+) -> str:
     result_state = getattr(response, "result_state", "unknown")
     summary = getattr(response, "summary", str(response))
     actions_attempted = getattr(response, "actions_attempted", [])
@@ -22,6 +26,7 @@ def format_investigation_reply(event: NormalizedAlertEvent, response: object) ->
     lines.extend(_format_metadata_lines(metadata))
     lines.extend(_format_enrichment_lines(enrichment))
     lines.append(f"*Summary:* {summary}")
+    lines.extend(_format_analysis_lines(analysis or {}))
     return "\n".join(lines)
 
 
@@ -91,3 +96,30 @@ def _format_enrichment_lines(enrichment: dict[str, object]) -> list[str]:
         f"RelatedK8sNamespace: {namespace}",
         f"RelatedK8sService: {service_name}",
     ]
+
+
+def _format_analysis_lines(analysis: dict[str, object]) -> list[str]:
+    if not analysis:
+        return []
+
+    summary = str(analysis.get("summary") or "").strip()
+    interpretation = str(analysis.get("current_interpretation") or "").strip()
+    next_step = str(analysis.get("recommended_next_step") or "").strip()
+    confidence = str(analysis.get("confidence") or "").strip()
+    caveats = analysis.get("caveats") or []
+    if not summary or not interpretation or not next_step or not confidence:
+        return []
+    if not isinstance(caveats, list):
+        caveats = []
+
+    lines = [
+        "*AI Analysis*",
+        "AI-generated; verify before acting",
+        f"*Confidence:* {confidence}",
+        f"*AI Summary:* {summary}",
+        f"*Interpretation:* {interpretation}",
+        f"*Next Step:* {next_step}",
+    ]
+    if caveats:
+        lines.append("*Caveats:* " + "; ".join(str(item) for item in caveats))
+    return lines
