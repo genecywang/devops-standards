@@ -37,3 +37,17 @@ def test_ensure_analysis_payload_allowed_blocks_oversized_payload() -> None:
         assert "payload" in str(exc)
     else:
         raise AssertionError("AnalysisRedactionBlockedError was not raised")
+
+
+def test_ensure_analysis_payload_allowed_blocks_non_serializable_payload() -> None:
+    payload = {
+        "alert": {"alert_key": "alert-1"},
+        "investigation": {"summary": object()},
+    }
+
+    try:
+        ensure_analysis_payload_allowed(True, payload, max_input_chars=4000)
+    except AnalysisRedactionBlockedError as exc:
+        assert "payload" in str(exc)
+    else:
+        raise AssertionError("AnalysisRedactionBlockedError was not raised")
