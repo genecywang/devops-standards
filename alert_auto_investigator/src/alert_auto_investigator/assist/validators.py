@@ -15,12 +15,17 @@ def ensure_analysis_payload_allowed(
             "analysis payload blocked: investigation output was not redacted"
         )
 
-    canonical_payload = json.dumps(
-        payload,
-        sort_keys=True,
-        separators=(",", ":"),
-        ensure_ascii=True,
-    )
+    try:
+        canonical_payload = json.dumps(
+            payload,
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=True,
+        )
+    except TypeError as exc:
+        raise AnalysisRedactionBlockedError(
+            "analysis payload blocked: payload contains non-serializable values"
+        ) from exc
     if len(canonical_payload) > max_input_chars:
         raise AnalysisRedactionBlockedError(
             f"analysis payload blocked: payload size {len(canonical_payload)} exceeds "
