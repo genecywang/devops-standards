@@ -9,6 +9,10 @@ from alert_auto_investigator.assist.contracts import (
     AnalysisRequestPayload,
     AnalysisResponsePayload,
 )
+from alert_auto_investigator.assist.anthropic_backend import (
+    AnthropicReadonlyAssistBackend,
+    build_anthropic_client,
+)
 from alert_auto_investigator.assist.errors import AnalysisSchemaError
 from alert_auto_investigator.assist.stub_backend import StubReadonlyAssistBackend
 from alert_auto_investigator.assist.validators import ensure_analysis_payload_allowed
@@ -77,9 +81,18 @@ class ReadonlyAssistService:
 
 
 def build_readonly_assist_service(config: InvestigatorConfig) -> ReadonlyAssistService:
+    if config.assist_provider == "anthropic":
+        backend = AnthropicReadonlyAssistBackend(
+            client=build_anthropic_client(),
+            model=config.assist_model,
+            timeout_seconds=config.assist_timeout_seconds,
+        )
+    else:
+        backend = StubReadonlyAssistBackend()
+
     return ReadonlyAssistService(
         mode=config.assist_mode,
-        backend=StubReadonlyAssistBackend(),
+        backend=backend,
     )
 
 

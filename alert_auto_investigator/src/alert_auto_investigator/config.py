@@ -18,6 +18,7 @@ class InvestigatorConfig:
     assist_mode: str = "off"
     provider: str = "stub"
     assist_provider: str = "stub"
+    assist_model: str = "claude-3-7-sonnet"
     assist_prompt_version: str = "analysis-v1"
     assist_output_schema_version: str = "v1"
     assist_timeout_seconds: float = 10.0
@@ -47,6 +48,7 @@ class InvestigatorConfig:
             assist_mode=os.environ.get("OPENCLAW_READONLY_ASSIST_MODE", "off"),
             provider=os.environ.get("INVESTIGATION_PROVIDER", "stub"),
             assist_provider=os.environ.get("OPENCLAW_READONLY_ASSIST_PROVIDER", "stub"),
+            assist_model=os.environ.get("OPENCLAW_READONLY_ASSIST_MODEL", "claude-3-7-sonnet"),
             assist_prompt_version=os.environ.get(
                 "OPENCLAW_READONLY_ASSIST_PROMPT_VERSION",
                 "analysis-v1",
