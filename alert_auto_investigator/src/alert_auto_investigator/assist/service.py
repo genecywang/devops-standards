@@ -87,8 +87,13 @@ def build_readonly_assist_service(config: InvestigatorConfig) -> ReadonlyAssistS
             model=config.assist_model,
             timeout_seconds=config.assist_timeout_seconds,
         )
-    else:
+    elif config.assist_provider == "stub":
         backend = StubReadonlyAssistBackend()
+    else:
+        raise ValueError(
+            "unsupported assist_provider: "
+            f"{config.assist_provider!r}; expected 'stub' or 'anthropic'"
+        )
 
     return ReadonlyAssistService(
         mode=config.assist_mode,

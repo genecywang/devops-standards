@@ -301,6 +301,29 @@ def test_build_readonly_assist_service_keeps_stub_backend_when_provider_is_stub(
     assert service._backend.__class__.__name__ == "StubReadonlyAssistBackend"
 
 
+def test_build_readonly_assist_service_rejects_unknown_provider() -> None:
+    config = InvestigatorConfig(
+        slack_bot_token="xoxb-test",
+        slack_app_token="xapp-test",
+        region_code="ap-east-1",
+        fallback_environment="dev",
+        owned_environments=["dev"],
+        cooldown_seconds=300,
+        rate_limit_count=10,
+        rate_limit_window_seconds=3600,
+        investigate_allowlist=[],
+        investigate_denylist=[],
+        assist_provider="openai",
+    )
+
+    try:
+        build_readonly_assist_service(config)
+    except ValueError as exc:
+        assert "assist_provider" in str(exc)
+    else:
+        raise AssertionError("ValueError was not raised")
+
+
 def test_from_env_parses_assist_model(monkeypatch) -> None:
     monkeypatch.setenv("SLACK_BOT_TOKEN", "xoxb-test")
     monkeypatch.setenv("SLACK_APP_TOKEN", "xapp-test")
