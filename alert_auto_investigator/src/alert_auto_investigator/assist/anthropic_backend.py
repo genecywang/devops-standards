@@ -88,16 +88,19 @@ def _parse_response_json(message: object) -> dict[str, Any]:
     if not isinstance(content, list) or not content:
         raise AnalysisSchemaError("analysis provider returned empty content")
 
-    first_block = content[0]
-    text = getattr(first_block, "text", None)
-    if text is None and isinstance(first_block, dict):
-        text = first_block.get("text")
+    text_blocks: list[str] = []
+    for block in content:
+        text = getattr(block, "text", None)
+        if text is None and isinstance(block, dict):
+            text = block.get("text")
+        if isinstance(text, str):
+            text_blocks.append(text)
 
-    if not isinstance(text, str):
-        raise AnalysisSchemaError("analysis provider returned non-text content")
+    if not text_blocks:
+        raise AnalysisSchemaError("analysis provider returned no text blocks")
 
     try:
-        parsed = json.loads(text)
+        parsed = json.loads("".join(text_blocks))
     except (TypeError, json.JSONDecodeError) as exc:
         raise AnalysisSchemaError("analysis provider returned invalid JSON") from exc
 

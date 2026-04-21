@@ -122,3 +122,78 @@ def test_generate_maps_invalid_json_to_schema_error() -> None:
 
     with pytest.raises(AnalysisSchemaError):
         backend.generate(_make_request())
+
+
+def test_generate_parses_json_across_multiple_text_blocks() -> None:
+    client = Mock()
+    client.messages.create.return_value = Mock(
+        model="claude-3-7-sonnet",
+        usage=Mock(input_tokens=5, output_tokens=7),
+        content=[
+            Mock(text='{"summary":"healthy",'),
+            Mock(text='"current_interpretation":"no issue visible",'),
+            Mock(text='"recommended_next_step":"check trend","confidence":"medium"}'),
+        ],
+    )
+    backend = AnthropicReadonlyAssistBackend(
+        client=client,
+        model="claude-3-7-sonnet",
+        timeout_seconds=10,
+    )
+
+    result = backend.generate(_make_request())
+
+    assert result.summary == "healthy"
+    assert result.current_interpretation == "no issue visible"
+    assert result.recommended_next_step == "check trend"
+    assert result.confidence == "medium"
+
+
+def test_generate_skips_non_text_block_when_later_text_exists() -> None:
+    client = Mock()
+    client.messages.create.return_value = Mock(
+        model="claude-3-7-sonnet",
+        usage=Mock(input_tokens=5, output_tokens=7),
+        content=[
+            Mock(type="tool_use", input={"ignored": True}, spec_set=["type", "input"]),
+            Mock(
+                text=json.dumps(
+                    {
+                        "summary": "healthy",
+                        "current_interpretation": "no issue visible",
+                        "recommended_next_step": "check trend",
+                        "confidence": "medium",
+                    }
+                )
+            ),
+        ],
+    )
+    backend = AnthropicReadonlyAssistBackend(
+        client=client,
+        model="claude-3-7-sonnet",
+        timeout_seconds=10,
+    )
+
+    result = backend.generate(_make_request())
+
+    assert result.summary == "healthy"
+
+
+def test_generate_raises_schema_error_when_no_text_blocks_exist() -> None:
+    client = Mock()
+    client.messages.create.return_value = Mock(
+        model="claude-3-7-sonnet",
+        usage=Mock(input_tokens=5, output_tokens=7),
+        content=[
+            Mock(type="tool_use", input={"ignored": True}, spec_set=["type", "input"]),
+            {"type": "metadata", "value": "ignored"},
+        ],
+    )
+    backend = AnthropicReadonlyAssistBackend(
+        client=client,
+        model="claude-3-7-sonnet",
+        timeout_seconds=10,
+    )
+
+    with pytest.raises(AnalysisSchemaError, match="text"):
+        backend.generate(_make_request())
