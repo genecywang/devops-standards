@@ -11,6 +11,7 @@ from alert_auto_investigator.assist.contracts import (
 )
 from alert_auto_investigator.assist.errors import AnalysisSchemaError
 from alert_auto_investigator.assist.stub_backend import StubReadonlyAssistBackend
+from alert_auto_investigator.assist.validators import ensure_analysis_payload_allowed
 from alert_auto_investigator.config import InvestigatorConfig
 from alert_auto_investigator.models.normalized_alert_event import NormalizedAlertEvent
 
@@ -43,6 +44,20 @@ class ReadonlyAssistService:
             channel=channel,
             thread_ts=thread_ts,
             analysis_mode=self._mode,
+        )
+        ensure_analysis_payload_allowed(
+            bool(getattr(response, "redaction_applied", False)),
+            {
+                "alert": payload.alert,
+                "investigation": payload.investigation,
+                "context": payload.context,
+                "prompt_version": payload.prompt_version,
+                "output_schema_version": payload.output_schema_version,
+                "analysis_mode": payload.analysis_mode,
+                "max_input_tokens": payload.max_input_tokens,
+                "max_output_tokens": payload.max_output_tokens,
+            },
+            max_input_chars=4000,
         )
         logger.info(
             "assist_shadow_invoked alert_key=%s resource_type=%s channel=%s thread_ts=%s",
