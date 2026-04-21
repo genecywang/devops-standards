@@ -8,7 +8,10 @@ from alert_auto_investigator.assist.contracts import (
     AnalysisUsagePayload,
     AssistInvocationResult,
 )
-from alert_auto_investigator.assist.errors import AnalysisSchemaError
+from alert_auto_investigator.assist.errors import (
+    AnalysisRedactionBlockedError,
+    AnalysisSchemaError,
+)
 from alert_auto_investigator.assist.service import ReadonlyAssistService
 from alert_auto_investigator.models.normalized_alert_event import NormalizedAlertEvent
 
@@ -31,13 +34,17 @@ def _make_event() -> NormalizedAlertEvent:
     )
 
 
-def _make_response() -> CanonicalResponse:
+def _make_response(
+    *,
+    redaction_applied: bool = True,
+    summary: str = "job nightly-backfill failed: reason=BackoffLimitExceeded",
+) -> CanonicalResponse:
     return CanonicalResponse(
         request_id="req-001",
         result_state=ResultState.SUCCESS,
-        summary="job nightly-backfill failed: reason=BackoffLimitExceeded",
+        summary=summary,
         actions_attempted=["get_job_status"],
-        redaction_applied=True,
+        redaction_applied=redaction_applied,
         metadata={
             "health_state": "failed",
             "attention_required": True,
@@ -182,3 +189,37 @@ def test_readonly_assist_service_raises_when_dict_response_missing_required_fiel
         assert "missing required" in str(exc)
     else:
         raise AssertionError("AnalysisSchemaError was not raised")
+
+
+def test_readonly_assist_service_blocks_when_redaction_is_not_applied() -> None:
+    backend = _BackendStub()
+    service = ReadonlyAssistService(mode="shadow", backend=backend)
+
+    try:
+        service.after_investigation(
+            _make_event(),
+            _make_response(redaction_applied=False),
+            channel="C123",
+            thread_ts="111.000",
+        )
+    except AnalysisRedactionBlockedError:
+        assert backend.calls == []
+    else:
+        raise AssertionError("AnalysisRedactionBlockedError was not raised")
+
+
+def test_readonly_assist_service_blocks_when_payload_exceeds_input_ceiling() -> None:
+    backend = _BackendStub()
+    service = ReadonlyAssistService(mode="shadow", backend=backend)
+
+    try:
+        service.after_investigation(
+            _make_event(),
+            _make_response(summary="x" * 4001),
+            channel="C123",
+            thread_ts="111.000",
+        )
+    except AnalysisRedactionBlockedError:
+        assert backend.calls == []
+    else:
+        raise AssertionError("AnalysisRedactionBlockedError was not raised")
