@@ -1,5 +1,6 @@
 from openclaw_foundation.models.enums import ResultState
 from openclaw_foundation.models.responses import CanonicalResponse
+from unittest.mock import Mock
 
 from alert_auto_investigator.assist.contracts import (
     ANALYSIS_RESULT_SUCCESS,
@@ -12,7 +13,8 @@ from alert_auto_investigator.assist.errors import (
     AnalysisRedactionBlockedError,
     AnalysisSchemaError,
 )
-from alert_auto_investigator.assist.service import ReadonlyAssistService
+from alert_auto_investigator.assist.service import ReadonlyAssistService, build_readonly_assist_service
+from alert_auto_investigator.config import InvestigatorConfig
 from alert_auto_investigator.models.normalized_alert_event import NormalizedAlertEvent
 
 
@@ -223,3 +225,90 @@ def test_readonly_assist_service_blocks_when_payload_exceeds_input_ceiling() -> 
         assert backend.calls == []
     else:
         raise AssertionError("AnalysisRedactionBlockedError was not raised")
+
+
+def test_build_readonly_assist_service_uses_anthropic_backend_when_configured(monkeypatch) -> None:
+    sentinel_client = object()
+    sentinel_backend = object()
+    build_client_mock = Mock(return_value=sentinel_client)
+    backend_ctor_calls: list[dict[str, object]] = []
+
+    def _anthropic_backend_ctor(*, client, model: str, timeout_seconds: float):
+        backend_ctor_calls.append(
+            {
+                "client": client,
+                "model": model,
+                "timeout_seconds": timeout_seconds,
+            }
+        )
+        return sentinel_backend
+
+    monkeypatch.setattr(
+        "alert_auto_investigator.assist.service.build_anthropic_client",
+        build_client_mock,
+    )
+    monkeypatch.setattr(
+        "alert_auto_investigator.assist.service.AnthropicReadonlyAssistBackend",
+        _anthropic_backend_ctor,
+    )
+
+    config = InvestigatorConfig(
+        slack_bot_token="xoxb-test",
+        slack_app_token="xapp-test",
+        region_code="ap-east-1",
+        fallback_environment="dev",
+        owned_environments=["dev"],
+        cooldown_seconds=300,
+        rate_limit_count=10,
+        rate_limit_window_seconds=3600,
+        investigate_allowlist=[],
+        investigate_denylist=[],
+        assist_provider="anthropic",
+        assist_model="claude-3-7-sonnet",
+        assist_timeout_seconds=12.5,
+    )
+
+    service = build_readonly_assist_service(config)
+
+    assert service._backend is sentinel_backend
+    build_client_mock.assert_called_once_with()
+    assert backend_ctor_calls == [
+        {
+            "client": sentinel_client,
+            "model": "claude-3-7-sonnet",
+            "timeout_seconds": 12.5,
+        }
+    ]
+
+
+def test_build_readonly_assist_service_keeps_stub_backend_when_provider_is_stub() -> None:
+    config = InvestigatorConfig(
+        slack_bot_token="xoxb-test",
+        slack_app_token="xapp-test",
+        region_code="ap-east-1",
+        fallback_environment="dev",
+        owned_environments=["dev"],
+        cooldown_seconds=300,
+        rate_limit_count=10,
+        rate_limit_window_seconds=3600,
+        investigate_allowlist=[],
+        investigate_denylist=[],
+        assist_provider="stub",
+    )
+
+    service = build_readonly_assist_service(config)
+
+    assert service._backend.__class__.__name__ == "StubReadonlyAssistBackend"
+
+
+def test_from_env_parses_assist_model(monkeypatch) -> None:
+    monkeypatch.setenv("SLACK_BOT_TOKEN", "xoxb-test")
+    monkeypatch.setenv("SLACK_APP_TOKEN", "xapp-test")
+    monkeypatch.setenv("REGION_CODE", "ap-east-1")
+    monkeypatch.setenv("FALLBACK_ENVIRONMENT", "dev")
+    monkeypatch.setenv("OWNED_ENVIRONMENTS", "dev")
+    monkeypatch.setenv("OPENCLAW_READONLY_ASSIST_MODEL", "claude-3-7-sonnet")
+
+    config = InvestigatorConfig.from_env()
+
+    assert config.assist_model == "claude-3-7-sonnet"
