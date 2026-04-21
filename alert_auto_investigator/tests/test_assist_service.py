@@ -90,6 +90,21 @@ def test_readonly_assist_service_skips_when_mode_is_off() -> None:
     assert backend.calls == []
 
 
+def test_readonly_assist_service_skips_when_mode_is_unknown() -> None:
+    backend = _BackendStub()
+    service = ReadonlyAssistService(mode="typo", backend=backend)
+
+    result = service.after_investigation(
+        _make_event(),
+        _make_response(),
+        channel="C123",
+        thread_ts="111.000",
+    )
+
+    assert result is None
+    assert backend.calls == []
+
+
 def test_readonly_assist_service_builds_visible_payload_and_returns_structured_result() -> None:
     backend = _BackendStub()
     service = ReadonlyAssistService(mode="visible", backend=backend)
