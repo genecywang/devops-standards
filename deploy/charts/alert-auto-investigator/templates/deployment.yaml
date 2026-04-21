@@ -40,6 +40,13 @@ spec:
                 secretKeyRef:
                   name: {{ .Values.slack.secretName }}
                   key: {{ .Values.slack.appTokenKey }}
+            {{- if eq .Values.analysis.provider "anthropic" }}
+            - name: ANTHROPIC_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.slack.secretName }}
+                  key: {{ .Values.analysis.apiKeySecretKey }}
+            {{- end }}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
           securityContext:

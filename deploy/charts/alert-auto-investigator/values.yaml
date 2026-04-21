@@ -29,6 +29,7 @@ analysis:
   mode: "off"
   provider: stub
   model: claude-3-7-sonnet
+  apiKeySecretKey: ANTHROPIC_API_KEY
   promptVersion: analysis-v1
   outputSchemaVersion: v1
   timeoutSeconds: "10"

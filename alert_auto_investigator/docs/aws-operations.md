@@ -79,6 +79,10 @@ Verification points:
 - shadow mode produces analysis output but does not change alert handling behavior
 - visible mode only ships after you confirm output size and timeout are within bounds
 
+If `analysis.provider=anthropic`, the existing Slack secret must also include:
+
+- `ANTHROPIC_API_KEY`
+
 Rollback:
 
 - set `analysis.mode=off`
@@ -228,6 +232,39 @@ Notes:
 
 - `allowedNamespaces` with commas should use `--set-string`
 - annotation keys containing `.` should be escaped in Helm CLI
+- if `analysis.provider=anthropic`, the secret referenced by `slack.secretName`
+  must also contain `ANTHROPIC_API_KEY`
+
+### Existing ServiceAccount Mode With Anthropic Shadow Analysis
+
+```bash
+helm upgrade --install alert-auto-investigator deploy/charts/alert-auto-investigator \
+  -n devops \
+  --create-namespace \
+  --set image.repository=ghcr.io/genecywang/alert-auto-investigator \
+  --set image.tag=sha-<IMAGE_TAG> \
+  --set config.provider=real \
+  --set config.regionCode=ap-east-2 \
+  --set config.fallbackEnvironment=dev-tw \
+  --set config.ownedEnvironments=dev-tw \
+  --set config.allowedChannelIds=C03GC29TX8C \
+  --set config.allowedClusters=H2S-EKS-DEV-STG-EAST-2 \
+  --set-string config.allowedNamespaces='dev,monitoring' \
+  --set config.prometheusBaseUrl=http://prometheus-operated.monitoring.svc:9090 \
+  --set slack.secretName=alert-auto-investigator-slack \
+  --set serviceAccount.create=false \
+  --set serviceAccount.name=alert-auto-investigator \
+  --set analysis.mode=shadow \
+  --set analysis.provider=anthropic \
+  --set analysis.model=claude-3-7-sonnet
+```
+
+Anthropic verification:
+
+```bash
+kubectl -n devops exec deploy/alert-auto-investigator -- env | \
+  rg 'ANTHROPIC_API_KEY|OPENCLAW_READONLY_ASSIST'
+```
 
 ---
 
