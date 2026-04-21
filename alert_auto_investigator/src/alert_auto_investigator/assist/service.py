@@ -34,7 +34,7 @@ class ReadonlyAssistService:
         channel: str,
         thread_ts: str,
     ) -> AssistInvocationResult | None:
-        if self._mode != "shadow":
+        if self._mode == "off":
             return
 
         payload = _build_payload(

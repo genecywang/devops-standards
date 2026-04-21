@@ -90,6 +90,26 @@ def test_readonly_assist_service_skips_when_mode_is_off() -> None:
     assert backend.calls == []
 
 
+def test_readonly_assist_service_builds_visible_payload_and_returns_structured_result() -> None:
+    backend = _BackendStub()
+    service = ReadonlyAssistService(mode="visible", backend=backend)
+
+    result = service.after_investigation(
+        _make_event(),
+        _make_response(),
+        channel="C123",
+        thread_ts="111.000",
+    )
+
+    assert len(backend.calls) == 1
+    assert isinstance(result, AssistInvocationResult)
+    assert result.request.analysis_mode == "visible"
+    assert result.request.context["channel"] == "C123"
+    assert result.request.context["thread_ts"] == "111.000"
+    assert result.response.summary == "shadow-mode stub summary"
+    assert result.response.result_state == ANALYSIS_RESULT_SUCCESS
+
+
 def test_readonly_assist_service_builds_shadow_payload_and_returns_structured_result() -> None:
     backend = _BackendStub()
     service = ReadonlyAssistService(mode="shadow", backend=backend)
