@@ -25,6 +25,16 @@ config:
   allowedNamespaces: ""
   prometheusBaseUrl: ""
 
+analysis:
+  mode: "off"
+  provider: stub
+  model: claude-3-7-sonnet
+  promptVersion: analysis-v1
+  outputSchemaVersion: v1
+  timeoutSeconds: "10"
+  maxInputChars: "4000"
+  maxOutputTokens: "500"
+
 slack:
   # Name of the pre-created Kubernetes Secret containing Slack tokens.
   # Must be created externally before helm install.

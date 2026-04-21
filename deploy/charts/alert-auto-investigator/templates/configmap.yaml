@@ -24,3 +24,11 @@ data:
 {{- if .Values.config.prometheusBaseUrl | trim }}
   OPENCLAW_PROMETHEUS_BASE_URL: {{ .Values.config.prometheusBaseUrl | quote }}
 {{- end }}
+  OPENCLAW_READONLY_ASSIST_MODE: {{ .Values.analysis.mode | quote }}
+  OPENCLAW_READONLY_ASSIST_PROVIDER: {{ .Values.analysis.provider | quote }}
+  OPENCLAW_READONLY_ASSIST_MODEL: {{ .Values.analysis.model | quote }}
+  OPENCLAW_READONLY_ASSIST_PROMPT_VERSION: {{ .Values.analysis.promptVersion | quote }}
+  OPENCLAW_READONLY_ASSIST_OUTPUT_SCHEMA_VERSION: {{ .Values.analysis.outputSchemaVersion | quote }}
+  OPENCLAW_READONLY_ASSIST_TIMEOUT_SECONDS: {{ .Values.analysis.timeoutSeconds | quote }}
+  OPENCLAW_READONLY_ASSIST_MAX_INPUT_CHARS: {{ .Values.analysis.maxInputChars | quote }}
+  OPENCLAW_READONLY_ASSIST_MAX_OUTPUT_TOKENS: {{ .Values.analysis.maxOutputTokens | quote }}

@@ -44,6 +44,49 @@ bootstrap environments than long-lived production usage.
 
 ---
 
+## 2.1 Readonly Assist Rollout
+
+The analysis layer MVP should be rolled out in three stages:
+
+1. `off`
+2. `shadow`
+3. `visible`
+
+Recommended progression:
+
+- start with `off` to confirm chart wiring and env injection
+- move to `shadow` to verify analysis output is produced without user-facing impact
+- move to `visible` only after shadow output quality and latency are acceptable
+
+Example values:
+
+```yaml
+analysis:
+  mode: "off"
+  provider: stub
+  model: claude-3-7-sonnet
+  promptVersion: analysis-v1
+  outputSchemaVersion: v1
+  timeoutSeconds: "10"
+  maxInputChars: "4000"
+  maxOutputTokens: "500"
+```
+
+Verification points:
+
+- `helm template` shows all `OPENCLAW_READONLY_ASSIST_*` env vars rendered
+- the pod receives the expected mode and provider via environment variables
+- shadow mode produces analysis output but does not change alert handling behavior
+- visible mode only ships after you confirm output size and timeout are within bounds
+
+Rollback:
+
+- set `analysis.mode=off`
+- keep the rest of the analysis values unchanged so rollback is a single-value toggle
+- re-render and redeploy
+
+---
+
 ## 2. Required AWS Permissions
 
 The current AWS tool surface only needs these read-only actions:
