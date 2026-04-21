@@ -61,6 +61,21 @@ def _metadata_log_fields(response: object) -> tuple[str, bool, bool, str]:
     return health_state, attention_required, resource_exists, primary_reason
 
 
+def _analysis_payload(result: object) -> dict[str, object] | None:
+    response = getattr(result, "response", None)
+    if response is None:
+        return None
+
+    payload: dict[str, object] = {
+        "summary": getattr(response, "summary", ""),
+        "current_interpretation": getattr(response, "current_interpretation", ""),
+        "recommended_next_step": getattr(response, "recommended_next_step", ""),
+        "confidence": getattr(response, "confidence", ""),
+        "caveats": getattr(response, "caveats", []),
+    }
+    return payload
+
+
 def _detect_alerts(
     texts: list[str],
     region_code: str,
@@ -170,10 +185,30 @@ def handle_message(
         # Record only after a successful dispatch to avoid poisoning cooldown
         pipeline.record_investigation(alert)
 
+        analysis_result = None
+        if config.assist_mode == "visible" and assist_service is not None:
+            try:
+                analysis_result = assist_service.after_investigation(
+                    alert,
+                    response,
+                    channel=event["channel"],
+                    thread_ts=reply_ts,
+                )
+            except Exception:
+                logger.exception(
+                    "assist_visible_failed alert_key=%s resource_type=%s",
+                    alert.alert_key,
+                    alert.resource_type,
+                )
+
         client.chat_postMessage(  # type: ignore[union-attr]
             channel=event["channel"],
             thread_ts=reply_ts,
-            text=format_investigation_reply(alert, response),
+            text=format_investigation_reply(
+                alert,
+                response,
+                analysis=_analysis_payload(analysis_result) if analysis_result is not None else None,
+            ),
         )
         health_state, attention_required, resource_exists, primary_reason = _metadata_log_fields(
             response
@@ -190,7 +225,7 @@ def handle_message(
             str(resource_exists).lower(),
             primary_reason,
         )
-        if assist_service is not None:
+        if config.assist_mode != "visible" and assist_service is not None:
             try:
                 assist_service.after_investigation(
                     alert,
