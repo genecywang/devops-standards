@@ -1,5 +1,0 @@
-openclaw-foundation
-slack-bolt>=1.18
-
-[dev]
-pytest>=8.0.0
