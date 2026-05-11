@@ -1,0 +1,35 @@
+# Copy to .codex/config.toml for this standards repo's local Codex defaults.
+# Keep machine-local credentials and secrets out of this file.
+
+sandbox_mode = "workspace-write"
+approval_policy = "on-request"
+web_search = "cached"
+commit_attribution = ""
+
+[sandbox_workspace_write]
+network_access = false
+
+[features]
+multi_agent = true
+codex_hooks = true
+
+[[hooks.SessionStart]]
+matcher = "startup|resume"
+
+[[hooks.SessionStart.hooks]]
+type = "command"
+command = 'bash "$(git rev-parse --show-toplevel)/scripts/check-codex-workflow.sh" --hook'
+timeout = 20
+statusMessage = "Checking Codex workflow setup"
+
+[[skills.config]]
+path = "skills/architecture-review"
+enabled = true
+
+[[skills.config]]
+path = "skills/security-review"
+enabled = true
+
+[[skills.config]]
+path = "skills/operational-risk-review"
+enabled = true

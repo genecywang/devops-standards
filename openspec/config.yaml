@@ -1,0 +1,33 @@
+schema: spec-driven
+
+context: |
+  Repository: devops-standards
+  Repository purpose: source of truth for reusable DevOps / Platform Engineering AI workflow standards, not a consumer project
+  Primary agent: Codex
+  Secondary agent: Claude Code
+  User role: senior DevOps / Platform Engineer
+  Main domains: AWS, Kubernetes, Terraform, Helm, Jenkins, ArgoCD, IAM, Observability, CI/CD, Platform Engineering
+  Preferred workflow: AI-assisted, reviewable, traceable, low-autonomy
+  Default safety posture: local and CI automation allowed; production or shared-state writes require human approval
+  Personal sync model: global AGENTS.md and CLAUDE.md may symlink to templates under this repository; project-local files should be owned by each target repository
+
+rules:
+  proposal:
+    - Include environment level: local, CI, staging, or production.
+    - Include target system: Terraform, Helm, ArgoCD, EKS, Jenkins, RDS, IAM, or other.
+    - Include operational risk, security risk, blast radius, rollback complexity, and observability impact.
+    - State what is explicitly out of scope.
+  specs:
+    - Use SHALL for requirements.
+    - Use Given/When/Then scenarios.
+    - Include negative or rollback scenarios for risky infrastructure changes.
+  design:
+    - Separate workflow, execution, validation, and review responsibilities.
+    - Prefer Terraform over CDK and Helm over raw Kubernetes YAML for deployable workloads.
+    - Include trade-offs for cost, availability, complexity, security, and maintainability.
+    - Include rollback and observability strategy for production or shared systems.
+  tasks:
+    - Break work into reviewable steps.
+    - Include exact validation commands.
+    - Mark approval-required operations explicitly.
+    - Do not include Terraform apply, kubectl write, Helm upgrade, AWS writes, or secret access as agent-autonomous steps.

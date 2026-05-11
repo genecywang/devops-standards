@@ -20,3 +20,7 @@ env/
 
 # Git worktrees
 .worktrees/
+
+# Agent local config
+.codex/config.toml
+.claude/settings.local.json

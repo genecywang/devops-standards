@@ -1,139 +1,102 @@
-# CLAUDE.md（Gene - DevOps / Platform Engineer）
+# CLAUDE.md（devops-standards Repository）
 
-## 語言與排版
+本 repo 是 DevOps / Platform Engineering AI workflow standards 的 source of truth，用來追蹤與分發 Codex / Claude Code 規範、OpenSpec artifacts、conditional skills、workflow playbooks 與 validation scripts。它不是一般 consumer project。
 
-- 一律使用繁體中文回覆（技術術語保留英文原文）
-- 中文與英文 / 數字之間加半形空格
+## 回覆與工作風格
 
----
+- 一律使用繁體中文回覆，技術術語保留英文原文。
+- 中文與英文 / 數字間加半形空格。
+- 以工程判斷為主，不迎合；方案有問題時直接指出並提供替代方案。
 
-## 使用者背景
+## Repository 目標
 
-- 角色：DevOps / Platform Engineer（資深）
-- 技術棧：AWS（EKS、RDS、S3、CloudWatch、IAM、MSK）、Kubernetes（Helm、Karpenter）、CI/CD（Jenkins、ArgoCD）、Observability（Prometheus Stack、Fluent-bit、OpenSearch）、Autoscaling（KEDA）、Python、少量 Go
+- Codex-first，Claude Code-compatible。
+- `templates/codex/AGENTS.global.md` 是個人 global Codex baseline，適合 symlink 到 `~/.codex/AGENTS.md`。
+- `templates/claude/CLAUDE.global.md` 是個人 global Claude Code baseline，適合 symlink 到 `~/.claude/CLAUDE.md`。
+- Root `AGENTS.md` / `CLAUDE.md` 只描述如何維護本 standards repo；不要把它們當成 consumer repo 模板。
+- Consumer repo 若要採用這套規範，應複製或安裝 `templates/`、`skills/`、`workflows/`、`validations/` 中需要的部分，並在該 repo 內 review。
 
----
+## 維護原則
 
-## 技術慣例
+- 調整 agent 行為、workflow、approval gate、validation semantics 時，先更新或建立 `openspec/changes/<change-id>/`。
+- 同步更新 Codex 與 Claude Code 相關模板，避免兩邊規範漂移。
+- 保持 global templates 精簡；詳細流程放 `workflows/`，判斷型 checklist 放 `skills/`，可重跑檢查放 `validations/`。
+- 不要把 machine-local config、secret、credential、personal token、absolute home path 寫入可提交檔案。
+- `.codex/config.toml` 與 `.claude/settings.local.json` 是本機檔案，不進 git。
 
-- IaC：Terraform（非 CDK）
-- K8s 部署：Helm charts
-- CI/CD：Jenkins pipeline（Groovy）、ArgoCD
-- Logging：Fluent-bit → OpenSearch
-- Autoscaling：KEDA（event-driven）、Karpenter（node）
-- Scripting：Python 3.x 為主，Shell 為輔
-- 命名：snake_case（Python）、kebab-case（K8s resources）
+## Personal Sync
 
----
+個人快速同步使用：
 
-## 討論風格
+```zsh
+scripts/sync-personal-ai-config.sh
+```
 
-- 以工程判斷為主，不迎合
-- 方案有問題時直接指出並提供替代方案
-- 不要為了配合使用者而接受技術上較差的方案；若方向有問題，直接反駁並說明理由
-- 可主動提問釐清需求，不要假設
-- 若話題超出我的技術領域，改用白話文搭配生活或工程譬喻引導，不要直接丟術語
+此腳本會建立：
 
----
+- `~/.codex/AGENTS.md -> templates/codex/AGENTS.global.md`
+- `~/.claude/CLAUDE.md -> templates/claude/CLAUDE.global.md`
+- `~/.codex/skills/gene-devops-* -> skills/*`
 
-## 環境判定
+預設不覆蓋既有檔案；需要替換時使用 `--force`，腳本會先產生 `.bak.<timestamp>`。
 
-未提供環境資訊時，先確認再分析，不要預設：
+## OpenSpec Workflow
 
-- 環境層級：local / CI / staging / production
-- 目標系統：Terraform / Helm / ArgoCD / EKS / Jenkins / RDS
+主要流程：
 
-確認是 production 後，再套用成本、風險、multi-AZ、rollback 優先的分析框架。
+```text
+proposal -> specs -> design -> tasks -> implementation -> validation -> review -> archive
+```
 
----
-
-## Debug 思維
-
-排查順序：
-
-1. 現象代表什麼（symptom → signal）
-2. 為什麼發生（root cause hypothesis）— 需標示「推測」或「已確認」
-3. 如何驗證（用什麼指令 / metrics 確認）
-4. 如何修（fix + rollback plan）
-
-**假設與事實分開**：根因判斷若無 logs、metrics、events、plan output 支撐，標示為「推測」，不寫成定論。涉及版本行為或雲服務限制時，優先引用 repo 內版本資訊或官方文件。
-
----
+OpenSpec 負責 intent、requirements、design decisions、tasks。它不授權 agent 執行 production 或 shared-state 寫入。
 
 ## 操作邊界
 
-**可直接執行**（不需確認）：
+可直接執行：
 
-- 唯讀檢查、lint、test、dry-run、產生 patch / diff
-- 本機檔案編輯、格式化、程式碼生成
+- 唯讀檢查、`rg`、讀檔、diff、lint、test、dry-run、format。
+- 本機 workspace 內檔案編輯與程式碼生成。
+- `terraform fmt`、`terraform validate`、`terraform plan`。
+- `helm lint`、`helm template`。
+- Kubernetes manifest static validation，例如 `kubeconform`、`kubectl --dry-run=client`。
 
-**執行前需說明風險與影響範圍**：
+執行前需說明風險與影響範圍，並取得人工 approval：
 
-- Terraform plan 以外的操作（apply / destroy / state mv）
-- kubectl 寫入操作（apply / delete / edit / rollout）
-- AWS production 寫入（IAM 變更、security group、RDS 操作）
-- 權限變更（RBAC / IAM policy）
-- 任何影響 shared / production 狀態的操作
+- `terraform apply`、`terraform destroy`、`terraform import`、`terraform state mv/rm`。
+- `kubectl apply/delete/edit/patch/rollout`。
+- `helm upgrade/install/uninstall/rollback`。
+- AWS 寫入操作，尤其 IAM、RDS、KMS、S3 policy、Security Group、Route53。
+- Production / shared environment deploy、rollback、migration。
+- 權限變更、secret rotation、credential 存取。
 
-**禁止直接執行**：
+禁止直接執行：
 
-- `git push --force`（已在黑名單）
-- `git reset --hard`（未封鎖但高風險，執行前需告知影響）
-- 刪除 production resource
-- 修改或輸出 secret / credential
+- `git push --force`。
+- 刪除 production resource。
+- 修改或輸出 secret / credential。
+- 未經確認的 `git reset --hard`、`git clean -f`、`git branch -D`、`sudo`。
 
-> `bypassPermissions` 僅適用於本機操作效率，不代表略過上述風險確認邏輯。
+macOS 本機刪除優先使用 `trash`，不用 `rm`。
 
----
+## Validation
 
-## 資安原則
+依變更類型執行：
 
-- 遵守 Least Privilege（IAM / RBAC / network policy）
-- 危險指令（`kubectl delete`、`terraform destroy` 等）需標示風險
-- 不得在程式碼或 log 中出現 secret / credential
+| 類型 | 建議驗證 |
+|---|---|
+| Shell scripts | `bash -n scripts/*.sh validations/*.sh tests/*.sh` |
+| Personal sync | `bash tests/sync-personal-ai-config.test.sh` |
+| Workflow setup | `scripts/check-codex-workflow.sh` |
+| Terraform | `validations/terraform.sh` |
+| Helm | `validations/helm.sh` |
+| Kubernetes manifests | `validations/kubernetes.sh` |
+| IAM / policy JSON | `validations/iam.sh` |
+| 多類型變更 | `validations/all.sh` |
 
-## macOS 本機安全慣例
-
-- 建議刪除指令時一律用 `trash`，不用 `rm`
-- 以下指令系統未封鎖，但執行前需明確告知風險再繼續：`git reset --hard`、`git clean -f`、`git branch -D`、`sudo`
-- 驗證本機設定是否完整：
-  1. `alias rm` 是否指向 `trash`
-  2. `~/.claude/settings.json` 的 `permissions.deny` 是否包含 `rm -rf`、`git push --force` 等黑名單
-  3. `cc` function 是否存在於 `~/.zshrc`（`grep 'cc()' ~/.zshrc`）
-- 若任一項缺失，執行 `setup/claude-code-macos.md` 補齊
-
----
-
-## 回答偏好
-
-- 架構問題需考慮 AWS 成本影響
-- 建議方案時列出 trade-off（成本 vs 可用性 vs 複雜度）
-- 排查問題時優先給可驗證的指令，而非純理論解釋
-- 回答以精簡為主，不用重複描述問題、不用總結段落
-- 有需要才展開細節，否則直接給結論
-- 排查問題時，若發現潛在的相關風險，主動提出（不要等我問）
-- 建議方案時，若有更簡單的替代方案，直接說
-
----
+若工具未安裝或 repo 沒有對應檔案，要明確回報「未執行原因」，不可假裝已驗證。
 
 ## Git 慣例
 
-- commit message 不加 `Co-Authored-By` 等協作者資訊
-
----
-
-## 程式碼慣例
-
-- 程式碼需完整可執行，不省略關鍵段落
-- 不加不必要的 try/except 或 print debug
-- Shell script 加上 `set -euo pipefail`
-
----
-
-## 常見情境
-
-- Incident 排查：優先給 kubectl / aws cli 指令，之後才分析原因
-- Cost review：用數字說話，估算 resource 使用量
-- PR / code review：直接指出問題，不用客套
-- 網頁操作 / 無 API 資料擷取：使用 Playwright MCP（見 `setup/playwright-mcp.md`）
-- 其他AI工具會在你完成後審核你的輸出
+- commit message 不加 `Co-Authored-By` 等協作者資訊。
+- 不 revert 使用者或其他工具的既有變更，除非使用者明確要求。
+- Commit 前執行與變更相關的 validation，並回報實際結果。
