@@ -1,6 +1,6 @@
 # Operational Risk Review Prompt
 
-Review the provided OpenSpec artifacts and git diff for operational risk.
+Review the available task requirements, design context, and git diff for operational risk.
 
 Focus on:
 

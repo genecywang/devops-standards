@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-policy_files="$(find . -path './.git' -prune -o -path './openspec/*' -prune -o -name '*.json' -print | sort)"
+policy_files="$(find . -path './.git' -prune -o -path './docs/archive' -prune -o -name '*.json' -print | sort)"
 
 if [ -z "$policy_files" ]; then
   echo "iam: no JSON files found, skipping"

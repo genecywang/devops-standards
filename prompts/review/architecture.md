@@ -1,6 +1,6 @@
 # Architecture Review Prompt
 
-Review the provided OpenSpec artifacts and git diff for architecture risk.
+Review the available task requirements, design context, and git diff for architecture risk.
 
 Focus on:
 

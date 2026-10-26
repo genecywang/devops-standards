@@ -45,7 +45,7 @@ run_sync() {
   local claude_home="$2"
   shift 2
 
-  CODEX_HOME="$codex_home" CLAUDE_HOME="$claude_home" "$script" "$@"
+  CODEX_USER_SKILLS_DIR="$codex_home/../agents/skills" CODEX_HOME="$codex_home" CLAUDE_HOME="$claude_home" "$script" "$@"
 }
 
 make_tmpdir() {
@@ -70,9 +70,9 @@ test_creates_global_instruction_and_skill_links() {
 
   assert_symlink_target "$codex_home/AGENTS.md" "$repo_root/templates/codex/AGENTS.global.md"
   assert_symlink_target "$claude_home/CLAUDE.md" "$repo_root/templates/claude/CLAUDE.global.md"
-  assert_symlink_target "$codex_home/skills/gene-devops-architecture-review" "$repo_root/skills/architecture-review"
-  assert_symlink_target "$codex_home/skills/gene-devops-security-review" "$repo_root/skills/security-review"
-  assert_symlink_target "$codex_home/skills/gene-devops-operational-risk-review" "$repo_root/skills/operational-risk-review"
+  assert_symlink_target "$codex_home/../agents/skills/gene-devops-architecture-review" "$repo_root/skills/architecture-review"
+  assert_symlink_target "$codex_home/../agents/skills/gene-devops-security-review" "$repo_root/skills/security-review"
+  assert_symlink_target "$codex_home/../agents/skills/gene-devops-operational-risk-review" "$repo_root/skills/operational-risk-review"
 }
 
 test_existing_file_is_not_overwritten_without_force() {

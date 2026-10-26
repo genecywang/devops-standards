@@ -1,6 +1,6 @@
 # Security Review Prompt
 
-Review the provided OpenSpec artifacts and git diff for security risk.
+Review the available task requirements, design context, and git diff for security risk.
 
 Focus on:
 

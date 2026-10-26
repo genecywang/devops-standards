@@ -4,7 +4,7 @@
 
 Before implementation, classify:
 
-- Environment: `local`, `CI`, `staging`, `production`, or `shared`.
+- Execution environment and target environment: `local`, `CI`, `staging`, `production`, or `shared`. Local preparation of a production chart does not authorize deployment.
 - Target: `Terraform`, `Helm`, `Kubernetes`, `Jenkins`, `ArgoCD`, `AWS IAM`, `Observability`, `CI/CD`, or `Platform`.
 - Risk: security, blast radius, rollback complexity, cost, availability.
 

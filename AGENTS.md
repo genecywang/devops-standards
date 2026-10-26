@@ -1,6 +1,6 @@
 # AGENTS.md（devops-standards Repository）
 
-本 repo 是 DevOps / Platform Engineering AI workflow standards 的 source of truth，用來追蹤與分發 Codex / Claude Code 規範、OpenSpec artifacts、conditional skills、workflow playbooks 與 validation scripts。它不是一般 consumer project。
+本 repo 是 DevOps / Platform Engineering AI workflow standards 的 source of truth，用來追蹤與分發 Codex / Claude Code 規範、conditional skills、workflow playbooks 與 validation scripts。它不是一般 consumer project。
 
 ## 回覆與工作風格
 
@@ -18,11 +18,19 @@
 
 ## 維護原則
 
-- 調整 agent 行為、workflow、approval gate、validation semantics 時，先更新或建立 `openspec/changes/<change-id>/`。
+- 調整 agent 行為、workflow、approval gate、validation semantics 時，記錄意圖、影響與驗證方式；可使用對話、issue、PR 或必要的設計文件，不強制特定規格工具或文件組。
 - 同步更新 Codex 與 Claude Code 相關模板，避免兩邊規範漂移。
 - 保持 global templates 精簡；詳細流程放 `workflows/`，判斷型 checklist 放 `skills/`，可重跑檢查放 `validations/`。
 - 不要把 machine-local config、secret、credential、personal token、absolute home path 寫入可提交檔案。
 - `.codex/config.toml` 與 `.claude/settings.local.json` 是本機檔案，不進 git。
+
+## 執行與 skills
+
+- 已授權的本機修改、驗證與修正可連續完成，不為一般實作細節重複索取確認。
+- 變更依 `workflows/ai-coding-workflow.md` 分級，規劃與紀錄深度對應風險；歷史資料不作為現行指令。
+- Superpowers 是可選工具箱，不因開始對話載入 `using-superpowers`。Brainstorming 僅用於需求不明或重要設計取捨；TDD、review、驗證依風險與可測行為選用，不強制逐 task approval、重跑已有效的檢查或使用 subagents。
+- 上述是對 skill guidelines 的明確使用者覆寫，不取代平台權限與下列操作邊界。Review readiness 不授權外部寫入。
+- Execution environment 與 artifact 的 target environment 分開記錄；本機準備 production diff 不等於部署。
 
 ## Personal Sync
 
@@ -36,19 +44,15 @@ scripts/sync-personal-ai-config.sh
 
 - `~/.codex/AGENTS.md -> templates/codex/AGENTS.global.md`
 - `~/.claude/CLAUDE.md -> templates/claude/CLAUDE.global.md`
-- `~/.codex/skills/gene-devops-* -> skills/*`
+- `~/.agents/skills/gene-devops-* -> skills/*`
 
-預設不覆蓋既有檔案；需要替換時使用 `--force`，腳本會先產生 `.bak.<timestamp>`。
+預設不覆蓋既有檔案；需要替換時使用 `--force`，腳本會先產生 `.bak.<timestamp>`。Skill 備份放在對應 client 的 `skill-backups/`，不留在預設 skills 掃描目錄。
 
-## OpenSpec Workflow
+## 變更流程
 
-主要流程：
-
-```text
-proposal -> specs -> design -> tasks -> implementation -> validation -> review -> archive
-```
-
-OpenSpec 負責 intent、requirements、design decisions、tasks。它不授權 agent 執行 production 或 shared-state 寫入。
+依任務需要釐清目標與範圍，完成已授權的實作、相關驗證與 review。
+小任務可直接執行；有重要設計或營運風險時，補上必要的決策、影響與 rollback 紀錄。
+不要求固定 proposal/specs/design/tasks 文件組或 archive 步驟。
 
 ## 操作邊界
 
@@ -84,14 +88,16 @@ macOS 本機刪除優先使用 `trash`，不用 `rm`。
 
 | 類型 | 建議驗證 |
 |---|---|
-| Shell scripts | `bash -n scripts/*.sh validations/*.sh tests/*.sh` |
+| Shell scripts | `scripts/check-shell-syntax.sh` |
 | Personal sync | `bash tests/sync-personal-ai-config.test.sh` |
-| Workflow setup | `scripts/check-codex-workflow.sh` |
+| Workflow setup | `python3 -m unittest discover -s tests -p 'test_*.py'`、`scripts/check-codex-workflow.sh` |
 | Terraform | `validations/terraform.sh` |
 | Helm | `validations/helm.sh` |
 | Kubernetes manifests | `validations/kubernetes.sh` |
 | IAM / policy JSON | `validations/iam.sh` |
 | 多類型變更 | `validations/all.sh` |
+
+必要檢查通過後，僅在新變更、失敗或未解疑慮時擴大／重跑驗證。
 
 若工具未安裝或 repo 沒有對應檔案，要明確回報「未執行原因」，不可假裝已驗證。
 

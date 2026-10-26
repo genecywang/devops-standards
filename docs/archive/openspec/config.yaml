@@ -7,7 +7,7 @@ context: |
   Secondary agent: Claude Code
   User role: senior DevOps / Platform Engineer
   Main domains: AWS, Kubernetes, Terraform, Helm, Jenkins, ArgoCD, IAM, Observability, CI/CD, Platform Engineering
-  Preferred workflow: AI-assisted, reviewable, traceable, low-autonomy
+  Preferred workflow: AI-assisted, reviewable, traceable; continue authorized local work with risk-matched planning and verification
   Default safety posture: local and CI automation allowed; production or shared-state writes require human approval
   Personal sync model: global AGENTS.md and CLAUDE.md may symlink to templates under this repository; project-local files should be owned by each target repository
 

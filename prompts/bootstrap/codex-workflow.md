@@ -1,25 +1,28 @@
 # Codex Workflow Bootstrap Prompt
 
-Use this prompt at the start of a new Codex session in this standards repository:
+Use this prompt when checking or setting up this standards repository, not on every new session:
 
 ```text
-請先檢查本 repo 的 Codex workflow bootstrap 狀態。
+Goal
+檢查本 repo 的 Codex workflow setup，回報缺口並完成已授權的初始化。
 
-1. 執行 `scripts/check-codex-workflow.sh`。
-2. 若缺少 `.codex/config.toml`、OpenSpec、必要 skills 或 validation scripts，先回報缺口與影響。
-3. 只有在我明確同意後，才執行 `scripts/bootstrap-codex-workflow.sh`。
-4. 若需要安裝 OpenSpec，使用 `scripts/bootstrap-codex-workflow.sh --install-openspec`，並說明會執行 `npm install -g @fission-ai/openspec@latest`。
-5. 若我要同步個人 global Codex / Claude Code baseline，使用 `scripts/sync-personal-ai-config.sh --dry-run` 先預覽。
-6. 只有在我明確同意後，才執行 `scripts/sync-personal-ai-config.sh` 或 `scripts/sync-personal-ai-config.sh --force`。
-7. 安裝或初始化後，執行 `scripts/check-codex-workflow.sh`、`validations/all.sh`、`bash tests/sync-personal-ai-config.test.sh`，以及可用時的 `openspec validate bootstrap-codex-claude-workflow --strict`。
+Context
+先執行 scripts/check-codex-workflow.sh，參考 README 的 bootstrap 與 personal sync 說明。
+Superpowers 是選用套件，未安裝不代表 setup 失敗。
 
-不要自動執行 Terraform apply、kubectl write、Helm release mutation、AWS write、secret access 或 production / shared-state 操作。
+Constraints / Authorization
+本機唯讀檢查可直接執行。全域套件安裝、personal sync 或替換既有設定，
+須有使用者對該範圍的明確授權；先準備變更與影響，再詢問尚缺的授權。
+已授權的同一操作不重複確認；不自動開啟 permission bypass。
+保留既有 machine-local config，不存取 credentials 或操作 production/shared state。
+
+Deliverable
+列出實際缺口、需要的具體動作與驗證結果。
+需 personal sync 時先使用 --dry-run；--force 僅用於已授權的替換。
+
+Done when
+必要 setup 已完成或未完成原因明確列出。
+初始化後執行 setup check；若改動 scripts 或 sync 行為，執行對應測試。
+Bootstrap 只建立缺少的本機 config 並檢查 setup，不安裝套件。
+Infra validation 依實際變更類型執行，不為普通 session 或 setup 重跑完整測試。
 ```
-
-Expected outcome:
-
-- Missing setup is reported before any installation.
-- OpenSpec installation requires explicit approval.
-- Personal global sync can be previewed with `--dry-run`.
-- Existing global instruction files are not replaced unless `--force` is explicitly requested.
-- The new session can verify readiness with `scripts/check-codex-workflow.sh`.

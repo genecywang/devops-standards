@@ -1,6 +1,6 @@
 ---
 name: architecture-review
-description: Use when changes affect cross-module design, platform abstractions, shared interfaces, long-term maintainability, rollback complexity, or architectural trade-offs.
+description: Use when a change alters cross-module boundaries, shared interfaces, platform abstractions, or complex migration design. Excludes conceptual questions and wording-only edits.
 ---
 
 # Architecture Review
@@ -9,10 +9,11 @@ description: Use when changes affect cross-module design, platform abstractions,
 
 Review whether a proposed or implemented change is maintainable, bounded, reversible, and aligned with the existing platform architecture.
 
+Review only the affected decisions. Read available relevant artifacts; do not require a particular planning tool or document bundle. During design, missing information is an open question to investigate, not a reason to stop all local preparation.
+
 ## Inputs To Read
 
-- Relevant `openspec/changes/<change-id>/proposal.md`, `design.md`, and `tasks.md`.
-- Relevant `openspec/specs/**/spec.md`.
+- Available task requirements, design decisions, issue/PR context, and applicable repository rules.
 - Git diff or changed files.
 - Existing local patterns before proposing new abstractions.
 
@@ -35,8 +36,8 @@ Findings:
 Open questions:
 - question or assumption
 
-Decision:
-- approve | approve with follow-up | block
+Review readiness:
+- ready | needs changes | needs evidence
 ```
 
 Severity:
@@ -45,11 +46,13 @@ Severity:
 - `important`: maintainability, rollback, coupling, or migration risk.
 - `minor`: readability or local consistency issue.
 
-## Hard Stops
+## Readiness and Authorization
 
-Block the change when:
+Report `needs changes` or `needs evidence` before recommending merge or execution when:
 
 - No rollback path exists for production or shared-state changes.
 - A new abstraction hides operational behavior or security boundaries.
-- Design contradicts OpenSpec requirements.
+- Design contradicts the agreed requirements.
 - The change expands blast radius without explicit justification.
+
+State the affected stage and what would resolve each finding. Continue authorized local investigation and corrections. A `ready` review never authorizes a deploy, state mutation, or other gated action; obtain human approval immediately before that action if it has not already been granted for that scope.
