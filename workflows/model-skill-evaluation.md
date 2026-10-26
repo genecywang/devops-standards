@@ -70,6 +70,46 @@ As of 2026-10-26, official guidance lists GPT-6 Astra, GPT-6.1 Sol, and GPT-6 Lu
 
 Do not change the user's active model as a side effect of adopting standards. Do not enable `features.context_management.experimental_mode`: the current official config reference marks it unavailable. Recheck current docs before future configuration changes.
 
+## Subagent Routing
+
+The user requests task-based delegation with cost awareness. Delegate only when a
+bounded independent task justifies the extra context and coordination. Default to
+one subagent; do short or tightly coupled work in the main agent. These are starting
+choices, not measured savings or universal quality guarantees.
+
+| Work | Starting model / effort | Expected output |
+|---|---|---|
+| Narrow file search, document consistency, well-specified low-risk edit | `gpt-6-luna` / `high` | File references, bounded diff, or concise evidence |
+| General implementation, debugging, regression analysis, normal review | `gpt-6.1-sol` / `medium` | Verified result or reproducible findings |
+| Complex review with consequential edge cases | `gpt-6.1-sol` / `high` | Evidence and unresolved risks |
+| Difficult cross-system diagnosis or major architecture tradeoff | `gpt-6-astra` / `low`, increase only as needed | Explicit assumptions, alternatives, and evidence |
+
+Choose capability by the reasoning required, not keywords such as Terraform or IAM.
+A simple IAM inventory can be delegated to Luna; a trust-boundary decision needs
+stronger review. Expensive models do not grant production execution permission.
+Escalate for demonstrated reasoning limits; missing logs, unavailable tools, or a
+failing test require diagnosis rather than automatic model escalation. Never retry
+an unchanged task repeatedly with the same inadequate model.
+
+Specify supported model and effort explicitly when spawning. In the current
+collaboration tool, model overrides require `fork_turns="none"`; send a self-contained
+handoff with goal, relevant paths, constraints, authorization, and expected evidence.
+Do not assume another client exposes that same parameter. If custom-agent settings
+are installed, verify their effective model: those settings can override spawn choices.
+If selection is unavailable, disclose the limitation and handle the task in the main
+agent or use a suitable supported alternative. Do not silently select the most
+expensive fallback. No nested delegation unless separately assigned.
+
+This repository implements routing through instructions, not a hard spending cap.
+It does not install custom agent TOMLs or rewrite the user's model configuration.
+Official Codex also supports custom agents and `[agents]` defaults; use those only
+when a concrete client-level default is needed. Claude follows the same principles
+with its own supported models. Parent-agent integration and necessary checks remain
+required. Report the selected model/task and any escalation; report cost only when
+actual usage data is available.
+
+Reference: [Official subagent configuration and model selection](https://learn.chatgpt.com/docs/agent-configuration/subagents).
+
 ## Adoption and Rollback
 
 Start a new session after updating templates/skills so cached instructions do not confuse evaluation. Existing symlinks expose template updates; the sync script does not rewrite local config. Restore the reviewed prior source version to roll back policy, preserving unrelated changes. Restore any separately approved local skill configuration from its backup.

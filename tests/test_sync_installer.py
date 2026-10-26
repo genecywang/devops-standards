@@ -157,6 +157,61 @@ class InstallerSyncTests(unittest.TestCase):
         (other / "SKILL.md").write_text("---\nname: security-review\n---\nclaude review")
         self.assertEqual(self.check_personal("--claude-only", "--with-installer").returncode, 0)
 
+    def test_global_resources_readable_from_unrelated_cwd(self):
+        self.run_sync("--with-installer")
+        unrelated = self.base / "consumer"
+        unrelated.mkdir()
+        for home in (self.codex, self.claude):
+            for name in ("workflows", "prompts", "validations"):
+                self.assertEqual((home / "standards" / name).resolve(), ROOT / name)
+            self.assertFalse((home / "standards/AGENTS.md").exists())
+            result = subprocess.run(["cat", str(home / "standards/workflows/model-skill-evaluation.md")],
+                                    cwd=unrelated, text=True, capture_output=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn("Subagent Routing", result.stdout)
+        result = subprocess.run(["python3", str(ROOT / "scripts/check-personal-ai-config.py"), "--with-installer"],
+                                cwd=unrelated, env=self.env, text=True, capture_output=True)
+        self.assertEqual(result.returncode, 0, result.stdout)
+
+    def test_global_validation_dispatch_keeps_consumer_cwd(self):
+        self.run_sync("--codex-only")
+        consumer = self.base / "consumer"
+        consumer.mkdir()
+        result = subprocess.run(["bash", str(self.codex / "standards/validations/all.sh")],
+                                cwd=consumer, text=True, capture_output=True)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("terraform: no .tf files found", result.stdout)
+        self.assertIn("iam: no JSON files found", result.stdout)
+        # Poison child proves aggregate dispatch preserves cwd and propagates failure.
+        fixture = self.base / "fixture"
+        fixture.mkdir()
+        (fixture / "all.sh").write_text((ROOT / "validations/all.sh").read_text())
+        (fixture / "terraform.sh").write_text('pwd\nexit 17\n')
+        result = subprocess.run(["bash", str(fixture / "all.sh")], cwd=consumer,
+                                text=True, capture_output=True)
+        self.assertEqual(result.returncode, 17)
+        self.assertIn(str(consumer.resolve()), result.stdout)
+
+    def test_resource_conflict_preflight_and_force_backup(self):
+        target = self.codex / "standards/workflows"
+        target.mkdir(parents=True)
+        (target / "keep.txt").write_text("keep")
+        self.run_sync(expected=1)
+        self.assertFalse((self.codex / "AGENTS.md").exists())
+        self.assertFalse(self.claude.exists())
+        self.run_sync("--force")
+        backups = list(target.parent.glob("workflows.bak.*/keep.txt"))
+        self.assertEqual(len(backups), 1)
+        self.assertEqual(backups[0].read_text(), "keep")
+        self.assertEqual(target.resolve(), ROOT / "workflows")
+
+    def test_checker_detects_broken_resource_link(self):
+        self.run_sync()
+        link = self.codex / "standards/workflows"
+        link.unlink()
+        link.symlink_to(self.base / "missing")
+        self.assertEqual(self.check_personal().returncode, 1)
+
     def test_conflicting_client_flags(self):
         self.run_sync("--codex-only", "--claude-only", expected=2)
         self.assertEqual(list(self.base.iterdir()), [])

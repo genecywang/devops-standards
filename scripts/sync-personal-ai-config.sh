@@ -20,6 +20,7 @@ Synchronizes personal global AI assistant configuration from this repository.
 Default behavior:
   - Link ~/.codex/AGENTS.md to templates/codex/AGENTS.global.md
   - Link ~/.claude/CLAUDE.md to templates/claude/CLAUDE.global.md
+  - Link workflows, prompts, validations under each selected client home/standards/
   - Link namespaced DevOps review skills into ~/.agents/skills/
   - Do not modify config.toml, settings.json, secrets, or credentials
 
@@ -207,11 +208,20 @@ ensure_symlink() {
   log "linked: $destination -> $source"
 }
 
+sync_resources() {
+  local client_home="$1"
+  local resource
+  for resource in workflows prompts validations; do
+    ensure_symlink "$repo_root/$resource" "$client_home/standards/$resource" "global standards $resource"
+  done
+}
+
 sync_codex() {
   ensure_symlink \
     "$repo_root/templates/codex/AGENTS.global.md" \
     "$codex_home/AGENTS.md" \
     "Codex global AGENTS.md"
+  sync_resources "$codex_home"
 }
 
 sync_claude() {
@@ -219,6 +229,7 @@ sync_claude() {
     "$repo_root/templates/claude/CLAUDE.global.md" \
     "$claude_home/CLAUDE.md" \
     "Claude Code global CLAUDE.md"
+  sync_resources "$claude_home"
 }
 
 sync_codex_skills() {

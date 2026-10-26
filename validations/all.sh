@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 scripts=(
-  "validations/terraform.sh"
-  "validations/helm.sh"
-  "validations/kubernetes.sh"
-  "validations/iam.sh"
+  "$script_dir/terraform.sh"
+  "$script_dir/helm.sh"
+  "$script_dir/kubernetes.sh"
+  "$script_dir/iam.sh"
 )
 
 for script in "${scripts[@]}"; do

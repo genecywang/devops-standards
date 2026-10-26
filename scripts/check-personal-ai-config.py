@@ -21,6 +21,7 @@ def main():
     legacy_entries = []
     if not args.claude_only:
         pairs.append((codex / 'AGENTS.md', root / 'templates/codex/AGENTS.global.md'))
+        pairs.extend((codex / 'standards' / name, root / name) for name in ('workflows', 'prompts', 'validations'))
         names = ['architecture-review', 'security-review', 'operational-risk-review']
         if args.with_installer:
             names.append('install-skills')
@@ -32,6 +33,7 @@ def main():
                     legacy_entries.append((skills / alias, skills / f'gene-devops-{name}'))
     if not args.codex_only:
         pairs.append((claude / 'CLAUDE.md', root / 'templates/claude/CLAUDE.global.md'))
+        pairs.extend((claude / 'standards' / name, root / name) for name in ('workflows', 'prompts', 'validations'))
         if args.with_installer:
             pairs.append((claude / 'skills/install-skills', root / 'skills/install-skills'))
     failures = 0

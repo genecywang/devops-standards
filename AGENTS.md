@@ -32,6 +32,8 @@
 - 上述是對 skill guidelines 的明確使用者覆寫，不取代平台權限與下列操作邊界。Review readiness 不授權外部寫入。
 - Execution environment 與 artifact 的 target environment 分開記錄；本機準備 production diff 不等於部署。
 
+- 請依 global baseline 的成本分級委派可獨立且有實際效益的工作；不預設所有 subagents 繼承主模型。Codex 詳見 `workflows/model-skill-evaluation.md` 的 Subagent routing；Claude 使用 client 支援的對應模型，不照抄 Codex IDs。
+
 ## Personal Sync
 
 個人快速同步使用：
@@ -45,6 +47,7 @@ scripts/sync-personal-ai-config.sh
 - `~/.codex/AGENTS.md -> templates/codex/AGENTS.global.md`
 - `~/.claude/CLAUDE.md -> templates/claude/CLAUDE.global.md`
 - `~/.agents/skills/gene-devops-* -> skills/*`
+- `~/.codex/standards/{workflows,prompts,validations}` 與 `~/.claude/standards/{workflows,prompts,validations}` 分別連結至本 repo 對應目錄
 
 預設不覆蓋既有檔案；需要替換時使用 `--force`，腳本會先產生 `.bak.<timestamp>`。Skill 備份放在對應 client 的 `skill-backups/`，不留在預設 skills 掃描目錄。
 

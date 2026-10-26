@@ -38,6 +38,8 @@ This creates symlinks:
 ```text
 ~/.codex/AGENTS.md -> templates/codex/AGENTS.global.md
 ~/.claude/CLAUDE.md -> templates/claude/CLAUDE.global.md
+~/.codex/standards/{workflows,prompts,validations} -> matching repo directories
+~/.claude/standards/{workflows,prompts,validations} -> matching repo directories
 ~/.agents/skills/gene-devops-architecture-review -> skills/architecture-review
 ~/.agents/skills/gene-devops-security-review -> skills/security-review
 ~/.agents/skills/gene-devops-operational-risk-review -> skills/operational-risk-review
@@ -130,6 +132,8 @@ Use the [AI coding workflow](workflows/ai-coding-workflow.md) to distinguish a b
 
 Both global templates organize complex natural-language tasks into goals, context, constraints, deliverables, completion criteria, and applicable environment/authorization without requiring a template path or form.
 
+Both global templates request cost-aware delegation for useful independent work. Codex routes narrow tasks to Luna, general work to Sol, and difficult reasoning to Astra as needed; see [subagent routing](workflows/model-skill-evaluation.md#subagent-routing). This is an instruction policy, not a spending cap or a change to the active main model.
+
 Both global templates explicitly override universal Superpowers loading and disproportionate planning/testing gates. The installed third-party bundle is not edited or uninstalled. Platform instructions still apply; verify the actual behavior in a new session. Existing symlinks expose updated templates and review skills without rerunning sync.
 
 Use [structured task contracts](prompts/task-contracts.md) for outcome-based prompts and [model/skill evaluation](workflows/model-skill-evaluation.md) to compare a minimal baseline, selected skills, and the full bundle. Model and reasoning recommendations are evaluation candidates, not automatic configuration changes or measured performance claims.
@@ -217,3 +221,31 @@ Kubernetes checks select candidate YAML with top-level `apiVersion` or `kind`, e
 archives, dependencies, and Helm chart sources, and require kubeconform for
 schema validation. Helm charts are validated separately with `validations/helm.sh`.
 Kubeconform may fetch schemas; no cluster credentials or kubectl fallback are used.
+
+## Global Resource Access from Other Projects
+
+This repository distributes global instructions **and** on-demand supporting resources.
+Sync creates the selected client's `standards/` directory with links to `workflows/`,
+`prompts/`, and `validations/`, even with `--no-skills`. It does not expose the root
+maintenance instructions as global project rules. Skills retain their existing installation paths.
+
+The global templates explicitly tell agents where to read supporting documents:
+
+```sh
+cat "${CODEX_HOME:-$HOME/.codex}/standards/workflows/model-skill-evaluation.md"
+# Claude: ${CLAUDE_HOME:-$HOME/.claude}/standards/workflows/model-skill-evaluation.md
+```
+
+These paths work independently of the current directory. A new session still needs
+its client to load the global instructions and permit reading the resources; a symlink
+does not bypass a sandbox. Content is loaded on demand, not automatically injected
+in full. Resolve the document’s physical path before following relative links,
+so references such as `../README.md` reach the source checkout rather than a
+nonexistent file under the `standards/` alias. Source checkout edits are immediately visible. After moving the checkout,
+rerun sync from its new location; review `--dry-run` and use `--force` only when needed.
+The personal checker detects missing, broken, or wrong-target resource links.
+
+Existing installations need one sync to create these entries. Existing destination
+conflicts are checked before writes, and `--force` preserves backups. To roll back,
+remove only the three installed resource links and restore any backed-up destinations;
+never recursively delete through a link. Keep target-project instructions authoritative.
