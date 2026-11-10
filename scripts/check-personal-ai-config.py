@@ -26,11 +26,11 @@ def main():
         if args.with_installer:
             names.append('install-skills')
         for name in names:
-            pairs.append((skills / f'gene-devops-{name}', root / 'skills' / name))
+            pairs.append((skills / name, root / 'skills' / name))
             for alias in (name, f'gene-devops-{name}'):
-                legacy_entries.append((codex / 'skills' / alias, skills / f'gene-devops-{name}'))
-                if alias == name:
-                    legacy_entries.append((skills / alias, skills / f'gene-devops-{name}'))
+                legacy_entries.append((codex / 'skills' / alias, skills / name))
+                if alias != name:
+                    legacy_entries.append((skills / alias, skills / name))
     if not args.codex_only:
         pairs.append((claude / 'CLAUDE.md', root / 'templates/claude/CLAUDE.global.md'))
         pairs.extend((claude / 'standards' / name, root / name) for name in ('workflows', 'prompts', 'validations'))

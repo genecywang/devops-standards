@@ -47,6 +47,9 @@
 
 Skills 是按需工具箱，不是每個任務的必經流程。以下是使用者對 skill guidelines 的明確覆寫；不覆寫 system / developer 指令、sandbox 或操作授權邊界。
 
+- Skill 的 `name` 不等於安裝目錄名稱。優先使用本 session skills 清單提供的完整 `SKILL.md` 路徑；若列出 root alias，先依清單展開。不要把其他來源 skill 的名稱直接當作安裝目錄猜測路徑。讀取失敗時，先核對已提供的路徑與連結，不據此斷言 skill 未安裝，也不自動建立同名 alias 或重複安裝。
+- 本 repo 的 Codex 安裝對照（僅作已安裝路徑查核）：`architecture-review`、`security-review`、`operational-risk-review`、可選的 `install-skills` 分別位於 `${CODEX_USER_SKILLS_DIR:-$HOME/.agents/skills}/<name>/SKILL.md`。本 repo 現行安裝目錄與 skill 名稱一致、不加 prefix；清單若提供不同位置，以清單為準並確認檔案存在。
+
 - 不因開始對話或「有 1% 可能相關」而載入 `using-superpowers`；不採用其通用強制入口。
 - `brainstorming`：需求不清、架構取捨或存在重要替代方案時使用；已明確且已授權的任務不新增設計 approval gate。
 - `systematic-debugging`：有實際 bug、test/build/CI failure 或 incident 時使用；以證據驗證假設，深度依風險調整。

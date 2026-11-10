@@ -19,7 +19,7 @@ class InstallerSyncTests(unittest.TestCase):
         self.skills = self.base / "agents/skills"
         self.env = dict(os.environ, CODEX_HOME=str(self.codex),
                         CLAUDE_HOME=str(self.claude), CODEX_USER_SKILLS_DIR=str(self.skills))
-        self.codex_link = self.skills / "gene-devops-install-skills"
+        self.codex_link = self.skills / "install-skills"
         self.claude_link = self.claude / "skills/install-skills"
 
     def run_sync(self, *args, expected=0):
@@ -66,7 +66,7 @@ class InstallerSyncTests(unittest.TestCase):
         self.assertEqual(self.codex_link.read_text(), "existing installer\n")
         self.run_sync("--codex-only", "--with-installer", "--force")
         self.assertEqual(self.codex_link.resolve(), ROOT / "skills/install-skills")
-        backups = list((self.codex / "skill-backups").glob("gene-devops-install-skills.bak.*"))
+        backups = list((self.codex / "skill-backups").glob("install-skills.bak.*"))
         self.assertEqual(len(backups), 1)
         self.assertEqual(backups[0].read_text(), "existing installer\n")
 
@@ -83,7 +83,7 @@ class InstallerSyncTests(unittest.TestCase):
         result = self.check_personal("--with-installer")
         self.assertEqual(result.returncode, 0, result.stdout)
         self.assertEqual(before, sorted(str(p) for p in self.base.rglob("*")))
-        link = self.skills / "gene-devops-security-review"
+        link = self.skills / "security-review"
         link.unlink()
         link.symlink_to(self.base / "missing")
         self.assertEqual(self.check_personal().returncode, 1)
@@ -126,12 +126,12 @@ class InstallerSyncTests(unittest.TestCase):
         self.assertFalse((self.codex / "AGENTS.md").exists())
 
     def test_force_skill_backup_leaves_discovery(self):
-        old = self.skills / "gene-devops-security-review"
+        old = self.skills / "security-review"
         old.mkdir(parents=True)
         (old / "SKILL.md").write_text("---\nname: security-review\n---\nold")
         self.run_sync("--force")
         self.assertFalse(list(self.skills.glob("*.bak.*")))
-        backups = list((self.codex / "skill-backups").glob("gene-devops-security-review.bak.*/SKILL.md"))
+        backups = list((self.codex / "skill-backups").glob("security-review.bak.*/SKILL.md"))
         self.assertEqual(len(backups), 1)
         self.assertEqual(self.check_personal().returncode, 0)
 
@@ -211,6 +211,41 @@ class InstallerSyncTests(unittest.TestCase):
         link.unlink()
         link.symlink_to(self.base / "missing")
         self.assertEqual(self.check_personal().returncode, 1)
+
+    def test_migrate_prefixed_links_in_current_root(self):
+        self.skills.mkdir(parents=True)
+        names = ("architecture-review", "security-review", "operational-risk-review", "install-skills")
+        for name in names:
+            (self.skills / ("gene-devops-" + name)).symlink_to(ROOT / "skills" / name)
+        self.run_sync("--with-installer", "--migrate-legacy-skills", "--dry-run")
+        self.assertFalse((self.skills / "security-review").exists())
+        self.run_sync("--with-installer", "--migrate-legacy-skills")
+        self.run_sync("--with-installer", "--migrate-legacy-skills")
+        for name in names:
+            self.assertEqual((self.skills / name).resolve(), ROOT / "skills" / name)
+            self.assertFalse((self.skills / ("gene-devops-" + name)).is_symlink())
+            self.assertTrue(list((self.codex / "skill-backups").glob("*/gene-devops-" + name)))
+        self.assertEqual(self.check_personal("--with-installer").returncode, 0)
+
+    def test_prefix_migration_refuses_foreign_source_even_with_force(self):
+        self.skills.mkdir(parents=True)
+        old = self.skills / "gene-devops-security-review"
+        old.symlink_to(self.base / "foreign")
+        self.run_sync("--migrate-legacy-skills", "--force", expected=1)
+        self.assertFalse(self.codex.exists())
+        self.assertFalse((self.skills / "security-review").exists())
+        self.assertTrue(old.is_symlink())
+
+    def test_prefix_migration_preserves_destination_conflict(self):
+        self.skills.mkdir(parents=True)
+        old = self.skills / "gene-devops-security-review"
+        old.symlink_to(ROOT / "skills/security-review")
+        target = self.skills / "security-review"
+        target.write_text("someone else")
+        self.run_sync("--migrate-legacy-skills", expected=1)
+        self.assertEqual(target.read_text(), "someone else")
+        self.assertTrue(old.is_symlink())
+        self.assertFalse(self.codex.exists())
 
     def test_conflicting_client_flags(self):
         self.run_sync("--codex-only", "--claude-only", expected=2)

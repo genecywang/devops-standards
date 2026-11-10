@@ -21,23 +21,23 @@ Default behavior:
   - Link ~/.codex/AGENTS.md to templates/codex/AGENTS.global.md
   - Link ~/.claude/CLAUDE.md to templates/claude/CLAUDE.global.md
   - Link workflows, prompts, validations under each selected client home/standards/
-  - Link namespaced DevOps review skills into ~/.agents/skills/
+  - Link DevOps review skills into ~/.agents/skills/
   - Do not modify config.toml, settings.json, secrets, or credentials
 
 Options:
-  --migrate-legacy-skills  Back up owned legacy review links outside skill discovery.
+  --migrate-legacy-skills  Back up owned gene-devops-* links in current/legacy skill directories.
   --force        Back up existing destinations before replacing them.
   --dry-run      Print planned changes without writing files.
   --codex-only   Sync Codex files only.
   --claude-only  Sync Claude Code files only.
-  --with-skills  Sync namespaced Codex skill symlinks. This is the default.
+  --with-skills  Sync Codex skill symlinks. This is the default.
   --no-skills    Do not sync Codex review skill symlinks.
   --with-installer  Also link the optional install-skills entry for selected clients.
   -h, --help     Show this help.
 
 Codex review skills also use CODEX_USER_SKILLS_DIR.
 Optional installer destinations:
-  Codex: ${CODEX_USER_SKILLS_DIR:-$HOME/.agents/skills}/gene-devops-install-skills
+  Codex: ${CODEX_USER_SKILLS_DIR:-$HOME/.agents/skills}/install-skills
   Claude: ${CLAUDE_HOME:-$HOME/.claude}/skills/install-skills
   --no-skills does not disable an explicitly requested --with-installer.
 USAGE
@@ -235,17 +235,17 @@ sync_claude() {
 sync_codex_skills() {
   ensure_symlink \
     "$repo_root/skills/architecture-review" \
-    "$codex_user_skills_dir/gene-devops-architecture-review" \
+    "$codex_user_skills_dir/architecture-review" \
     "Codex architecture review skill"
 
   ensure_symlink \
     "$repo_root/skills/security-review" \
-    "$codex_user_skills_dir/gene-devops-security-review" \
+    "$codex_user_skills_dir/security-review" \
     "Codex security review skill"
 
   ensure_symlink \
     "$repo_root/skills/operational-risk-review" \
-    "$codex_user_skills_dir/gene-devops-operational-risk-review" \
+    "$codex_user_skills_dir/operational-risk-review" \
     "Codex operational risk review skill"
 }
 
@@ -266,7 +266,7 @@ if [ "$SYNC_INSTALLER" -eq 1 ]; then
   if [ "$SYNC_CODEX" -eq 1 ]; then
     ensure_symlink \
       "$repo_root/skills/install-skills" \
-      "$codex_user_skills_dir/gene-devops-install-skills" \
+      "$codex_user_skills_dir/install-skills" \
       "Codex optional install-skills entry"
   fi
   if [ "$SYNC_CLAUDE" -eq 1 ]; then
@@ -279,32 +279,33 @@ fi
 
 }
 
-# Validate the entire write set before creating directories, backups, or links.
-sync_selected
-if [ "$MIGRATE" -eq 1 ]; then
-  [ "$SYNC_CODEX" -eq 1 ] && [ "$SYNC_SKILLS" -eq 1 ] || { echo "migration requires Codex review skills" >&2; exit 2; }
-  for name in architecture-review security-review operational-risk-review; do
-    legacy="$codex_home/skills/gene-devops-$name"
-    if [ -e "$legacy" ] || [ -L "$legacy" ]; then
+migrate_legacy_skills() {
+  local name legacy legacy_root backup_dir
+  local names=(architecture-review security-review operational-risk-review)
+  if [ "$SYNC_INSTALLER" -eq 1 ]; then names+=(install-skills); fi
+  for name in "${names[@]}"; do
+    for legacy_root in "$codex_home/skills" "$codex_user_skills_dir"; do
+      legacy="$legacy_root/gene-devops-$name"
+      if [ ! -e "$legacy" ] && [ ! -L "$legacy" ]; then continue; fi
       [ -L "$legacy" ] && [ "$legacy" -ef "$repo_root/skills/$name" ] || { echo "refusing migration of unowned legacy entry: $legacy" >&2; exit 1; }
-      check_parent "$codex_home/skill-backups/$timestamp/gene-devops-$name"
-    fi
-  done
-fi
-PREFLIGHT=0
-sync_selected
-if [ "$MIGRATE" -eq 1 ]; then
-  for name in architecture-review security-review operational-risk-review; do
-    legacy="$codex_home/skills/gene-devops-$name"
-    destination="$codex_user_skills_dir/gene-devops-$name"
-    if [ -L "$legacy" ] && [ "$(dirname "$legacy")" -ef "$(dirname "$destination")" ]; then continue; fi
-    if [ -L "$legacy" ]; then
       backup_dir="$codex_home/skill-backups/$timestamp"
       while [ -e "$backup_dir/gene-devops-$name" ] || [ -L "$backup_dir/gene-devops-$name" ]; do backup_dir="${backup_dir}.next"; done
+      check_parent "$backup_dir/gene-devops-$name"
+      if [ "$PREFLIGHT" -eq 1 ]; then continue; fi
       run mkdir -p "$backup_dir"
       run mv "$legacy" "$backup_dir/gene-devops-$name"
       log "legacy backup: $backup_dir/gene-devops-$name"
-    fi
+    done
   done
+}
+
+# Validate the entire write set before creating directories, backups, or links.
+if [ "$MIGRATE" -eq 1 ]; then
+  [ "$SYNC_CODEX" -eq 1 ] && [ "$SYNC_SKILLS" -eq 1 ] || { echo "migration requires Codex review skills" >&2; exit 2; }
 fi
+sync_selected
+if [ "$MIGRATE" -eq 1 ]; then migrate_legacy_skills; fi
+PREFLIGHT=0
+sync_selected
+if [ "$MIGRATE" -eq 1 ]; then migrate_legacy_skills; fi
 log "personal AI config sync finished"

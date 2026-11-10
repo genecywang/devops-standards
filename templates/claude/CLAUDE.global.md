@@ -47,6 +47,9 @@
 
 Skills 是按需工具箱，不是每個任務的必經流程。以下是使用者對 skill guidelines 的明確覆寫；不覆寫 system / developer 指令、sandbox 或操作授權邊界。
 
+- Skill 的 `name` 不等於安裝目錄名稱。優先使用本 session skills 清單提供的完整 `SKILL.md` 路徑；若列出 root alias，先依清單展開。不要把其他來源 skill 的名稱直接當作安裝目錄猜測路徑。讀取失敗時，先核對已提供的路徑與連結，不據此斷言 skill 未安裝，也不自動建立同名 alias 或重複安裝。
+- 不把 Codex 的 `~/.agents/skills/` 安裝位置套用到 Claude。此 repo 同步腳本只在指定 `--with-installer` 時建立 Claude 的 `${CLAUDE_HOME:-$HOME/.claude}/skills/install-skills/SKILL.md`；其他 review skills 以 Claude session 實際提供的位置為準，未提供則回報未發現，不猜路徑。
+
 - 不因開始對話或「有 1% 可能相關」而載入 `using-superpowers`；不採用其通用強制入口。
 - `brainstorming`：需求不清、架構取捨或存在重要替代方案時使用；已明確且已授權的任務不新增設計 approval gate。
 - `systematic-debugging`：有實際 bug、test/build/CI failure 或 incident 時使用；以證據驗證假設，深度依風險調整。

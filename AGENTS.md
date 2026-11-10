@@ -46,7 +46,7 @@ scripts/sync-personal-ai-config.sh
 
 - `~/.codex/AGENTS.md -> templates/codex/AGENTS.global.md`
 - `~/.claude/CLAUDE.md -> templates/claude/CLAUDE.global.md`
-- `~/.agents/skills/gene-devops-* -> skills/*`
+- `~/.agents/skills/{architecture-review,security-review,operational-risk-review} -> skills/` 中對應目錄
 - `~/.codex/standards/{workflows,prompts,validations}` 與 `~/.claude/standards/{workflows,prompts,validations}` 分別連結至本 repo 對應目錄
 
 預設不覆蓋既有檔案；需要替換時使用 `--force`，腳本會先產生 `.bak.<timestamp>`。Skill 備份放在對應 client 的 `skill-backups/`，不留在預設 skills 掃描目錄。

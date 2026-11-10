@@ -40,9 +40,9 @@ This creates symlinks:
 ~/.claude/CLAUDE.md -> templates/claude/CLAUDE.global.md
 ~/.codex/standards/{workflows,prompts,validations} -> matching repo directories
 ~/.claude/standards/{workflows,prompts,validations} -> matching repo directories
-~/.agents/skills/gene-devops-architecture-review -> skills/architecture-review
-~/.agents/skills/gene-devops-security-review -> skills/security-review
-~/.agents/skills/gene-devops-operational-risk-review -> skills/operational-risk-review
+~/.agents/skills/architecture-review -> skills/architecture-review
+~/.agents/skills/security-review -> skills/security-review
+~/.agents/skills/operational-risk-review -> skills/operational-risk-review
 ```
 
 The script does not touch `~/.codex/config.toml`, `~/.claude/settings.json`, secrets, credentials, or package managers.
@@ -66,6 +66,30 @@ scripts/sync-personal-ai-config.sh --claude-only
 scripts/sync-personal-ai-config.sh --no-skills
 ```
 
+## Skill Names and Installed Paths
+
+This repo installs Codex skills using their exact names, without a prefix:
+`architecture-review`, `security-review`, `operational-risk-review`, and optional
+`install-skills`. For example, the path is
+`${CODEX_USER_SKILLS_DIR:-$HOME/.agents/skills}/security-review/SKILL.md`.
+Other sources may use different directory names; always prefer the actual path
+provided by the session skill catalog. Claude paths remain client-specific.
+
+Older installs used `gene-devops-*`. Migrate owned links with:
+
+```sh
+scripts/sync-personal-ai-config.sh --codex-only --with-installer --migrate-legacy-skills --dry-run
+scripts/sync-personal-ai-config.sh --codex-only --with-installer --migrate-legacy-skills
+```
+
+This handles prefixed links in both the current and legacy Codex skill directories.
+It creates plain-name links and moves the old links outside discovery into
+`$CODEX_HOME/skill-backups/` (default `~/.codex/skill-backups/`). Existing conflicting
+plain-name destinations stop the operation before writes; foreign or broken legacy
+links are never migrated, even with `--force`. Omit `--with-installer` if that optional
+entry is not wanted; its old link will be left untouched. Restart existing sessions
+to refresh their skill catalog after migration. Superpowers is unchanged.
+
 ## Optional Skill Installer Entry
 
 The shared `skills/install-skills` entry supports Codex and Claude Code. It routes explicit requests to the client's available installer or plugin tools; it does not install a fixed bundle or change models/permissions.
@@ -79,7 +103,7 @@ bash scripts/sync-personal-ai-config.sh --codex-only --no-skills --with-installe
 bash scripts/sync-personal-ai-config.sh --with-installer
 ```
 
-Codex's optional entry is linked at `~/.agents/skills/gene-devops-install-skills`; override this destination with `CODEX_USER_SKILLS_DIR` when needed. Claude's entry is linked at `${CLAUDE_HOME:-$HOME/.claude}/skills/install-skills`. Existing destinations use the same no-overwrite and explicit `--force` backup rules as other sync targets. The optional entry is independent of `--no-skills`, which only skips the existing review-skill sync.
+Codex's optional entry is linked at `~/.agents/skills/install-skills`; override this destination with `CODEX_USER_SKILLS_DIR` when needed. Claude's entry is linked at `${CLAUDE_HOME:-$HOME/.claude}/skills/install-skills`. Existing destinations use the same no-overwrite and explicit `--force` backup rules as other sync targets. The optional entry is independent of `--no-skills`, which only skips the existing review-skill sync.
 
 In Codex, select `install-skills` through `/skills` or use `$install-skills`; in Claude use `/install-skills`. For example: “只盤點目前已安裝的 skills，不安裝或修改設定。” For a specific install, name the client, skill/source, and scope. The built-in Codex `skill-installer`, when available, remains the installation backend; the two skill names serve different roles. Refresh discovery or start a new session if the entry is not visible.
 
